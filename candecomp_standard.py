@@ -17,6 +17,9 @@ def matricize_tensor(input_ten, column_mode):
 
   return input_ten.transpose(modes).reshape(height, width)
 
+def compute_residual(ground_truth, current):
+  return np.linalg.norm(ground_truth - current)
+
 def get_norm_distributed(buf, world):
     val = la.norm(buf) ** 2
     result = np.zeros(1)
@@ -27,6 +30,9 @@ def krp(factor_matrices):
   height = factor_matrices[0].shape[0] * factor_matrices[1].shape[0]
   width = factor_matrices[0].shape[1]
   return np.einsum('ir,jr->ijr', *factor_matrices).reshape(height, width)
+
+def tensor_from_factors(factor_matrices):
+  return np.einsum('ir,jr,kr->ijk', *factor_matrices)
 
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor
@@ -134,7 +140,6 @@ class DistLowRank:
         # Should initialize the singular values more intelligently, but this is fine
         # for now:
         self.singular_values = np.ones(self.rank)
-
         self.materialize_tensor()
         loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
@@ -142,15 +147,27 @@ class DistLowRank:
             print(f"Initial Loss\t Loss: {loss}")
 
         for iter in range(num_iterations):
-            for dim_to_optimize in range(self.dim):
-                optimized_factor = self.optimize_factor(local_ground_truth, dim_to_optimize)
-                self.factors[dim_to_optimize].data = optimized_factor
-                self.materialize_tensor()
+            self.materialize_tensor()
 
-                loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
+            factors = [self.factors[i].data for i in range(self.dim)]
+            residual = compute_residual(local_ground_truth, tensor_from_factors(factors)) 
 
-                if self.grid.rank == 0:
-                    print(f"Iteration {iter}\t Loss: {loss}")
+            print("Residual after iteration {}: {}".format(iter, residual)) 
+
+            self.factors[2].data = la.lstsq(krp([self.factors[0].data, self.factors[1].data]), matricize_tensor(local_ground_truth, 2), rcond=None)[0].T
+            self.factors[1].data = la.lstsq(krp([self.factors[0].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 1), rcond=None)[0].T
+            self.factors[0].data = la.lstsq(krp([self.factors[1].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 0), rcond=None)[0].T
+
+        #for iter in range(num_iterations):
+        #    for dim_to_optimize in range(self.dim):
+        #        optimized_factor = self.optimize_factor(local_ground_truth, dim_to_optimize)
+        #        self.factors[dim_to_optimize].data = optimized_factor
+        #        self.materialize_tensor()
+
+                #loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
+
+                #if self.grid.rank == 0:
+                #    print(f"Iteration {iter}\t Loss: {loss}")
 
 
 def test_reduce_scatter():
@@ -174,7 +191,7 @@ if __name__=='__main__':
     ground_truth.initialize_factors_deterministic(0.1)
     ground_truth.materialize_tensor()
 
-    ten_to_optimize = DistLowRank(grid, [27, 27, 27], 3, None)
+    ten_to_optimize = DistLowRank(grid, [27, 27, 27], 2, None)
     ten_to_optimize.initialize_factors_deterministic(0.05)
 
     #test_reduce_scatter()

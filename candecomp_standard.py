@@ -117,25 +117,27 @@ class DistLowRank:
                          for i in range(len(self.factors)) 
                          if factors_to_gather[i]] 
 
-        # TODO: Leverage scores bugged here, need to put back in 
+        # TODO: Leverage scores computation bugged here, need to put it back in 
 
-        #krp_gram_inv = la.inv(la.multi_dot(gram_matrices))
-        #gathered_matrices = self.allgather_factors(factors_to_gather)
+        gram_prod = gram_matrices[0]
+
+        for i in range(1, len(gram_matrices)):
+            gram_prod = np.multiply(gram_prod, gram_matrices[i])
+
+        krp_gram_inv = la.inv(gram_prod)
+        gathered_matrices = self.allgather_factors(factors_to_gather)
 
         # Compute a local MTTKRP
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
-        #mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
-        #mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
+        mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+        mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
-        #self.grid.slices[mode_to_leave].Reduce_scatter_block([mttkrp_unreduced, MPI.DOUBLE], 
-        #        [mttkrp_reduced, MPI.DOUBLE]) 
+        self.grid.slices[mode_to_leave].Reduce_scatter_block([mttkrp_unreduced, MPI.DOUBLE], 
+                [mttkrp_reduced, MPI.DOUBLE])  
 
-        facs = [self.factors[i].data for i in range(len(self.factors)) if factors_to_gather[i]]
-        res = la.lstsq(krp(facs),  matricized_tensor, rcond=None)[0].T.copy()
-
+        res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
         self.factors[mode_to_leave].data = res
 
-        #return mttkrp_reduced @ krp_gram_inv 
 
     def als_fit(self, local_ground_truth, num_iterations):
         # Should initialize the singular values more intelligently, but this is fine
@@ -145,39 +147,14 @@ class DistLowRank:
         self.materialize_tensor()
         loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
-
-        if self.grid.rank == 0:
-            print(f"Initial Loss: {loss}")
-
         for iter in range(num_iterations):
             self.materialize_tensor()
-
-            #print(la.norm(self.local_materialized - tensor_from_factors(factors)))
-
             loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
             print("Residual after iteration {}: {}".format(iter, loss)) 
 
-
-            #self.factors[2].data = la.lstsq(krp([self.factors[0].data, self.factors[1].data]), matricize_tensor(local_ground_truth, 2), rcond=None)[0].T.copy()
-
             for mode_to_optimize in range(self.dim):
                 self.optimize_factor(local_ground_truth, mode_to_optimize)
-
-            #self.factors[1].data = la.lstsq(krp([self.factors[0].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 1), rcond=None)[0].T.copy()
-            #self.factors[0].data = la.lstsq(krp([self.factors[1].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 0), rcond=None)[0].T.copy()
-
-        #for iter in range(num_iterations):
-        #    for dim_to_optimize in range(self.dim):
-        #        optimized_factor = self.optimize_factor(local_ground_truth, dim_to_optimize)
-        #        self.factors[dim_to_optimize].data = optimized_factor
-        #        self.materialize_tensor()
-
-                #loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
-
-                #if self.grid.rank == 0:
-                #    print(f"Iteration {iter}\t Loss: {loss}")
-
 
 def test_reduce_scatter():
     rank = MPI.COMM_WORLD.Get_rank()

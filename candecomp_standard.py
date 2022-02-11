@@ -1,5 +1,6 @@
 import mpi4py
 import numpy as np
+import numpy.linalg as la
 from grid import Grid
 from mpi4py import MPI
 
@@ -17,7 +18,7 @@ def matricize_tensor(input_ten, column_mode):
   return input_ten.transpose(modes).reshape(height, width)
 
 def get_norm_distributed(buf, world):
-    val = np.linalg.norm(buf) ** 2
+    val = la.norm(buf) ** 2
     result = np.zeros(1)
     world.Allreduce([val, MPI.DOUBLE], [result, MPI.DOUBLE]) 
     return np.sqrt(result)
@@ -57,6 +58,11 @@ class DistMat1D:
         self.data = np.array(range(value_start, value_start + self.local_window_size)).reshape(self.local_rows_padded, self.cols)
         self.data = np.cos(self.data + offset)
 
+    def compute_gram_matrix(self):
+        gram = (self.data.T @ self.data)
+        self.grid.comm.Allreduce(MPI.IN_PLACE, gram)
+        return gram
+
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
     def __init__(self, grid, mode_sizes, rank, singular_values): 
@@ -92,11 +98,21 @@ class DistLowRank:
             factor.initialize_deterministic(offset)
 
     # Computes a distributed MTTKRP of all but one of this 
-    # class's factors with a given dense tensor
-    def MTTKRP(self, local_ten, mode_to_leave):
+    # class's factors with a given dense tensor. Also performs 
+    # gram matrix computation. 
+    def optimize_factor(self, local_ten, mode_to_leave):
         factors_to_gather = [True] * self.dim
         factors_to_gather[mode_to_leave] = False
-        
+
+        # Compute gram matrices of all factors but the one we are currently
+        # optimizing for 
+        gram_matrices = [self.factors[i].compute_gram_matrix()
+                         for i in range(len(self.factors)) 
+                         if factors_to_gather[i]] 
+
+        # Code for sketching based on leverage scores goes here!
+
+        krp_gram_inv = la.inv(la.multi_dot(gram_matrices))
         gathered_matrices = self.allgather_factors(factors_to_gather)
 
         # Compute a local MTTKRP
@@ -107,10 +123,10 @@ class DistLowRank:
         self.grid.slices[mode_to_leave].Reduce_scatter_block([mttkrp_unreduced, MPI.DOUBLE], 
                 [mttkrp_reduced, MPI.DOUBLE]) 
 
-        return mttkrp_reduced 
+        return mttkrp_reduced @ krp_gram_inv 
 
     def als_fit(self, local_ground_truth, num_iterations):
-        mttkrp = self.MTTKRP(local_ground_truth, 0)
+        mttkrp = self.optimize_factor(local_ground_truth, 2)
         result = get_norm_distributed(mttkrp, grid.comm) 
 
         if self.grid.rank == 0:

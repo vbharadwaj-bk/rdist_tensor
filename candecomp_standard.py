@@ -131,9 +131,9 @@ class DistLowRank:
         #        [mttkrp_reduced, MPI.DOUBLE]) 
 
         facs = [self.factors[i].data for i in range(len(self.factors)) if factors_to_gather[i]]
-        res = la.lstsq(krp(facs),  matricized_tensor, rcond=None)[0].T
+        res = la.lstsq(krp(facs),  matricized_tensor, rcond=None)[0].T.copy()
 
-        return res
+        self.factors[mode_to_leave].data = res
 
         #return mttkrp_reduced @ krp_gram_inv 
 
@@ -154,13 +154,18 @@ class DistLowRank:
 
             #print(la.norm(self.local_materialized - tensor_from_factors(factors)))
 
-            residual = compute_residual(local_ground_truth, self.local_materialized) 
+            loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
-            print("Residual after iteration {}: {}".format(iter, residual)) 
+            print("Residual after iteration {}: {}".format(iter, loss)) 
 
-            self.factors[2].data = la.lstsq(krp([self.factors[0].data, self.factors[1].data]), matricize_tensor(local_ground_truth, 2), rcond=None)[0].T.copy()
-            self.factors[1].data = la.lstsq(krp([self.factors[0].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 1), rcond=None)[0].T.copy()
-            self.factors[0].data = la.lstsq(krp([self.factors[1].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 0), rcond=None)[0].T.copy()
+
+            #self.factors[2].data = la.lstsq(krp([self.factors[0].data, self.factors[1].data]), matricize_tensor(local_ground_truth, 2), rcond=None)[0].T.copy()
+
+            for mode_to_optimize in range(self.dim):
+                self.optimize_factor(local_ground_truth, mode_to_optimize)
+
+            #self.factors[1].data = la.lstsq(krp([self.factors[0].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 1), rcond=None)[0].T.copy()
+            #self.factors[0].data = la.lstsq(krp([self.factors[1].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 0), rcond=None)[0].T.copy()
 
         #for iter in range(num_iterations):
         #    for dim_to_optimize in range(self.dim):

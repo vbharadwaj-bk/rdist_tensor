@@ -110,27 +110,48 @@ class DistLowRank:
                          for i in range(len(self.factors)) 
                          if factors_to_gather[i]] 
 
-        # Code for sketching based on leverage scores goes here!
+        # TODO: Leverage scores bugged here, need to put back in 
 
-        krp_gram_inv = la.inv(la.multi_dot(gram_matrices))
-        gathered_matrices = self.allgather_factors(factors_to_gather)
+        #krp_gram_inv = la.inv(la.multi_dot(gram_matrices))
+        #gathered_matrices = self.allgather_factors(factors_to_gather)
 
         # Compute a local MTTKRP
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
-        mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
-        mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
+        #mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+        #mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
-        self.grid.slices[mode_to_leave].Reduce_scatter_block([mttkrp_unreduced, MPI.DOUBLE], 
-                [mttkrp_reduced, MPI.DOUBLE]) 
+        #self.grid.slices[mode_to_leave].Reduce_scatter_block([mttkrp_unreduced, MPI.DOUBLE], 
+        #        [mttkrp_reduced, MPI.DOUBLE]) 
 
-        return mttkrp_reduced @ krp_gram_inv 
+        facs = [self.factors[i].data for i in range(len(self.factors)) if factors_to_gather[i]]
+        res = la.lstsq(krp(facs),  matricized_tensor, rcond=None)[0].T
+
+        return res
+
+        #return mttkrp_reduced @ krp_gram_inv 
 
     def als_fit(self, local_ground_truth, num_iterations):
-        mttkrp = self.optimize_factor(local_ground_truth, 2)
-        result = get_norm_distributed(mttkrp, grid.comm) 
+        # Should initialize the singular values more intelligently, but this is fine
+        # for now:
+        self.singular_values = np.ones(self.rank)
+
+        self.materialize_tensor()
+        loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
         if self.grid.rank == 0:
-            print(result)
+            print(f"Initial Loss\t Loss: {loss}")
+
+        for iter in range(num_iterations):
+            for dim_to_optimize in range(self.dim):
+                optimized_factor = self.optimize_factor(local_ground_truth, dim_to_optimize)
+                self.factors[dim_to_optimize].data = optimized_factor
+                self.materialize_tensor()
+
+                loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
+
+                if self.grid.rank == 0:
+                    print(f"Iteration {iter}\t Loss: {loss}")
+
 
 def test_reduce_scatter():
     rank = MPI.COMM_WORLD.Get_rank()
@@ -149,15 +170,15 @@ if __name__=='__main__':
     # For testing purposes, initialize a cubic grid
     num_procs = MPI.COMM_WORLD.Get_size()
     grid = Grid([int(np.cbrt(num_procs))] * 3)
-    ground_truth = DistLowRank(grid, [27, 27, 27], 1, [1.0])
+    ground_truth = DistLowRank(grid, [27, 27, 27], 5, [1.0, 0.8, 0.6, 0.4, 0.2])
     ground_truth.initialize_factors_deterministic(0.1)
     ground_truth.materialize_tensor()
 
-    ten_to_optimize = DistLowRank(grid, [27, 27, 27], 1, None)
+    ten_to_optimize = DistLowRank(grid, [27, 27, 27], 3, None)
     ten_to_optimize.initialize_factors_deterministic(0.05)
 
     #test_reduce_scatter()
-    ten_to_optimize.als_fit(ground_truth.local_materialized, num_iterations=20)
+    ten_to_optimize.als_fit(ground_truth.local_materialized, num_iterations=5)
 
     #dist_norm = get_norm_distributed(lowRankTensor.local_materialized, grid.comm)
     #dist_norm = get_norm_distributed(lowRankTensor.factors[0].data, grid.comm)

@@ -91,6 +91,7 @@ class DistLowRank:
                 buffer = np.zeros((self.factors[i].local_rows_padded * slice_size, self.rank))
                 self.grid.slices[i].Allgather([self.factors[i].data, MPI.DOUBLE], 
                         [buffer, MPI.DOUBLE])
+                
                 gathered_matrices.append(buffer)
 
         return gathered_matrices
@@ -139,24 +140,27 @@ class DistLowRank:
     def als_fit(self, local_ground_truth, num_iterations):
         # Should initialize the singular values more intelligently, but this is fine
         # for now:
+        print("Starting")
         self.singular_values = np.ones(self.rank)
         self.materialize_tensor()
         loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
+
         if self.grid.rank == 0:
-            print(f"Initial Loss\t Loss: {loss}")
+            print(f"Initial Loss: {loss}")
 
         for iter in range(num_iterations):
             self.materialize_tensor()
 
-            factors = [self.factors[i].data for i in range(self.dim)]
-            residual = compute_residual(local_ground_truth, tensor_from_factors(factors)) 
+            #print(la.norm(self.local_materialized - tensor_from_factors(factors)))
+
+            residual = compute_residual(local_ground_truth, self.local_materialized) 
 
             print("Residual after iteration {}: {}".format(iter, residual)) 
 
-            self.factors[2].data = la.lstsq(krp([self.factors[0].data, self.factors[1].data]), matricize_tensor(local_ground_truth, 2), rcond=None)[0].T
-            self.factors[1].data = la.lstsq(krp([self.factors[0].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 1), rcond=None)[0].T
-            self.factors[0].data = la.lstsq(krp([self.factors[1].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 0), rcond=None)[0].T
+            self.factors[2].data = la.lstsq(krp([self.factors[0].data, self.factors[1].data]), matricize_tensor(local_ground_truth, 2), rcond=None)[0].T.copy()
+            self.factors[1].data = la.lstsq(krp([self.factors[0].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 1), rcond=None)[0].T.copy()
+            self.factors[0].data = la.lstsq(krp([self.factors[1].data, self.factors[2].data]), matricize_tensor(local_ground_truth, 0), rcond=None)[0].T.copy()
 
         #for iter in range(num_iterations):
         #    for dim_to_optimize in range(self.dim):

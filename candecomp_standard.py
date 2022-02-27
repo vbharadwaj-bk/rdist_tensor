@@ -111,9 +111,9 @@ class DistLowRank:
 
                 # Handle the overhang when mode length is not divisible by
                 # the processor count 
-                if grid.coords[i] = self.grid.axesLengths[i] - 1:
-                    truncated_rowct = self.mode_sizes[i] - mode_sbuffer_rowct * self.grid.coords[i]                     
-                    buffer = buffer[:truncated_rowct]
+                truncated_rowct = min(buffer_rowct, self.mode_sizes[i] - buffer_rowct * self.grid.coords[i])
+                truncated_rowct = max(truncated_rowct, 0) 
+                buffer = buffer[:truncated_rowct]
 
                 self.factors[i].local_rows_padded * slice_size 
 
@@ -124,6 +124,8 @@ class DistLowRank:
     def materialize_tensor(self):
         gathered_matrices = self.allgather_factors([True] * self.dim)
         self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
+        print(f'Shape: {self.local_materialized.shape}')
+
 
     def initialize_factors_deterministic(self, offset):
         for factor in self.factors:
@@ -156,9 +158,16 @@ class DistLowRank:
         # Compute a local MTTKRP
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
         mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+
+        # Padding before the reduce-scatter
+        padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
+
+        reduce_scatter_buffer = np.zeros((padded_rowct, self.rank))
+        reduce_scatter_buffer[:len(mttkrp_unreduced)] = mttkrp_unreduced
+
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
-        self.grid.slices[mode_to_leave].Reduce_scatter_block([mttkrp_unreduced, MPI.DOUBLE], 
+        self.grid.slices[mode_to_leave].Reduce_scatter_block([reduce_scatter_buffer, MPI.DOUBLE], 
                 [mttkrp_reduced, MPI.DOUBLE])  
 
         res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
@@ -200,11 +209,11 @@ if __name__=='__main__':
     # For testing purposes, initialize a cubic grid
     num_procs = MPI.COMM_WORLD.Get_size()
     grid = Grid([int(np.cbrt(num_procs))] * 3)
-    ground_truth = DistLowRank(grid, [27, 27, 27], 5, [1.0, 0.8, 0.6, 0.4, 0.2])
+    ground_truth = DistLowRank(grid, [28] * 3, 5, [1.0, 0.8, 0.6, 0.4, 0.2])
     ground_truth.initialize_factors_deterministic(0.1)
     ground_truth.materialize_tensor()
 
-    ten_to_optimize = DistLowRank(grid, [27, 27, 27], 2, None)
+    ten_to_optimize = DistLowRank(grid, [28] * 3, 2, None)
     ten_to_optimize.initialize_factors_deterministic(0.05)
 
     #test_reduce_scatter()

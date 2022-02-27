@@ -40,12 +40,11 @@ def tensor_from_factors(factor_matrices):
 # the third parameter 
 class DistMat1D:
     def __init__(self, rows, cols, grid, slice_dim):
+        self.rows = rows 
         self.padded_rows = round_to_nearest(rows, grid.world_size)
         self.cols = cols
         self.local_rows_padded = self.padded_rows // grid.world_size
         self.local_window_size = self.local_rows_padded * self.cols
-
-        # Should add in some explicit zero-padding logic 
 
         self.grid = grid
 
@@ -65,7 +64,10 @@ class DistMat1D:
         self.data = np.cos(self.data + offset)
 
     def compute_gram_matrix(self):
-        self.gram = (self.data.T @ self.data)
+        rowct = min(self.rows - self.row_position, self.local_rows_padded)
+        data_trunc = self.data[:rowct]
+
+        self.gram = (data_trunc.T @ data_trunc)
         self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram) 
 
     def compute_leverage_scores(reduced_gram_prod):
@@ -82,7 +84,6 @@ class DistMat1D:
         leverage_weight = np.array(np.sum(leverage_scores))
         grid.comm.Allreduce(MPI.IN_PLACE, leverage_weight)
         self.leverage_scores /= leverage_weight
-
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
@@ -103,10 +104,19 @@ class DistLowRank:
         for i in range(self.dim):
             if which_factors[i]:
                 slice_size = self.grid.slices[i].Get_size()
-                buffer = np.zeros((self.factors[i].local_rows_padded * slice_size, self.rank))
+                buffer_rowct = self.factors[i].local_rows_padded * slice_size
+                buffer = np.zeros((buffer_rowct, self.rank))
                 self.grid.slices[i].Allgather([self.factors[i].data, MPI.DOUBLE], 
                         [buffer, MPI.DOUBLE])
-                
+
+                # Handle the overhang when mode length is not divisible by
+                # the processor count 
+                if grid.coords[i] = self.grid.axesLengths[i] - 1:
+                    truncated_rowct = self.mode_sizes[i] - mode_sbuffer_rowct * self.grid.coords[i]                     
+                    buffer = buffer[:truncated_rowct]
+
+                self.factors[i].local_rows_padded * slice_size 
+
                 gathered_matrices.append(buffer)
 
         return gathered_matrices

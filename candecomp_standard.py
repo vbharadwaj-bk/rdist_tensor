@@ -65,9 +65,24 @@ class DistMat1D:
         self.data = np.cos(self.data + offset)
 
     def compute_gram_matrix(self):
-        gram = (self.data.T @ self.data)
-        self.grid.comm.Allreduce(MPI.IN_PLACE, gram)
-        return gram
+        self.gram = (self.data.T @ self.data)
+        self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram) 
+
+    def compute_leverage_scores(reduced_gram_prod):
+        gram_inv = la.inv(reduced_gram_prod)
+
+        # TODO: This function can be made more efficient using
+        # BLAS calls!
+
+        self.leverage_scores = np.zeros(len(self.data))
+        for i in range(len(self.data)):
+            row = self.data[[i]]
+            self.leverage_scores[i] = row @ gram_inv @ row.T 
+
+        leverage_weight = np.array(np.sum(leverage_scores))
+        grid.comm.Allreduce(MPI.IN_PLACE, leverage_weight)
+        self.leverage_scores /= leverage_weight
+
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
@@ -107,22 +122,23 @@ class DistLowRank:
     # Computes a distributed MTTKRP of all but one of this 
     # class's factors with a given dense tensor. Also performs 
     # gram matrix computation. 
-    def optimize_factor(self, local_ten, mode_to_leave):
+    def optimize_factor(self, local_ten, mode_to_leave, sketching=False):
         factors_to_gather = [True] * self.dim
         factors_to_gather[mode_to_leave] = False
 
+        selected_factors = [self.factors[i] for i in range(len(self.factors)) 
+                            if factors_to_gather[i]] 
+
         # Compute gram matrices of all factors but the one we are currently
         # optimizing for 
-        gram_matrices = [self.factors[i].compute_gram_matrix()
-                         for i in range(len(self.factors)) 
-                         if factors_to_gather[i]] 
 
-        # TODO: Leverage scores computation bugged here, need to put it back in 
+        for factor in selected_factors:
+            factor.compute_gram_matrix()
 
-        gram_prod = gram_matrices[0]
+        gram_prod = selected_factors[0].gram
 
-        for i in range(1, len(gram_matrices)):
-            gram_prod = np.multiply(gram_prod, gram_matrices[i])
+        for i in range(1, len(selected_factors)):
+            gram_prod = np.multiply(gram_prod, selected_factors[i].gram)
 
         krp_gram_inv = la.inv(gram_prod)
         gathered_matrices = self.allgather_factors(factors_to_gather)
@@ -142,7 +158,7 @@ class DistLowRank:
     def als_fit(self, local_ground_truth, num_iterations):
         # Should initialize the singular values more intelligently, but this is fine
         # for now:
-        print("Starting")
+
         self.singular_values = np.ones(self.rank)
         self.materialize_tensor()
         loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
@@ -151,7 +167,8 @@ class DistLowRank:
             self.materialize_tensor()
             loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
 
-            print("Residual after iteration {}: {}".format(iter, loss)) 
+            if self.grid.rank == 0:
+                print("Residual after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
                 self.optimize_factor(local_ground_truth, mode_to_optimize)

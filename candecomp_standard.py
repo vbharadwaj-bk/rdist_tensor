@@ -212,24 +212,3 @@ def test_reduce_scatter():
     recvbuf = np.zeros((2, 5))
     MPI.COMM_WORLD.Reduce_scatter_block([mat, MPI.DOUBLE], [recvbuf, MPI.DOUBLE])
     print(f'{rank}, {recvbuf}')
-
-
-if __name__=='__main__':
-    # For testing purposes, initialize a cubic grid
-    num_procs = MPI.COMM_WORLD.Get_size()
-    grid = Grid([int(np.cbrt(num_procs))] * 3)
-    ground_truth = DistLowRank(grid, [28] * 3, 5, [1.0, 0.8, 0.6, 0.4, 0.2])
-    ground_truth.initialize_factors_deterministic(0.1)
-    ground_truth.materialize_tensor()
-
-    ten_to_optimize = DistLowRank(grid, [28] * 3, 2, None)
-    ten_to_optimize.initialize_factors_deterministic(0.05)
-
-    #test_reduce_scatter()
-    ten_to_optimize.als_fit(ground_truth.local_materialized, num_iterations=5)
-
-    #dist_norm = get_norm_distributed(lowRankTensor.local_materialized, grid.comm)
-    #dist_norm = get_norm_distributed(lowRankTensor.factors[0].data, grid.comm)
-    #print(lowRankTensor.factors[0].data)
-    #if grid.rank == 0:
-    #    print(dist_norm)

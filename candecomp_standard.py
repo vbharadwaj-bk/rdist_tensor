@@ -64,11 +64,20 @@ class DistMat1D:
         self.data = np.cos(self.data + offset)
 
     def compute_gram_matrix(self):
-        rowct = min(self.rows - self.row_position, self.local_rows_padded)
-        data_trunc = self.data[:rowct]
+        rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
+        rowct = max(rowct, 0)
 
-        self.gram = (data_trunc.T @ data_trunc)
-        self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram) 
+        if rowct == 0:
+            ncol = np.shape(self.data)[1]
+            self.gram = np.zeros((ncol, ncol))
+        else:
+            data_trunc = self.data[:rowct]
+            self.gram = (data_trunc.T @ data_trunc)
+
+        self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram)
+
+        #if self.grid.rank == 0:
+        #    print(self.gram)
 
     def compute_leverage_scores(reduced_gram_prod):
         gram_inv = la.inv(reduced_gram_prod)
@@ -124,7 +133,7 @@ class DistLowRank:
     def materialize_tensor(self):
         gathered_matrices = self.allgather_factors([True] * self.dim)
         self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
-        print(f'Shape: {self.local_materialized.shape}')
+        #print(f'Shape: {self.local_materialized.shape}')
 
 
     def initialize_factors_deterministic(self, offset):

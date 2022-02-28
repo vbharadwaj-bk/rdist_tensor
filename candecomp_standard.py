@@ -189,11 +189,11 @@ class DistLowRank:
 
         self.singular_values = np.ones(self.rank)
         self.materialize_tensor()
-        loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
+        loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
 
         for iter in range(num_iterations):
             self.materialize_tensor()
-            loss = get_norm_distributed(local_ground_truth - self.local_materialized, grid.comm)
+            loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
 
             if self.grid.rank == 0:
                 print("Residual after iteration {}: {}".format(iter, loss)) 

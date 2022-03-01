@@ -27,15 +27,17 @@ def get_norm_distributed(buf, world):
     return np.sqrt(result)
 
 def krp(factor_matrices):
-  height = factor_matrices[0].shape[0] * factor_matrices[1].shape[0]
-  width = factor_matrices[0].shape[1]
-  return np.einsum('ir,jr->ijr', *factor_matrices).reshape(height, width)
+    height = np.prod([factor.shape[0] for factor in factor_matrices])
+
+    height = factor_matrices[0].shape[0] * factor_matrices[1].shape[0]
+    width = factor_matrices[0].shape[1]
+    return np.einsum('ir,jr->ijr', *factor_matrices).reshape(height, width)
 
 def tensor_from_factors(factor_matrices):
-  return np.einsum('ir,jr,kr->ijk', *factor_matrices)
+    return np.einsum('ir,jr,kr->ijk', *factor_matrices)
 
-def tensor_from_factors_sval(factor_matrices, singular_values):
-  self.local_materialized = np.einsum('r,ir,jr,kr->ijk', singular_values, *factor_matrices)
+def tensor_from_factors_sval(singular_values, factor_matrices):
+    return np.einsum('r,ir,jr,kr->ijk', singular_values, *factor_matrices)
 
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor
@@ -135,14 +137,13 @@ class DistLowRank:
 
     def materialize_tensor(self):
         gathered_matrices = self.allgather_factors([True] * self.dim)
-        self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
-        #print(f'Shape: {self.local_materialized.shape}')
+        #self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
+        self.local_materialized = tensor_from_factors_sval(self.singular_values, gathered_matrices) 
 
     # Materialize only the components fo the CP decomposition beyond a certain singular value count 
-    def partial_materialize(self):
-        gathered_matrices = self.allgather_factors([True] * self.dim)
-        self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
-
+    #def partial_materialize(self):
+    #    gathered_matrices = self.allgather_factors([True] * self.dim)
+    #    self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
 
     def initialize_factors_deterministic(self, offset):
         for factor in self.factors:

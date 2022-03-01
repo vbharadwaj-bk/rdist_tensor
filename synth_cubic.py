@@ -42,7 +42,7 @@ if __name__=='__main__':
 
     singular_values = np.exp(0 - np.array(range(args.grank))) * args.grank
 
-    ground_truth = DistLowRank(grid, [args.sidelen] * args.dim, args.grank, [1.0, 0.8, 0.6, 0.4, 0.2])
+    ground_truth = DistLowRank(grid, [args.sidelen] * args.dim, args.grank, singular_values)
     ground_truth.initialize_factors_deterministic(0.1)
     ground_truth.materialize_tensor()
 

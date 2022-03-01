@@ -34,6 +34,9 @@ def krp(factor_matrices):
 def tensor_from_factors(factor_matrices):
   return np.einsum('ir,jr,kr->ijk', *factor_matrices)
 
+def tensor_from_factors_sval(factor_matrices, singular_values):
+  self.local_materialized = np.einsum('r,ir,jr,kr->ijk', singular_values, *factor_matrices)
+
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor
 # grid holds a chunk of matrices. The slice dimension is
@@ -134,6 +137,11 @@ class DistLowRank:
         gathered_matrices = self.allgather_factors([True] * self.dim)
         self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
         #print(f'Shape: {self.local_materialized.shape}')
+
+    # Materialize only the components fo the CP decomposition beyond a certain singular value count 
+    def partial_materialize(self):
+        gathered_matrices = self.allgather_factors([True] * self.dim)
+        self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
 
 
     def initialize_factors_deterministic(self, offset):

@@ -2,20 +2,12 @@ import mpi4py
 import numpy as np
 import numpy.linalg as la
 from grid import Grid
+from local_kernels import *
+
 from mpi4py import MPI
 
 def round_to_nearest(n, m):
     return (n + m - 1) // m * m
-
-def matricize_tensor(input_ten, column_mode):
-  modes = list(range(len(input_ten.shape)))
-  modes.remove(column_mode)
-  modes.append(column_mode)
-
-  mode_sizes_perm = [input_ten.shape[mode] for mode in modes]
-  height, width = np.prod(mode_sizes_perm[:-1]), mode_sizes_perm[-1]
-
-  return input_ten.transpose(modes).reshape(height, width)
 
 def compute_residual(ground_truth, current):
   return np.linalg.norm(ground_truth - current)
@@ -25,19 +17,6 @@ def get_norm_distributed(buf, world):
     result = np.zeros(1)
     world.Allreduce([val, MPI.DOUBLE], [result, MPI.DOUBLE]) 
     return np.sqrt(result)
-
-def krp(factor_matrices):
-    height = np.prod([factor.shape[0] for factor in factor_matrices])
-
-    height = factor_matrices[0].shape[0] * factor_matrices[1].shape[0]
-    width = factor_matrices[0].shape[1]
-    return np.einsum('ir,jr->ijr', *factor_matrices).reshape(height, width)
-
-def tensor_from_factors(factor_matrices):
-    return np.einsum('ir,jr,kr->ijk', *factor_matrices)
-
-def tensor_from_factors_sval(singular_values, factor_matrices):
-    return np.einsum('r,ir,jr,kr->ijk', singular_values, *factor_matrices)
 
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor
@@ -56,6 +35,10 @@ class DistMat1D:
         self.row_position = grid.slices[slice_dim].Get_rank() + \
             grid.coords[slice_dim] * grid.slices[slice_dim].Get_size()
 
+        # Compute the true count of the rows that this processor owns 
+        self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
+        self.rowct = max(self.rowct, 0)
+
         self.data = np.zeros((self.local_rows_padded, self.cols)) 
 
         # TODO: Should store the padding offset here, add a view
@@ -66,37 +49,34 @@ class DistMat1D:
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
         self.data = np.array(range(value_start, value_start + self.local_window_size)).reshape(self.local_rows_padded, self.cols)
-        self.data = np.cos(self.data + offset)
+        self.data = np.cos((self.data + offset) * 5)
+ 
+    def initialize_random(self):
+        self.data = np.random.rand(*self.data.shape) - 0.5
 
     def compute_gram_matrix(self):
-        rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
-        rowct = max(rowct, 0)
-
-        if rowct == 0:
+        if self.rowct == 0:
             ncol = np.shape(self.data)[1]
             self.gram = np.zeros((ncol, ncol))
         else:
-            data_trunc = self.data[:rowct]
+            data_trunc = self.data[:self.rowct]
             self.gram = (data_trunc.T @ data_trunc)
 
         self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram)
 
-        #if self.grid.rank == 0:
-        #    print(self.gram)
-
-    def compute_leverage_scores(reduced_gram_prod):
-        gram_inv = la.inv(reduced_gram_prod)
+    def compute_leverage_scores(self):
+        gram_inv = la.pinv(self.gram)
 
         # TODO: This function can be made more efficient using
         # BLAS calls!
 
-        self.leverage_scores = np.zeros(len(self.data))
-        for i in range(len(self.data)):
+        self.leverage_scores = np.zeros(self.rowct)
+        for i in range(self.rowct):
             row = self.data[[i]]
             self.leverage_scores[i] = row @ gram_inv @ row.T 
 
-        leverage_weight = np.array(np.sum(leverage_scores))
-        grid.comm.Allreduce(MPI.IN_PLACE, leverage_weight)
+        leverage_weight = np.array(np.sum(self.leverage_scores))
+        self.grid.comm.Allreduce(MPI.IN_PLACE, leverage_weight)
         self.leverage_scores /= leverage_weight
 
 # Initializes a distributed tensor of a known low rank
@@ -130,7 +110,6 @@ class DistLowRank:
                 buffer = buffer[:truncated_rowct]
 
                 self.factors[i].local_rows_padded * slice_size 
-
                 gathered_matrices.append(buffer)
 
         return gathered_matrices
@@ -140,14 +119,23 @@ class DistLowRank:
         #self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
         self.local_materialized = tensor_from_factors_sval(self.singular_values, gathered_matrices) 
 
-    # Materialize only the components fo the CP decomposition beyond a certain singular value count 
-    #def partial_materialize(self):
-    #    gathered_matrices = self.allgather_factors([True] * self.dim)
-    #    self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
+    # Materialize the tensor starting only from the given singular
+    # value 
+    def partial_materialize(self, singular_value_start):
+        assert(singular_value_start < self.rank)
+
+        gathered_matrices = self.allgather_factors([True] * self.dim)
+        gathered_matrices = [mat[:, singular_value_start:] for mat in gathered_matrices]
+        
+        return tensor_from_factors_sval(self.singular_values[singular_value_start:], gathered_matrices) 
 
     def initialize_factors_deterministic(self, offset):
         for factor in self.factors:
             factor.initialize_deterministic(offset)
+
+    def initialize_factors_random(self):
+        for factor in self.factors:
+            factor.initialize_random()
 
     # Computes a distributed MTTKRP of all but one of this 
     # class's factors with a given dense tensor. Also performs 
@@ -161,16 +149,30 @@ class DistLowRank:
 
         # Compute gram matrices of all factors but the one we are currently
         # optimizing for 
-
         for factor in selected_factors:
             factor.compute_gram_matrix()
+            factor.compute_leverage_scores()
+            dist_norm = get_norm_distributed(factor.leverage_scores, world=self.grid.comm)
+
+            #if self.grid.rank == 0:
+            #    print(f'Score Norm: {dist_norm}')
+
+            # For a single process, compute the leverage scores by row norms
+            # of the QR decomposition.
+            #lscores = la.norm(la.qr(factor.data, mode='reduced')[0], axis=1)
+            #probs = lscores / np.sum(lscores)
+
+            #if self.grid.rank == 0:
+            #    print(f'Ground Truth Norm: {la.norm(probs)}')
+
 
         gram_prod = selected_factors[0].gram
 
         for i in range(1, len(selected_factors)):
             gram_prod = np.multiply(gram_prod, selected_factors[i].gram)
 
-        krp_gram_inv = la.inv(gram_prod)
+        # Compute inverse of the gram matrix 
+        krp_gram_inv = la.pinv(gram_prod)
         gathered_matrices = self.allgather_factors(factors_to_gather)
 
         # Compute a local MTTKRP

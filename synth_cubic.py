@@ -2,13 +2,16 @@ import numpy as np
 from mpi4py import MPI
 import argparse
 
-from candecomp_standard import DistLowRank
+from candecomp_standard import DistLowRank, get_norm_distributed
 from grid import Grid
+
+def compute_best_residual(ground_truth, target_rank):
+    # This assumes that the factors are normalized
+    partial_ten = ground_truth.partial_materialize(target_rank)
+    return get_norm_distributed(partial_ten, MPI.COMM_WORLD)
 
 # Decomposes a synthetic (hyper)cubic tensor initialized
 # deterministically with singular values that decay exponentially 
-
-
 if __name__=='__main__':
     # For testing purposes, initialize a cubic grid
     num_procs = MPI.COMM_WORLD.Get_size()
@@ -43,11 +46,17 @@ if __name__=='__main__':
     singular_values = np.exp(0 - np.array(range(args.grank))) * args.grank
 
     ground_truth = DistLowRank(grid, [args.sidelen] * args.dim, args.grank, singular_values)
-    ground_truth.initialize_factors_deterministic(0.1)
+    ground_truth.initialize_factors_deterministic(0.1) 
+    #ground_truth.initialize_factors_random()
     ground_truth.materialize_tensor()
 
+    best_resnorm = compute_best_residual(ground_truth, 3)
+    #print(f'Best Residual Norm: {best_resnorm}')
+
     ten_to_optimize = DistLowRank(grid, [args.sidelen] * args.dim, args.trank, None)
-    ten_to_optimize.initialize_factors_deterministic(0.05)
+    #ten_to_optimize.initialize_factors_deterministic(0.05)
+    ten_to_optimize.initialize_factors_random()
+    
 
     ten_to_optimize.als_fit(ground_truth.local_materialized, num_iterations=args.iter)
 

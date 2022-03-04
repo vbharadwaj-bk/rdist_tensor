@@ -1,5 +1,7 @@
 import mpi4py
 import numpy as np
+from numpy.random import Generator, Philox
+
 import numpy.linalg as la
 from grid import Grid
 from local_kernels import *
@@ -39,7 +41,8 @@ class DistMat1D:
         self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
         self.rowct = max(self.rowct, 0)
 
-        self.data = np.zeros((self.local_rows_padded, self.cols)) 
+        self.data = np.zeros((self.local_rows_padded, self.cols))   
+        self.row_idxs = list(range(self.rowct))
 
         # TODO: Should store the padding offset here, add a view
         # into the matrix that represents the true data
@@ -51,7 +54,10 @@ class DistMat1D:
         self.data = np.array(range(value_start, value_start + self.local_window_size)).reshape(self.local_rows_padded, self.cols)
         self.data = np.cos((self.data + offset) * 5)
  
-    def initialize_random(self):
+    def initialize_random(self, random_seed=42):
+        #gen = Philox(random_seed)
+        #gen = gen.advance(self.row_position * self.local_window_size)
+        #rg = Generator(gen)
         self.data = np.random.rand(*self.data.shape) - 0.5
 
     def compute_gram_matrix(self):
@@ -75,9 +81,48 @@ class DistMat1D:
             row = self.data[[i]]
             self.leverage_scores[i] = row @ gram_inv @ row.T 
 
-        leverage_weight = np.array(np.sum(self.leverage_scores))
-        self.grid.comm.Allreduce(MPI.IN_PLACE, leverage_weight)
-        self.leverage_scores /= leverage_weight
+        # Leverage weight is the sum of the leverage scores held by  
+        normalization_factor = np.array(np.sum(self.leverage_scores))
+        self.grid.comm.Allreduce(MPI.IN_PLACE, normalization_factor)
+
+        if normalization_factor != 0:
+            self.leverage_scores /= normalization_factor 
+
+        self.leverage_weight = np.array(np.sum(self.leverage_scores))
+
+    def leverage_sample(self, num_samples):
+        # This function is probably over-engineered in the spirit of wanting 
+        # a good theoretical guarantee
+
+        world_size = self.grid.comm.Get_size()
+
+        # Step 1: Allgather the leverage weights across all processors
+        all_leverage_weights = np.zeros(world_size)
+        self.grid.comm.Allgather([self.leverage_weight, MPI.DOUBLE], 
+                [all_leverage_weights, MPI.DOUBLE])
+
+        all_leverage_weights = np.maximum(np.minimum(all_leverage_weights, 1.0), 0.0)
+
+        # Step 2: A single processor computes the number of samples
+        # that everybody should draw using a multinomial distribution
+        # and then scatters. This could be made more efficient,
+        # but want to get a correct result first 
+
+        sample_cts = np.zeros(world_size, dtype=np.int64)
+
+        if self.grid.rank == 0:
+            rng = np.random.default_rng() 
+            sample_cts = rng.multinomial(num_samples, all_leverage_weights) 
+        self.grid.comm.Bcast([sample_cts, MPI.LONG], root=0)
+
+        # Step 4: Everybody draws the specified number of samples 
+        # from their local dataset
+        sample_idxs = np.random.choice(self.row_idxs, p=self.leverage_scores / self.leverage_weight, size=sample_cts[self.grid.rank])
+
+        # Step 5: Return sample indices and the drawn samples
+
+        return sample_idxs, self.data[sample_idxs]
+
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
@@ -114,6 +159,7 @@ class DistLowRank:
 
         return gathered_matrices
 
+
     def materialize_tensor(self):
         gathered_matrices = self.allgather_factors([True] * self.dim)
         #self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
@@ -133,9 +179,9 @@ class DistLowRank:
         for factor in self.factors:
             factor.initialize_deterministic(offset)
 
-    def initialize_factors_random(self):
+    def initialize_factors_random(self, random_seed=42):
         for factor in self.factors:
-            factor.initialize_random()
+            factor.initialize_random(random_seed=random_seed)
 
     # Computes a distributed MTTKRP of all but one of this 
     # class's factors with a given dense tensor. Also performs 
@@ -151,19 +197,10 @@ class DistLowRank:
         # optimizing for 
         for factor in selected_factors:
             factor.compute_gram_matrix()
+
+            #if sketching:
             factor.compute_leverage_scores()
-            dist_norm = get_norm_distributed(factor.leverage_scores, world=self.grid.comm)
-
-            #if self.grid.rank == 0:
-            #    print(f'Score Norm: {dist_norm}')
-
-            # For a single process, compute the leverage scores by row norms
-            # of the QR decomposition.
-            #lscores = la.norm(la.qr(factor.data, mode='reduced')[0], axis=1)
-            #probs = lscores / np.sum(lscores)
-
-            #if self.grid.rank == 0:
-            #    print(f'Ground Truth Norm: {la.norm(probs)}')
+            factor.leverage_sample(sample_pct=0.3)
 
 
         gram_prod = selected_factors[0].gram

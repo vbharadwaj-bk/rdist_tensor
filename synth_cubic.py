@@ -1,4 +1,6 @@
 import numpy as np
+from numpy.random import Generator, Philox
+
 from mpi4py import MPI
 import argparse
 
@@ -23,6 +25,7 @@ if __name__=='__main__':
     parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int)
     parser.add_argument("-p", "--skrp", help="Fraction of samples to take from the full height of the Khatri-Rhao Product", required=True, type=float)
     parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
+    parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
 
     args = None
     try:
@@ -46,8 +49,8 @@ if __name__=='__main__':
     singular_values = np.exp(0 - np.array(range(args.grank))) * args.grank
 
     ground_truth = DistLowRank(grid, [args.sidelen] * args.dim, args.grank, singular_values)
-    ground_truth.initialize_factors_deterministic(0.1) 
-    #ground_truth.initialize_factors_random()
+    #ground_truth.initialize_factors_deterministic(0.1) 
+    ground_truth.initialize_factors_random(args.rs)
     ground_truth.materialize_tensor()
 
     best_resnorm = compute_best_residual(ground_truth, 3)
@@ -55,8 +58,7 @@ if __name__=='__main__':
 
     ten_to_optimize = DistLowRank(grid, [args.sidelen] * args.dim, args.trank, None)
     #ten_to_optimize.initialize_factors_deterministic(0.05)
-    ten_to_optimize.initialize_factors_random()
+    ten_to_optimize.initialize_factors_random(args.rs)
     
 
     ten_to_optimize.als_fit(ground_truth.local_materialized, num_iterations=args.iter)
-

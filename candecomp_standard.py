@@ -42,7 +42,7 @@ class DistMat1D:
         self.rowct = max(self.rowct, 0)
 
         self.data = np.zeros((self.local_rows_padded, self.cols))   
-        self.row_idxs = list(range(self.rowct))
+        self.row_idxs = np.array(list(range(self.rowct)), dtype=np.int64)
 
         # TODO: Should store the padding offset here, add a view
         # into the matrix that represents the true data
@@ -108,20 +108,53 @@ class DistMat1D:
         # and then scatters. This could be made more efficient,
         # but want to get a correct result first 
 
-        sample_cts = np.zeros(world_size, dtype=np.int64)
+        self.global_sample_cts = np.zeros(world_size, dtype=np.int64)
 
         if self.grid.rank == 0:
             rng = np.random.default_rng() 
-            sample_cts = rng.multinomial(num_samples, all_leverage_weights) 
-        self.grid.comm.Bcast([sample_cts, MPI.LONG], root=0)
+            self.global_sample_cts = rng.multinomial(num_samples, all_leverage_weights) 
+        self.grid.comm.Bcast([self.global_sample_cts, MPI.LONG], root=0)
 
         # Step 4: Everybody draws the specified number of samples 
         # from their local dataset
-        sample_idxs = np.random.choice(self.row_idxs, p=self.leverage_scores / self.leverage_weight, size=sample_cts[self.grid.rank])
+        self.sample_idxs = np.random.choice(self.row_idxs, p=self.leverage_scores / self.leverage_weight, size=self.global_sample_cts[self.grid.rank])
+        self.leverage_samples = self.data[self.sample_idxs] 
 
-        # Step 5: Return sample indices and the drawn samples
+    def allgatherv_leverage(self, dim, coord_in_dim):
+        # TODO: Need to offset the indices here by the base index 
+        world = self.grid.slices[dim]
+        slice_size = world.Get_size()
+        base_position = slice_size * coord_in_dim 
+        self.sample_idxs += (self.row_position - base_position) * self.local_rows_padded
 
-        return sample_idxs, self.data[sample_idxs]
+        # We can make this process more efficient, but this is okay for now.
+        # Gather up the count of samples within each slice 
+        #my_sample_ct = np.array([len(self.sample_idxs)], dtype=np.int64)
+        #sample_cts = np.zeros(slice_size, dtype=np.int64) 
+        my_sample_ct = np.array([len(self.sample_idxs)], dtype=np.double)
+        sample_cts = np.zeros(slice_size, dtype=np.double) 
+        world.Allgather([my_sample_ct, MPI.DOUBLE], [sample_cts, MPI.DOUBLE])
+
+        # Aggregates rows and sample indices for each leverage score on each 
+        total_samples = np.sum(sample_cts)
+
+        disps = np.insert(np.cumsum(sample_cts)[:-1], [0], [0]) 
+
+        recv_indices = np.zeros(total_samples, dtype=np.int64)
+
+        #print(f'{sample_cts}, {disps}, {total_samples}, {slice_idx}')
+        #print(f'{len(recv_indices)}, {len(sample_cts)}, {len(disps)}')
+        #print(f"Rank {self.grid.rank}: {slice_idx} {len(self.sample_idxs)} {total_samples}")
+
+        world.Allgatherv([self.sample_idxs, MPI.LONG],
+            [recv_indices, sample_cts, disps, MPI.LONG] 
+        )
+
+        #recv_samples = np.zeros((total_samples, self.cols), dtype=np.double)
+
+        #world.Allgatherv([self.leverage_samples, MPI.DOUBLE],
+        #    [recv_samples, sample_cts * self.cols, disps * self.cols, MPI.DOUBLE] 
+        #)
 
 
 # Initializes a distributed tensor of a known low rank
@@ -190,18 +223,19 @@ class DistLowRank:
         factors_to_gather = [True] * self.dim
         factors_to_gather[mode_to_leave] = False
 
-        selected_factors = [self.factors[i] for i in range(len(self.factors)) 
-                            if factors_to_gather[i]] 
+        selected_indices = np.array(list(range(self.dim)))[factors_to_gather]
 
         # Compute gram matrices of all factors but the one we are currently
         # optimizing for 
-        for factor in selected_factors:
+        for idx in selected_indices:
+            factor = self.factors[idx]
             factor.compute_gram_matrix()
 
             #if sketching:
             factor.compute_leverage_scores()
-            factor.leverage_sample(sample_pct=0.3)
-
+            factor.leverage_sample(10)
+            factor.allgatherv_leverage(idx, self.grid.coords[idx])
+            exit()
 
         gram_prod = selected_factors[0].gram
 

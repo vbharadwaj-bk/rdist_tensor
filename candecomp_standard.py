@@ -129,32 +129,24 @@ class DistMat1D:
 
         # We can make this process more efficient, but this is okay for now.
         # Gather up the count of samples within each slice 
-        #my_sample_ct = np.array([len(self.sample_idxs)], dtype=np.int64)
-        #sample_cts = np.zeros(slice_size, dtype=np.int64) 
-        my_sample_ct = np.array([len(self.sample_idxs)], dtype=np.double)
-        sample_cts = np.zeros(slice_size, dtype=np.double) 
-        world.Allgather([my_sample_ct, MPI.DOUBLE], [sample_cts, MPI.DOUBLE])
+        my_sample_ct = np.array([len(self.sample_idxs)], dtype=np.int64)
+        sample_cts = np.zeros(slice_size, dtype=np.int64) 
+        world.Allgather([my_sample_ct, MPI.LONG], [sample_cts, MPI.LONG])
 
         # Aggregates rows and sample indices for each leverage score on each 
         total_samples = np.sum(sample_cts)
-
         disps = np.insert(np.cumsum(sample_cts)[:-1], [0], [0]) 
-
-        recv_indices = np.zeros(total_samples, dtype=np.int64)
-
-        #print(f'{sample_cts}, {disps}, {total_samples}, {slice_idx}')
-        #print(f'{len(recv_indices)}, {len(sample_cts)}, {len(disps)}')
-        #print(f"Rank {self.grid.rank}: {slice_idx} {len(self.sample_idxs)} {total_samples}")
+        self.sketch_indices = np.zeros(total_samples, dtype=np.int64)
 
         world.Allgatherv([self.sample_idxs, MPI.LONG],
-            [recv_indices, sample_cts, disps, MPI.LONG] 
+            [self.sketch_indices, sample_cts, disps, MPI.LONG] 
         )
 
-        #recv_samples = np.zeros((total_samples, self.cols), dtype=np.double)
+        self.sketch_samples = np.zeros((total_samples, self.cols), dtype=np.double)
 
-        #world.Allgatherv([self.leverage_samples, MPI.DOUBLE],
-        #    [recv_samples, sample_cts * self.cols, disps * self.cols, MPI.DOUBLE] 
-        #)
+        world.Allgatherv([self.leverage_samples, MPI.DOUBLE],
+            [self.sketch_samples, sample_cts * self.cols, disps * self.cols, MPI.DOUBLE] 
+        )
 
 
 # Initializes a distributed tensor of a known low rank
@@ -192,6 +184,17 @@ class DistLowRank:
 
         return gathered_matrices
 
+    def leverage_sketch(self, factors_to_sketch, matricized_tensor):
+        lhs = np.ones((self.sketch_indices, self.rank))
+        mat_tensor_idxs = np.zeros(len(self.sketch_indices), dtype=np.int64)
+        for i in range(len(factors_to_sketch)):
+            lhs *= factors_to_sketch[i][sample_idxs[i]]
+            mat_tensor_idxs *= factors_to_sketch[i].shape[0]
+            mat_tensor_idxs += self.sketch_indices[i]
+
+        rhs = matricized_tensor[mat_tensor_idxs]
+
+        return lhs, rhs
 
     def materialize_tensor(self):
         gathered_matrices = self.allgather_factors([True] * self.dim)
@@ -224,18 +227,18 @@ class DistLowRank:
         factors_to_gather[mode_to_leave] = False
 
         selected_indices = np.array(list(range(self.dim)))[factors_to_gather]
+        selected_factors = [self.factors[idx] for idx in selected_indices] 
 
         # Compute gram matrices of all factors but the one we are currently
-        # optimizing for 
+        # optimizing for, perform leverage-score based sketching if necessary 
         for idx in selected_indices:
             factor = self.factors[idx]
             factor.compute_gram_matrix()
 
-            #if sketching:
-            factor.compute_leverage_scores()
-            factor.leverage_sample(10)
-            factor.allgatherv_leverage(idx, self.grid.coords[idx])
-            exit()
+            if sketching:
+                factor.compute_leverage_scores()
+                factor.leverage_sample(10)
+                factor.allgatherv_leverage(idx, self.grid.coords[idx]) 
 
         gram_prod = selected_factors[0].gram
 

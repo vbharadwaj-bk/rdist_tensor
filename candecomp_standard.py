@@ -23,7 +23,7 @@ def get_norm_distributed(buf, world):
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor
 # grid holds a chunk of matrices. The slice dimension is
-# the third parameter 
+# the axis along which to ``align" the distribution of the factor 
 class DistMat1D:
     def __init__(self, rows, cols, grid, slice_dim):
         self.rows = rows 
@@ -33,6 +33,7 @@ class DistMat1D:
         self.local_window_size = self.local_rows_padded * self.cols
 
         self.grid = grid
+        self.slice_dim = slice_dim
 
         self.row_position = grid.slices[slice_dim].Get_rank() + \
             grid.coords[slice_dim] * grid.slices[slice_dim].Get_size()
@@ -90,64 +91,21 @@ class DistMat1D:
 
         self.leverage_weight = np.array(np.sum(self.leverage_scores))
 
-    def leverage_sample(self, num_samples):
-        # This function is probably over-engineered in the spirit of wanting 
-        # a good theoretical guarantee
+    def allgather_factor(self):
+        slice_dim = self.slice_dim
+        slice_size = self.grid.slices[slice_dim].Get_size()
+        buffer_rowct = self.local_rows_padded * slice_size
+        buffer = np.zeros((buffer_rowct, self.cols))
+        self.grid.slices[slice_dim].Allgather([self.data, MPI.DOUBLE], 
+                [buffer, MPI.DOUBLE])
 
-        world_size = self.grid.comm.Get_size()
+        # Handle the overhang when mode length is not divisible by
+        # the processor count 
+        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * self.grid.coords[slice_dim])
+        truncated_rowct = max(truncated_rowct, 0) 
+        buffer = buffer[:truncated_rowct]
 
-        # Step 1: Allgather the leverage weights across all processors
-        all_leverage_weights = np.zeros(world_size)
-        self.grid.comm.Allgather([self.leverage_weight, MPI.DOUBLE], 
-                [all_leverage_weights, MPI.DOUBLE])
-
-        all_leverage_weights = np.maximum(np.minimum(all_leverage_weights, 1.0), 0.0)
-
-        # Step 2: A single processor computes the number of samples
-        # that everybody should draw using a multinomial distribution
-        # and then scatters. This could be made more efficient,
-        # but want to get a correct result first 
-
-        self.global_sample_cts = np.zeros(world_size, dtype=np.int64)
-
-        if self.grid.rank == 0:
-            rng = np.random.default_rng() 
-            self.global_sample_cts = rng.multinomial(num_samples, all_leverage_weights) 
-        self.grid.comm.Bcast([self.global_sample_cts, MPI.LONG], root=0)
-
-        # Step 4: Everybody draws the specified number of samples 
-        # from their local dataset
-        self.sample_idxs = np.random.choice(self.row_idxs, p=self.leverage_scores / self.leverage_weight, size=self.global_sample_cts[self.grid.rank])
-        self.leverage_samples = self.data[self.sample_idxs] 
-
-    def allgatherv_leverage(self, dim, coord_in_dim):
-        # TODO: Need to offset the indices here by the base index 
-        world = self.grid.slices[dim]
-        slice_size = world.Get_size()
-        base_position = slice_size * coord_in_dim 
-        self.sample_idxs += (self.row_position - base_position) * self.local_rows_padded
-
-        # We can make this process more efficient, but this is okay for now.
-        # Gather up the count of samples within each slice 
-        my_sample_ct = np.array([len(self.sample_idxs)], dtype=np.int64)
-        sample_cts = np.zeros(slice_size, dtype=np.int64) 
-        world.Allgather([my_sample_ct, MPI.LONG], [sample_cts, MPI.LONG])
-
-        # Aggregates rows and sample indices for each leverage score on each 
-        total_samples = np.sum(sample_cts)
-        disps = np.insert(np.cumsum(sample_cts)[:-1], [0], [0]) 
-        self.sketch_indices = np.zeros(total_samples, dtype=np.int64)
-
-        world.Allgatherv([self.sample_idxs, MPI.LONG],
-            [self.sketch_indices, sample_cts, disps, MPI.LONG] 
-        )
-
-        self.sketch_samples = np.zeros((total_samples, self.cols), dtype=np.double)
-
-        world.Allgatherv([self.leverage_samples, MPI.DOUBLE],
-            [self.sketch_samples, sample_cts * self.cols, disps * self.cols, MPI.DOUBLE] 
-        )
-
+        self.gathered_factor = buffer 
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
@@ -234,12 +192,12 @@ class DistLowRank:
         for idx in selected_indices:
             factor = self.factors[idx]
             factor.compute_gram_matrix()
+            factor.allgather_factor()
 
             if sketching:
                 factor.compute_leverage_scores()
                 factor.leverage_sample(10)
-                factor.allgatherv_leverage(idx, self.grid.coords[idx]) 
-
+                 
         gram_prod = selected_factors[0].gram
 
         for i in range(1, len(selected_factors)):
@@ -247,7 +205,7 @@ class DistLowRank:
 
         # Compute inverse of the gram matrix 
         krp_gram_inv = la.pinv(gram_prod)
-        gathered_matrices = self.allgather_factors(factors_to_gather)
+        gathered_matrices = [factor.gathered_factor for factor in selected_factors] 
 
         # Compute a local MTTKRP
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)

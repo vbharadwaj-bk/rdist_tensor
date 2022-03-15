@@ -5,8 +5,11 @@ from numpy.random import Generator, Philox
 import numpy.linalg as la
 from grid import Grid
 from local_kernels import *
-
+from sketching import *
 from mpi4py import MPI
+
+import time
+import json
 
 def round_to_nearest(n, m):
     return (n + m - 1) // m * m
@@ -91,21 +94,37 @@ class DistMat1D:
 
         self.leverage_weight = np.array(np.sum(self.leverage_scores))
 
-    def allgather_factor(self):
+    def allgather_factor(self, with_leverage=False):
         slice_dim = self.slice_dim
         slice_size = self.grid.slices[slice_dim].Get_size()
         buffer_rowct = self.local_rows_padded * slice_size
-        buffer = np.zeros((buffer_rowct, self.cols))
+        buffer_data = np.zeros((buffer_rowct, self.cols))
+        buffer_leverage = np.zeros(buffer_rowct)
+
         self.grid.slices[slice_dim].Allgather([self.data, MPI.DOUBLE], 
-                [buffer, MPI.DOUBLE])
+                [buffer_data, MPI.DOUBLE])
+
 
         # Handle the overhang when mode length is not divisible by
         # the processor count 
         truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * self.grid.coords[slice_dim])
         truncated_rowct = max(truncated_rowct, 0) 
-        buffer = buffer[:truncated_rowct]
+        buffer_data = buffer_data[:truncated_rowct] 
 
-        self.gathered_factor = buffer 
+        self.gathered_factor = buffer_data
+
+        if with_leverage:
+            self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
+                    [buffer_leverage, MPI.DOUBLE])
+            buffer_leverage = buffer_leverage[:truncated_rowct]
+            self.gathered_leverage = buffer_leverage 
+
+def start_clock():
+    return time.time()
+
+def stop_clock_and_add(t0, dict, key):
+    t1 = time.time()
+    dict[key] += t1 - t0 
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
@@ -121,41 +140,24 @@ class DistLowRank:
         
     # Replicate data on each slice and all-gather all factors accoording to the
     # provided true / false array 
-    def allgather_factors(self, which_factors):
+    def allgather_factors(self, which_factors, with_leverage=False):
         gathered_matrices = []
+        gathered_leverage = []
         for i in range(self.dim):
             if which_factors[i]:
-                slice_size = self.grid.slices[i].Get_size()
-                buffer_rowct = self.factors[i].local_rows_padded * slice_size
-                buffer = np.zeros((buffer_rowct, self.rank))
-                self.grid.slices[i].Allgather([self.factors[i].data, MPI.DOUBLE], 
-                        [buffer, MPI.DOUBLE])
+                self.factors[i].allgather_factor(with_leverage)
+                gathered_matrices.append(self.factors[i].gathered_factor)
 
-                # Handle the overhang when mode length is not divisible by
-                # the processor count 
-                truncated_rowct = min(buffer_rowct, self.mode_sizes[i] - buffer_rowct * self.grid.coords[i])
-                truncated_rowct = max(truncated_rowct, 0) 
-                buffer = buffer[:truncated_rowct]
+                if with_leverage: 
+                    gathered_leverage.append(self.factors[i].gathered_leverage)
 
-                self.factors[i].local_rows_padded * slice_size 
-                gathered_matrices.append(buffer)
-
-        return gathered_matrices
-
-    def leverage_sketch(self, factors_to_sketch, matricized_tensor):
-        lhs = np.ones((self.sketch_indices, self.rank))
-        mat_tensor_idxs = np.zeros(len(self.sketch_indices), dtype=np.int64)
-        for i in range(len(factors_to_sketch)):
-            lhs *= factors_to_sketch[i][sample_idxs[i]]
-            mat_tensor_idxs *= factors_to_sketch[i].shape[0]
-            mat_tensor_idxs += self.sketch_indices[i]
-
-        rhs = matricized_tensor[mat_tensor_idxs]
-
-        return lhs, rhs
+        if with_leverage:
+            return gathered_matrices, gathered_leverage
+        else:
+            return gathered_matrices, None
 
     def materialize_tensor(self):
-        gathered_matrices = self.allgather_factors([True] * self.dim)
+        gathered_matrices, _ = self.allgather_factors([True] * self.dim)
         #self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
         self.local_materialized = tensor_from_factors_sval(self.singular_values, gathered_matrices) 
 
@@ -164,7 +166,7 @@ class DistLowRank:
     def partial_materialize(self, singular_value_start):
         assert(singular_value_start < self.rank)
 
-        gathered_matrices = self.allgather_factors([True] * self.dim)
+        gathered_matrices, _ = self.allgather_factors([True] * self.dim)
         gathered_matrices = [mat[:, singular_value_start:] for mat in gathered_matrices]
         
         return tensor_from_factors_sval(self.singular_values[singular_value_start:], gathered_matrices) 
@@ -180,7 +182,9 @@ class DistLowRank:
     # Computes a distributed MTTKRP of all but one of this 
     # class's factors with a given dense tensor. Also performs 
     # gram matrix computation. 
-    def optimize_factor(self, local_ten, mode_to_leave, sketching=False):
+    def optimize_factor(self, local_ten, mode_to_leave, timer_dict, sketching_pct=None):
+
+        sketching = sketching_pct is not None
         factors_to_gather = [True] * self.dim
         factors_to_gather[mode_to_leave] = False
 
@@ -191,13 +195,18 @@ class DistLowRank:
         # optimizing for, perform leverage-score based sketching if necessary 
         for idx in selected_indices:
             factor = self.factors[idx]
+            
+            start = start_clock()
             factor.compute_gram_matrix()
-            factor.allgather_factor()
+            stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
-            if sketching:
+            if sketching_pct is not None:
+                start = start_clock() 
                 factor.compute_leverage_scores()
-                factor.leverage_sample(10)
-                 
+                stop_clock_and_add(start, timer_dict, "Leverage Score Computation")
+
+
+        start = start_clock() 
         gram_prod = selected_factors[0].gram
 
         for i in range(1, len(selected_factors)):
@@ -205,13 +214,28 @@ class DistLowRank:
 
         # Compute inverse of the gram matrix 
         krp_gram_inv = la.pinv(gram_prod)
-        gathered_matrices = [factor.gathered_factor for factor in selected_factors] 
+        stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+
+
+        start = start_clock() 
+        gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather, with_leverage=sketching) 
+        stop_clock_and_add(start, timer_dict, "Slice Replication")
 
         # Compute a local MTTKRP
+        start = start_clock() 
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
-        mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+        mttkrp_unreduced = None
 
-        # Padding before the reduce-scatter
+        if sketching_pct is None:
+            mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+        else:
+            lhs, rhs = LeverageProdSketch(gathered_matrices, gathered_leverage, matricized_tensor, sketching_pct) 
+            mttkrp_unreduced =  rhs.T @ lhs
+        stop_clock_and_add(start, timer_dict, "MTTKRP")
+
+        # Padding before reduce-scatter. Is there a smarter way to do this? 
+
+        start = start_clock() 
         padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
 
         reduce_scatter_buffer = np.zeros((padded_rowct, self.rank))
@@ -221,14 +245,33 @@ class DistLowRank:
 
         self.grid.slices[mode_to_leave].Reduce_scatter_block([reduce_scatter_buffer, MPI.DOUBLE], 
                 [mttkrp_reduced, MPI.DOUBLE])  
+        stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
+
+        start = start_clock() 
         res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
         self.factors[mode_to_leave].data = res
+        stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
 
+        return timer_dict
 
-    def als_fit(self, local_ground_truth, num_iterations):
+    def als_fit(self, local_ground_truth, num_iterations, sketching_pct, output_file):
         # Should initialize the singular values more intelligently, but this is fine
         # for now:
+
+        statistics = {
+                        "Gram Matrix Computation": 0.0,
+                        "Leverage Score Computation": 0.0,
+                        "Slice Replication": 0.0,
+                        "MTTKRP": 0.0,
+                        "Slice Reduce-Scatter": 0.0,
+                        "Gram-Times-MTTKRP": 0.0
+                        }
+
+        statistics["Mode Sizes"] = self.mode_sizes
+        statistics["Tensor Target Rank"] = self.rank
+        statistics["Processor Count"] = self.grid.world_size
+        statistics["Grid Dimensions"] = self.grid.axesLengths
 
         self.singular_values = np.ones(self.rank)
         self.materialize_tensor()
@@ -242,16 +285,10 @@ class DistLowRank:
                 print("Residual after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
-                self.optimize_factor(local_ground_truth, mode_to_optimize)
+                self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)
 
-def test_reduce_scatter():
-    rank = MPI.COMM_WORLD.Get_rank()
-    mat = np.array(range(54 * 5), dtype=np.double).reshape((54, 5))
-
-    if rank == 0:
-        print(mat)
-        print("=====================================")
-
-    recvbuf = np.zeros((2, 5))
-    MPI.COMM_WORLD.Reduce_scatter_block([mat, MPI.DOUBLE], [recvbuf, MPI.DOUBLE])
-    print(f'{rank}, {recvbuf}')
+        if self.grid.rank == 0:
+            f = open(output_file, 'a')
+            json_obj = json.dumps(statistics, indent=4)
+            f.write(json_obj + ",\n")
+            f.close()

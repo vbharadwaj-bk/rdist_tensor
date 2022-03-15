@@ -22,10 +22,11 @@ if __name__=='__main__':
     parser.add_argument("-d", "--dim", help="Tensor Dimension", required=True, type=int)
     parser.add_argument("-s", "--sidelen", help="Length of each side of tensor", required=True, type=int)
     parser.add_argument("-g", "--grank", help="Rank of ground truth", required=True, type=int)
-    parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int)
-    parser.add_argument("-p", "--skrp", help="Fraction of samples to take from the full height of the Khatri-Rhao Product", required=True, type=float)
+    parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int) 
+    parser.add_argument("-p", "--skrp", help="Fraction of samples to take from the full height of the Khatri-Rhao Product", required=False, type=float)
     parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
     parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
+    parser.add_argument("-o", "--output", help="Output file to print benchmark statistics", required=True)
 
     args = None
     try:
@@ -58,7 +59,6 @@ if __name__=='__main__':
 
     ten_to_optimize = DistLowRank(grid, [args.sidelen] * args.dim, args.trank, None)
     #ten_to_optimize.initialize_factors_deterministic(0.05)
-    ten_to_optimize.initialize_factors_random(args.rs)
-    
+    ten_to_optimize.initialize_factors_random(args.rs) 
 
-    ten_to_optimize.als_fit(ground_truth.local_materialized, num_iterations=args.iter)
+    ten_to_optimize.als_fit(ground_truth.local_materialized, output_file=args.output, num_iterations=args.iter, sketching_pct=args.skrp)

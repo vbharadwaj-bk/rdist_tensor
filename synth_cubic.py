@@ -61,4 +61,8 @@ if __name__=='__main__':
     #ten_to_optimize.initialize_factors_deterministic(0.05)
     ten_to_optimize.initialize_factors_random(args.rs) 
 
+
+    if grid.rank == 0:
+        print("Starting benchmark...")
+
     ten_to_optimize.als_fit(ground_truth.local_materialized, output_file=args.output, num_iterations=args.iter, sketching_pct=args.skrp)

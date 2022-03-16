@@ -76,14 +76,8 @@ class DistMat1D:
 
     def compute_leverage_scores(self):
         gram_inv = la.pinv(self.gram)
-
-        # TODO: This function can be made more efficient using
-        # BLAS calls!
-
-        self.leverage_scores = np.zeros(self.rowct)
-        for i in range(self.rowct):
-            row = self.data[[i]]
-            self.leverage_scores[i] = row @ gram_inv @ row.T 
+ 
+        self.leverage_scores = np.sum((self.data @ gram_inv) * self.data, axis=1)
 
         # Leverage weight is the sum of the leverage scores held by  
         normalization_factor = np.array(np.sum(self.leverage_scores))

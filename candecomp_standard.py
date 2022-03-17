@@ -120,6 +120,7 @@ def stop_clock_and_add(t0, dict, key):
     t1 = time.time()
     dict[key] += t1 - t0 
 
+
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
     def __init__(self, grid, mode_sizes, rank, singular_values): 
@@ -220,16 +221,16 @@ class DistLowRank:
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
         mttkrp_unreduced = None
 
-        if sketching_pct is None:
-            mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
-        else:
-            lhs, rhs = LeverageProdSketch(gathered_matrices, gathered_leverage, matricized_tensor, sketching_pct) 
-            mttkrp_unreduced =  rhs.T @ lhs
+        #if sketching_pct is None:
+        mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+        #else:
+        #    lhs, rhs = LeverageProdSketch(gathered_matrices, gathered_leverage, matricized_tensor, sketching_pct) 
+
+        #mttkrp_unreduced =  rhs.T @ lhs
         stop_clock_and_add(start, timer_dict, "MTTKRP")
 
         # Padding before reduce-scatter. Is there a smarter way to do this? 
 
-        start = start_clock() 
         padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
 
         reduce_scatter_buffer = np.zeros((padded_rowct, self.rank))
@@ -237,19 +238,21 @@ class DistLowRank:
 
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
-        self.grid.slices[mode_to_leave].Reduce_scatter_block([reduce_scatter_buffer, MPI.DOUBLE], 
-                [mttkrp_reduced, MPI.DOUBLE])  
+        #self.grid.slices[mode_to_leave].Reduce_scatter([reduce_scatter_buffer, MPI.DOUBLE], 
+        #        [mttkrp_reduced, MPI.DOUBLE])  
+
+        start = start_clock()
+        self.factors[mode_to_leave].allgather_factor(with_leverage=False)
         stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
-
-        start = start_clock() 
-        res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
-        self.factors[mode_to_leave].data = res
-        stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
+        #start = start_clock() 
+        #res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
+        #self.factors[mode_to_leave].data = res
+        #stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
 
         return timer_dict
 
-    def als_fit(self, local_ground_truth, num_iterations, sketching_pct, output_file):
+    def als_fit(self, local_ground_truth, num_iterations, sketching_pct, output_file, compute_accuracy=False):
         # Should initialize the singular values more intelligently, but this is fine
         # for now:
 
@@ -268,15 +271,18 @@ class DistLowRank:
         statistics["Grid Dimensions"] = self.grid.axesLengths
 
         self.singular_values = np.ones(self.rank)
-        self.materialize_tensor()
-        loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
 
-        for iter in range(num_iterations):
+        if compute_accuracy:
             self.materialize_tensor()
             loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
 
-            if self.grid.rank == 0:
-                print("Residual after iteration {}: {}".format(iter, loss)) 
+        for iter in range(num_iterations):
+            if compute_accuracy:
+                self.materialize_tensor()
+                loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
+
+                if self.grid.rank == 0:
+                    print("Residual after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
                 self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)

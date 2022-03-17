@@ -6,7 +6,7 @@ def LeverageProdSketch(factor_matrices, leverage_scores, matricized_tensor, samp
 
     probs=None
     if leverage_scores is not None:
-        probs = leverage_scores
+        probs = [vec / np.sum(vec) for vec in leverage_scores]
     else:
         probs = [np.ones(factor.shape[0]) / factor.shape[0] for factor in factor_matrices]
 

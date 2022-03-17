@@ -63,6 +63,6 @@ if __name__=='__main__':
 
 
     if grid.rank == 0:
-        print("Starting benchmark...")
+        print(f"Starting benchmark...{args.skrp}")
 
     ten_to_optimize.als_fit(ground_truth.local_materialized, output_file=args.output, num_iterations=args.iter, sketching_pct=args.skrp)

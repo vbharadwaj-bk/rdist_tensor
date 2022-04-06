@@ -59,9 +59,9 @@ def als(input_ten, target_rank, num_iterations, verbose=False, residual_interval
                         for msize in ms]
 
     for iter in range(num_iterations):
-        #if iter % residual_interval == 0:
-        #    residual = compute_residual(input_ten, tensor_from_factors(factors))
-        #    residuals.append(residual)
+        if iter % residual_interval == 0:
+            residual = compute_residual(input_ten, tensor_from_factors(factors))
+            residuals.append(residual)
         if verbose:
             print("Residual after iteration {}: {}".format(iter, residual))
 
@@ -81,3 +81,4 @@ if __name__=='__main__':
 
     iters, res, _ = als(test, target_rank=target_rank, 
                     num_iterations=num_iterations) 
+    print(res)

@@ -221,14 +221,14 @@ class DistLowRank:
         matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
         mttkrp_unreduced = None
 
-        #if sketching_pct is None:
-        mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
-        #else:
-        #    lhs, rhs = LeverageProdSketch(gathered_matrices, gathered_leverage, matricized_tensor, sketching_pct) 
-
-        #mttkrp_unreduced =  rhs.T @ lhs
+        if sketching_pct is None:
+            mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
+        else:
+            lhs, rhs = LeverageProdSketch(gathered_matrices, gathered_leverage, matricized_tensor, sketching_pct) 
+            mttkrp_unreduced =  rhs.T @ lhs
+        MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "MTTKRP")
-
+        start = start_clock()
         # Padding before reduce-scatter. Is there a smarter way to do this? 
 
         padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
@@ -238,17 +238,14 @@ class DistLowRank:
 
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
-        #self.grid.slices[mode_to_leave].Reduce_scatter([reduce_scatter_buffer, MPI.DOUBLE], 
-        #        [mttkrp_reduced, MPI.DOUBLE])  
-
-        start = start_clock()
-        self.factors[mode_to_leave].allgather_factor(with_leverage=False)
+        self.grid.slices[mode_to_leave].Reduce_scatter([reduce_scatter_buffer, MPI.DOUBLE], 
+                [mttkrp_reduced, MPI.DOUBLE])  
         stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
-        #start = start_clock() 
-        #res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
-        #self.factors[mode_to_leave].data = res
-        #stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
+        start = start_clock() 
+        res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
+        self.factors[mode_to_leave].data = res
+        stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
 
         return timer_dict
 

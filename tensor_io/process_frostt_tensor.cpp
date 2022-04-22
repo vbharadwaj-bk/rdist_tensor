@@ -11,17 +11,21 @@
 using namespace std;
 
 void convertFromFROSTT(string in_file, int num_lines) {
+    cout << "Starting file conversion!" << endl; 
+
+    string converted_filename = in_file + "_converted.tns"
+    hid_t file = H5Fcreate(converted_filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
     std::string line, token;
-    std::ifstream firstline_stream(in_file);
+    std::ifstream firstline_stream(in_file, std::ifstream::in);
     std::ifstream iffstream(in_file);
 
     // Read the first line and count the number of tokens 
     std::getline(firstline_stream, line); 
     std::istringstream is( line );
 
-    int count;
-    while ( std::getline( is, line, ' ' )) {
+    int count = 0;
+    while ( std::getline( is, token, ' ')) {
         ++count;       
     }
 
@@ -36,21 +40,24 @@ void convertFromFROSTT(string in_file, int num_lines) {
         idx_buffers.emplace_back(new unsigned long long[BUFFER_SIZE]); 
     }
 
-    for(int i = 0; i < num_lines * count; i++) {
+    cout << dim << endl;
+
+    for(int i = 0; i < num_lines; i++) {
         for(int j = 0; j < dim; j++) {
-            idx_buffers[j][i] << iffstream;
-            cout << idx_buffers[j][i] << endl;
+            unsigned long long idx;
+            iffstream >> idx;
+            idx_buffers[j].get()[i] = idx; 
         }
-        val_buffer[i] << iffstream;
-        cout << val_buffer[i] << endl;
+        double val;
+        iffstream >> val;
+        val_buffer.get()[i] = val; 
         buffer_pos++;
     }
  
     firstline_stream.close();
 
     /*
-    hid_t       file;                 
-    
+    hid_t       file;                     
     file = H5Fcreate(in_file.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     hid_t    dataset, datatype, dataspace;  
     
@@ -93,5 +100,5 @@ void convertFromFROSTT(string in_file, int num_lines) {
 }
 
 int main(int* argc, char** argv) {
-    convertFromFROSTT("../tensors/test.tns", 5);
+    convertFromFROSTT("../../tensors/test.tns", 4);
 }

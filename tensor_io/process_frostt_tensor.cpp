@@ -1,48 +1,65 @@
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <string>
+#include <memory>
+#include <vector>
 #include <hdf5.h>
+
+#define BUFFER_SIZE 10
 
 using namespace std;
 
 void convertFromFROSTT(string in_file, int num_lines) {
 
-    // Read the first line of a 
+    std::string line, token;
+    std::ifstream firstline_stream(in_file);
+    std::ifstream iffstream(in_file);
 
-    hid_t       file;                 /* declare file identifier */
+    // Read the first line and count the number of tokens 
+    std::getline(firstline_stream, line); 
+    std::istringstream is( line );
+
+    int count;
+    while ( std::getline( is, line, ' ' )) {
+        ++count;       
+    }
+
+    firstline_stream.close();
+    int dim = count - 1;
+    int buffer_pos = 0;
+
+    vector<unique_ptr<unsigned long long>> idx_buffers;
+    unique_ptr<double> val_buffer(new double[BUFFER_SIZE]); 
+
+    for(int i = 0; i < dim; i++) {
+        idx_buffers.emplace_back(new unsigned long long[BUFFER_SIZE]); 
+    }
+
+    for(int i = 0; i < num_lines * count; i++) {
+        for(int j = 0; j < dim; j++) {
+            idx_buffers[j][i] << iffstream;
+            cout << idx_buffers[j][i] << endl;
+        }
+        val_buffer[i] << iffstream;
+        cout << val_buffer[i] << endl;
+        buffer_pos++;
+    }
+ 
+    firstline_stream.close();
+
     /*
-    * Create a new file using H5ACC_TRUNC 
-    * to truncate and overwrite any file of the same name,
-    * default file creation properties, and 
-    * default file access properties.
-    * Then close the file.
-    */
-    file = H5Fcreate(in_file.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t    dataset, datatype, dataspace;  /* declare identifiers */
+    hid_t       file;                 
     
-    /* 
-     * Create a dataspace: Describe the size of the array and 
-     * create the dataspace for a fixed-size dataset. 
-     */
-
+    file = H5Fcreate(in_file.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t    dataset, datatype, dataspace;  
+    
     hsize_t dimsf[1];
     dimsf[0] = 20;
     
     dataspace = H5Screate_simple(1, dimsf, NULL); 
-    /*
-     * Define a datatype for the data in the dataset.
-     * We will store little endian integers.
-     */
     datatype = H5Tcopy(H5T_NATIVE_INT);
     int status = H5Tset_order(datatype, H5T_ORDER_LE);
-    /*
-     * Create a new dataset within the file using the defined 
-     * dataspace and datatype and default dataset creation
-     * properties.
-     * NOTE: H5T_NATIVE_INT can be used as the datatype if 
-     * conversion to little endian is not needed.
-     */
-
     char* DATASETNAME = "MY_TEST_DATASET";
 
     dataset = H5Dcreate(file, DATASETNAME, datatype, dataspace,
@@ -51,8 +68,6 @@ void convertFromFROSTT(string in_file, int num_lines) {
 
     hsize_t buffer_size = 5;
     hid_t local_space = H5Screate_simple(1, &buffer_size, NULL); 
-    //status = H5Sselect_hyperslab(dataset_space, H5S_SELECT_SET, &offset, NULL, 
-    //         &count, NULL);
 
     int data[5];
     for(int i = 0; i < 5; i++) {
@@ -73,9 +88,10 @@ void convertFromFROSTT(string in_file, int num_lines) {
     H5Dclose(dataset);
     H5Sclose(dataspace); 
 
-    status = H5Fclose(file); 
+    status = H5Fclose(file);
+    */
 }
 
 int main(int* argc, char** argv) {
-    convertFromFROSTT("test.hdf5", 5);
+    convertFromFROSTT("../tensors/test.tns", 5);
 }

@@ -2,3 +2,4 @@ __pycache__
 data/*
 visualization/*
 tensor_io/build/*
+tensors/*

@@ -33,14 +33,32 @@ void convertFromFROSTT(string in_file, int num_lines) {
     int dim = count - 1;
     int buffer_pos = 0;
 
+    hid_t idx_datatype = H5Tcopy(H5T_NATIVE_INT);
+    hid_t val_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
+    hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
+
     vector<unique_ptr<unsigned long long>> idx_buffers;
+    vector<hid_t> datasets;
+
     unique_ptr<double> val_buffer(new double[BUFFER_SIZE]); 
 
     for(int i = 0; i < dim; i++) {
-        idx_buffers.emplace_back(new unsigned long long[BUFFER_SIZE]); 
+        idx_buffers.emplace_back(new unsigned long long[BUFFER_SIZE]);
+
+        string datasetname = "MODE_" + std::to_string(i);
+
+        hid_t idx_dataset = H5Dcreate(file, datasetname.c_str(), idx_datatype, file_dataspace,
+                    H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+
+        datasets.push_back(idx_dataset);
     }
 
-    cout << dim << endl;
+    string value_set_name = "VALUES";
+    hid_t val_dataset = H5Dcreate(file, value_set_name.c_str(), val_datatype, 
+                file_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+    datasets.push_back(val_dataset);
+
+    cout << dim << endl; 
 
     for(int i = 0; i < num_lines; i++) {
         for(int j = 0; j < dim; j++) {
@@ -54,7 +72,17 @@ void convertFromFROSTT(string in_file, int num_lines) {
         buffer_pos++;
     }
  
-    firstline_stream.close();
+    iffstream.close();
+
+    H5Tclose(idx_datatype);
+    H5Tclose(val_datatype);
+    H5Sclose(file_dataspace); 
+
+    for(int i = 0; i < datasets.size(); i++) {
+        H5Dclose(datasets[i]);
+    }
+
+    status = H5Fclose(file);
 
     /*
     hid_t       file;                     

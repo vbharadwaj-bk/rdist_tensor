@@ -4,17 +4,18 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <cassert>
 #include <hdf5.h>
 
-#define BUFFER_SIZE 10
+#define BUFFER_SIZE 2
 
 using namespace std;
 
-void convertFromFROSTT(string in_file, int num_lines) {
+void convertFromFROSTT(string in_file, unsigned long long num_lines) {
     cout << "Starting file conversion!" << endl; 
 
-    string converted_filename = in_file + "_converted.tns"
-    hid_t file = H5Fcreate(converted_filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    string converted_filename = in_file + "_converted.hdf5";
+    hid_t file = H5Fcreate(converted_filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
 
     std::string line, token;
     std::ifstream firstline_stream(in_file, std::ifstream::in);
@@ -31,10 +32,9 @@ void convertFromFROSTT(string in_file, int num_lines) {
 
     firstline_stream.close();
     int dim = count - 1;
-    int buffer_pos = 0;
 
-    hid_t idx_datatype = H5Tcopy(H5T_NATIVE_INT);
-    hid_t val_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
+    hid_t idx_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
+    hid_t val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
     hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
 
     vector<unique_ptr<unsigned long long>> idx_buffers;
@@ -58,7 +58,13 @@ void convertFromFROSTT(string in_file, int num_lines) {
                 file_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
     datasets.push_back(val_dataset);
 
-    cout << dim << endl; 
+    cout << "Dimension: " << dim << endl; 
+    cout << "NNZ: " << num_lines << endl; 
+
+    hsize_t buffer_size = BUFFER_SIZE;
+    hid_t memory_dataspace = H5Screate_simple(1, &buffer_size, NULL); 
+
+    unsigned long long pos_in_buffer = 0;
 
     for(int i = 0; i < num_lines; i++) {
         for(int j = 0; j < dim; j++) {
@@ -68,21 +74,61 @@ void convertFromFROSTT(string in_file, int num_lines) {
         }
         double val;
         iffstream >> val;
-        val_buffer.get()[i] = val; 
-        buffer_pos++;
-    }
- 
-    iffstream.close();
+        val_buffer.get()[i] = val;
 
-    H5Tclose(idx_datatype);
-    H5Tclose(val_datatype);
-    H5Sclose(file_dataspace); 
+        /*if(pos_in_buffer == buffer_size) {
+            hsize_t offset = i - pos_in_buffer;
+            int status = H5Sselect_hyperslab(file_dataspace, H5S_SELECT_SET, &offset, NULL, 
+                    &buffer_size, NULL);
+
+            for(int j = 0; j < dim; j++) {
+                status = H5Dwrite(datasets[j], idx_datatype, memory_dataspace, file_dataspace,
+                        H5P_DEFAULT, idx_buffers[j].get());
+            }
+
+            status = H5Dwrite(datasets[dim], val_datatype, memory_dataspace, file_dataspace,
+                    H5P_DEFAULT, val_buffer.get());
+
+            pos_in_buffer = 0;
+        }*/
+    }
+
+    /*
+    if(pos_in_buffer > 0) {
+        hsize_t file_offset = num_lines - pos_in_buffer;
+        hsize_t memory_offset = 0;
+
+        int status = H5Sselect_hyperslab(memory_dataspace, H5S_SELECT_SET, &memory_offset, NULL, 
+                &pos_in_buffer, NULL);
+        status = H5Sselect_hyperslab(file_dataspace, H5S_SELECT_SET, &file_offset, NULL, 
+                &pos_in_buffer, NULL);
+
+        for(int j = 0; j < dim; j++) {
+            status = H5Dwrite(datasets[j], idx_datatype, memory_dataspace, file_dataspace,
+                    H5P_DEFAULT, idx_buffers[j].get());
+        }
+
+        status = H5Dwrite(datasets[dim], val_datatype, memory_dataspace, file_dataspace,
+                H5P_DEFAULT, val_buffer.get());
+
+        pos_in_buffer = 0;
+    }
+    */
+
+
+    iffstream.close();
 
     for(int i = 0; i < datasets.size(); i++) {
         H5Dclose(datasets[i]);
     }
 
-    status = H5Fclose(file);
+    H5Tclose(idx_datatype);
+    H5Tclose(val_datatype);
+    H5Sclose(file_dataspace); 
+    H5Sclose(memory_dataspace); 
+
+    int status = H5Fclose(file);
+
 
     /*
     hid_t       file;                     

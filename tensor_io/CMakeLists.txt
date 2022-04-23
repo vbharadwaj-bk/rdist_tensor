@@ -5,6 +5,8 @@ project(tensor_io)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
+configure_file(modules.sh modules.sh COPYONLY)
+
 add_executable(process_frostt_tensor process_frostt_tensor.cpp)
 
 #target_compile_options(process_frostt_tensor PRIVATE ) 

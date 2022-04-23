@@ -7,7 +7,7 @@
 #include <cassert>
 #include <hdf5.h>
 
-#define BUFFER_SIZE 2
+#define BUFFER_SIZE 3
 
 using namespace std;
 
@@ -19,28 +19,34 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 
     std::string line, token;
     std::ifstream firstline_stream(in_file, std::ifstream::in);
-    std::ifstream iffstream(in_file);
+    std::ifstream iffstream(in_file, std::ifstream::in);
 
     // Read the first line and count the number of tokens 
     std::getline(firstline_stream, line); 
     std::istringstream is( line );
 
+    
     int count = 0;
     while ( std::getline( is, token, ' ')) {
         ++count;       
     }
+    
 
     firstline_stream.close();
     int dim = count - 1;
 
+    
     hid_t idx_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
     hid_t val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
     hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
-
+    
     vector<unique_ptr<unsigned long long>> idx_buffers;
     vector<hid_t> datasets;
 
     unique_ptr<double> val_buffer(new double[BUFFER_SIZE]); 
+
+    cout << "Dimension: " << dim << endl; 
+    cout << "NNZ: " << num_lines << endl; 
 
     for(int i = 0; i < dim; i++) {
         idx_buffers.emplace_back(new unsigned long long[BUFFER_SIZE]);
@@ -51,6 +57,7 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
                     H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
 
         datasets.push_back(idx_dataset);
+
     }
 
     string value_set_name = "VALUES";
@@ -58,26 +65,27 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
                 file_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
     datasets.push_back(val_dataset);
 
-    cout << "Dimension: " << dim << endl; 
-    cout << "NNZ: " << num_lines << endl; 
-
     hsize_t buffer_size = BUFFER_SIZE;
     hid_t memory_dataspace = H5Screate_simple(1, &buffer_size, NULL); 
 
     unsigned long long pos_in_buffer = 0;
 
-    for(int i = 0; i < num_lines; i++) {
+    for(hsize_t i = 0; i < num_lines; i++) {
         for(int j = 0; j < dim; j++) {
             unsigned long long idx;
             iffstream >> idx;
-            idx_buffers[j].get()[i] = idx; 
+            idx_buffers[j].get()[pos_in_buffer] = idx; 
         }
         double val;
         iffstream >> val;
-        val_buffer.get()[i] = val;
+        val_buffer.get()[pos_in_buffer] = val; 
 
-        /*if(pos_in_buffer == buffer_size) {
-            hsize_t offset = i - pos_in_buffer;
+        pos_in_buffer++;
+
+        if(pos_in_buffer == buffer_size) {
+            hsize_t offset = i + 1 - pos_in_buffer;
+
+            cout << "Offset: " << offset << endl;
             int status = H5Sselect_hyperslab(file_dataspace, H5S_SELECT_SET, &offset, NULL, 
                     &buffer_size, NULL);
 
@@ -90,10 +98,9 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
                     H5P_DEFAULT, val_buffer.get());
 
             pos_in_buffer = 0;
-        }*/
+        }
     }
 
-    /*
     if(pos_in_buffer > 0) {
         hsize_t file_offset = num_lines - pos_in_buffer;
         hsize_t memory_offset = 0;
@@ -113,8 +120,6 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 
         pos_in_buffer = 0;
     }
-    */
-
 
     iffstream.close();
 

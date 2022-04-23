@@ -9,7 +9,7 @@ configure_file(modules.sh modules.sh COPYONLY)
 
 add_executable(process_frostt_tensor process_frostt_tensor.cpp)
 
-#target_compile_options(process_frostt_tensor PRIVATE ) 
+#target_compile_options(process_frostt_tensor PRIVATE -g) 
 
 #foreach(TARGET bench_file bench_er bench_heatmap local_kernel_benchmark scratch)
 #    target_compile_options(${TARGET} PRIVATE -O3 -march=knl -DMKL_ILP64  -m64  -I$ENV{MKLROOT}/include) 

@@ -3,3 +3,5 @@ data/*
 visualization/*
 tensor_io/build/*
 tensors/*
+.rendered*
+*.cpython*

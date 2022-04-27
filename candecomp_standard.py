@@ -6,22 +6,12 @@ import numpy.linalg as la
 from grid import Grid
 from local_kernels import *
 from sketching import *
+from common import *
+
 from mpi4py import MPI
 
 import time
 import json
-
-def round_to_nearest(n, m):
-    return (n + m - 1) // m * m
-
-def compute_residual(ground_truth, current):
-  return np.linalg.norm(ground_truth - current)
-
-def get_norm_distributed(buf, world):
-    val = la.norm(buf) ** 2
-    result = np.zeros(1)
-    world.Allreduce([val, MPI.DOUBLE], [result, MPI.DOUBLE]) 
-    return np.sqrt(result)
 
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor

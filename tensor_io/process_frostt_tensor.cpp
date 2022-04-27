@@ -11,6 +11,10 @@
 
 using namespace std;
 
+/*
+ * This file assumes that the tensor is 1-indexed. 
+ */
+
 void convertFromFROSTT(string in_file, unsigned long long num_lines) {
     cout << "Starting file conversion!" << endl; 
 
@@ -33,14 +37,26 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
     
 
     firstline_stream.close();
-    int dim = count - 1;
+    hsize_t dim = count - 1;
 
-    
     hid_t idx_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
     hid_t val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
     hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
-    
+
+    hid_t mode_size_dataspace = H5Screate_simple(1, &dim, NULL);
+    string max_mode_set = "MAX_MODE_SET";
+    string min_mode_set = "MIN_MODE_SET";
+
+    hid_t max_mode_dataset = H5Dcreate(file, max_mode_set.c_str(), idx_datatype, mode_size_dataspace,
+                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+
+    hid_t min_mode_dataset = H5Dcreate(file, min_mode_set.c_str(), idx_datatype, mode_size_dataspace,
+                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+
     vector<unique_ptr<unsigned long long>> idx_buffers;
+    vector<unsigned long long> mode_maxes;
+    vector<unsigned long long> mode_mins;
+
     vector<hid_t> datasets;
 
     unique_ptr<double> val_buffer(new double[BUFFER_SIZE]); 
@@ -58,6 +74,8 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 
         datasets.push_back(idx_dataset);
 
+        mode_maxes.push_back(0);
+        mode_mins.push_back(0);
     }
 
     string value_set_name = "VALUES";
@@ -74,7 +92,15 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
         for(int j = 0; j < dim; j++) {
             unsigned long long idx;
             iffstream >> idx;
-            idx_buffers[j].get()[pos_in_buffer] = idx; 
+            idx_buffers[j].get()[pos_in_buffer] = idx;
+
+            if (mode_maxes[j] == 0 || mode_maxes[j] < idx) {
+                mode_maxes[j] = idx;
+            }
+
+            if (mode_mins[j] == 0 || mode_mins[j] > idx) {
+                mode_mins[j] = idx;
+            }
         }
         double val;
         iffstream >> val;
@@ -121,61 +147,30 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
         pos_in_buffer = 0;
     }
 
+
+    int status = H5Dwrite(max_mode_dataset, idx_datatype, H5P_DEFAULT, H5P_DEFAULT,
+            H5P_DEFAULT, mode_maxes.data());
+
+    status = H5Dwrite(min_mode_dataset, idx_datatype, H5P_DEFAULT, H5P_DEFAULT,
+            H5P_DEFAULT, mode_mins.data());
+
     iffstream.close();
 
     for(int i = 0; i < datasets.size(); i++) {
         H5Dclose(datasets[i]);
     }
 
+
+    H5Dclose(max_mode_dataset);
+    H5Dclose(min_mode_dataset);
+
     H5Tclose(idx_datatype);
     H5Tclose(val_datatype);
+    H5Sclose(mode_size_dataspace); 
     H5Sclose(file_dataspace); 
     H5Sclose(memory_dataspace); 
 
-    int status = H5Fclose(file);
-
-
-    /*
-    hid_t       file;                     
-    file = H5Fcreate(in_file.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
-    hid_t    dataset, datatype, dataspace;  
-    
-    hsize_t dimsf[1];
-    dimsf[0] = 20;
-    
-    dataspace = H5Screate_simple(1, dimsf, NULL); 
-    datatype = H5Tcopy(H5T_NATIVE_INT);
-    int status = H5Tset_order(datatype, H5T_ORDER_LE);
-    char* DATASETNAME = "MY_TEST_DATASET";
-
-    dataset = H5Dcreate(file, DATASETNAME, datatype, dataspace,
-                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-
-    hsize_t buffer_size = 5;
-    hid_t local_space = H5Screate_simple(1, &buffer_size, NULL); 
-
-    int data[5];
-    for(int i = 0; i < 5; i++) {
-        data[i] = i;
-    }
-
-    hsize_t offset = 5;
-    hsize_t count = 5;
-
-    hid_t dataset_space = H5Dget_space(dataset); 
-    status = H5Sselect_hyperslab(dataset_space, H5S_SELECT_SET, &offset, NULL, 
-             &count, NULL);
-
-    status = H5Dwrite(dataset, H5T_NATIVE_INT, local_space, dataset_space,
-              H5P_DEFAULT, data);
-
-    H5Tclose(datatype);
-    H5Dclose(dataset);
-    H5Sclose(dataspace); 
-
     status = H5Fclose(file);
-    */
 }
 
 int main(int* argc, char** argv) {

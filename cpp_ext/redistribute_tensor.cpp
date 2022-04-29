@@ -36,7 +36,10 @@ unsigned long long sum_all_elements(py::list my_list) {
     return total_sum;
 }
 
-void redistribute_nonzeros() {
+/*
+ * Count up the nonzeros and allocate the receive buffers 
+ */
+void redistribute_nonzeros_helper1() {
 
 }
 

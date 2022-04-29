@@ -5,3 +5,4 @@ tensor_io/build/*
 tensors/*
 .rendered*
 *.cpython*
+cpp_ext/build

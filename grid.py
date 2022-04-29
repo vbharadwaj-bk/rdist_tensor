@@ -51,9 +51,9 @@ class TensorGrid:
                 coords.append(dim)
                 self.start_coords.append(coords)
 
-        if grid.rank == 0:
-            print(self.start_coords)
+            self.intervals = np.array(self.intervals, dtype=np.ulonglong)
+
 
 if __name__=='__main__':
     grid = Grid([3, 3, 3])
-    tGrid = TensorGrid([5, 5, 5], grid=grid)
+    tGrid = TensorGrid([5, 1, 20], grid=grid)

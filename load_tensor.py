@@ -5,7 +5,8 @@ import numpy as np
 from grid import Grid
 from mpi4py import MPI
 from common import *
-import cppimport 
+import cppimport.import_hook
+import cpp_ext.redistribute_tensor as rd 
 
 class DistSparseTensor:
     def __init__(self, tensor_file):
@@ -40,16 +41,6 @@ class DistSparseTensor:
         '''
         pass
 
-def test_pylist():
-    funcs = cppimport.imp("cpp_ext.redistribute_tensor")
-    x = np.array([5, 6, 7], dtype=np.ulonglong)
-    y = np.array([1, 2, 3], dtype=np.ulonglong)
-
-
-    #funcs.sum_all_elements([1, 2, 3])
-    print(funcs.sum_all_elements([x, y]))
-
 
 if __name__=='__main__':
-    #x = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    test_pylist()
+    x = DistSparseTensor("tensors/test.tns_converted.hdf5")

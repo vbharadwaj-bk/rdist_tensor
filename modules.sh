@@ -5,3 +5,6 @@ module load cudatoolkit
 conda activate tensor_env
 export HDF5_USE_FILE_LOCKING=FALSE
 module load cray-hdf5
+
+export CC=CC
+export CXX=CC

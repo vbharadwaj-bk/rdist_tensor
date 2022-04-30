@@ -2,7 +2,7 @@ import numpy as np
 import h5py
 
 import numpy as np
-from grid import Grid
+from grid import Grid, TensorGrid
 from mpi4py import MPI
 from common import *
 import cppimport.import_hook
@@ -24,13 +24,14 @@ class DistSparseTensor:
         self.nnz = len(f['MODE_0']) 
 
         padded_nnz_ct = round_to_nearest(self.nnz, self.world_size) 
+
         local_nnz_ct = padded_nnz_ct // self.world_size
         start_nnz = min(local_nnz_ct * self.rank, self.nnz)
         end_nnz = min(local_nnz_ct * (self.rank + 1), self.nnz)
 
         self.tensor_idxs = []
         for i in range(self.dim):
-            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz])
+            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 
@@ -44,3 +45,8 @@ class DistSparseTensor:
 
 if __name__=='__main__':
     x = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid = Grid([2, 2, 2])
+    #tGrid = TensorGrid(x.max_idxs, grid=grid)
+
+    grid.test_prefix_array()
+

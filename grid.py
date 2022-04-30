@@ -14,7 +14,7 @@ class Grid:
         self.dim = len(proc_count_dims)
         self.comm = MPI.Intracomm(world_comm).Create_cart(dims=proc_count_dims, reorder=False)
         self.rank = self.comm.Get_rank()
-        self.axesLengths = proc_count_dims
+        self.axesLengths = np.array(proc_count_dims, dtype=np.ulonglong)
         self.coords = self.comm.Get_coords(self.rank)
 
         self.axes = []
@@ -28,6 +28,26 @@ class Grid:
 
             self.axes.append(self.comm.Sub(remain_dims_axis))
             self.slices.append(self.comm.Sub(remain_dims_slice))
+
+    def get_prefix_array(self):
+        lst = [one_const]
+        for i in range(self.dim - 1):
+            lst.append(lst[-1] * self.axesLengths[i])
+
+        lst.reverse()
+        return np.array(lst, dtype=np.ulonglong)
+
+    def test_prefix_array(self):
+        prefix_array = self.get_prefix_array()
+        for i in range(self.world_size):
+            coords = self.comm.Get_coords(i)
+
+            s = 0
+            for j in range(self.dim):
+                s += coords[j] * prefix_array[j] 
+
+            if self.rank == 0: 
+                print(f"True Rank: {i}, Pfx. Rank: {s}")
 
 class TensorGrid:
     def __init__(self, tensor_dims, grid=None):
@@ -44,14 +64,12 @@ class TensorGrid:
             for i in range(len(tensor_dims)):
                 dim = tensor_dims[i]
                 proc_count = grid.axesLengths[i]
-                interval = round_to_nearest(dim, proc_count) // proc_count
+                interval = round_to_nearest_np_arr(dim, proc_count) // proc_count
                 self.intervals.append(interval)
 
                 coords = list(range(0, dim, interval))
                 coords.append(dim)
                 self.start_coords.append(coords)
-
-            self.intervals = np.array(self.intervals, dtype=np.ulonglong)
 
 
 if __name__=='__main__':

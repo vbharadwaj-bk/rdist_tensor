@@ -58,7 +58,7 @@ vector<unsigned long long> redistribute_nonzeros(
     vector<unsigned long long*> buffer_ptrs;
 
     unsigned long long nnz;
-    bool firstElement = true;
+    bool first_element = true;
     for(py::handle obj : coords) { 
 
         py::array_t<unsigned long long> idxs = obj.cast<py::array_t<unsigned long long>>();
@@ -66,19 +66,18 @@ vector<unsigned long long> redistribute_nonzeros(
         py::buffer_info info = idxs.request();
         buffer_ptrs.push_back(static_cast<unsigned long long*>(info.ptr));
         
-        if(firstElement) {
-            firstelement = false;
+        if(first_element) {
+            first_element = false;
             nnz = info.shape[0];
         }
     }
 
     py::buffer_info info = prefix_mult.request();
     int* prefixes = static_cast<int*>(info.ptr);
+    int dim = info.shape[0];
 
     info = intervals.request();
     unsigned long long* interval_ptr = static_cast<unsigned long long*>(info.ptr);
-
-    int dim = intervals.shape[0];
 
     // TODO: Could parallelize using OpenMP if we want faster IO 
     for(unsigned long long i = 0; i < nnz; i++) {

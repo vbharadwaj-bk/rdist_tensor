@@ -42,11 +42,11 @@ class DistSparseTensor:
         '''
         pass
 
-
 if __name__=='__main__':
     x = DistSparseTensor("tensors/test.tns_converted.hdf5")
     grid = Grid([2, 2, 2])
-    #tGrid = TensorGrid(x.max_idxs, grid=grid)
+    prefix_array = grid.get_prefix_array()
+    tensor_grid = TensorGrid(x.max_idxs, grid=grid)
 
-    grid.test_prefix_array()
-
+    proc_recv_cts = rd.redistribute_nonzeros(tensor_grid.intervals, x.tensor_idxs, grid.world_size, prefix_array)
+    print(proc_recv_cts)

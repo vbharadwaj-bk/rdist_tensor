@@ -14,7 +14,7 @@ class Grid:
         self.dim = len(proc_count_dims)
         self.comm = MPI.Intracomm(world_comm).Create_cart(dims=proc_count_dims, reorder=False)
         self.rank = self.comm.Get_rank()
-        self.axesLengths = np.array(proc_count_dims, dtype=np.ulonglong)
+        self.axesLengths = np.array(proc_count_dims, dtype=np.int)
         self.coords = self.comm.Get_coords(self.rank)
 
         self.axes = []
@@ -35,7 +35,7 @@ class Grid:
             lst.append(lst[-1] * self.axesLengths[i])
 
         lst.reverse()
-        return np.array(lst, dtype=np.ulonglong)
+        return np.array(lst, dtype=np.int)
 
     def test_prefix_array(self):
         prefix_array = self.get_prefix_array()
@@ -63,7 +63,7 @@ class TensorGrid:
 
             for i in range(len(tensor_dims)):
                 dim = tensor_dims[i]
-                proc_count = grid.axesLengths[i]
+                proc_count = np.array([grid.axesLengths[i]], dtype=np.ulonglong)[0]
                 interval = round_to_nearest_np_arr(dim, proc_count) // proc_count
                 self.intervals.append(interval)
 

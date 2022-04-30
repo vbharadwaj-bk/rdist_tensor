@@ -1,6 +1,7 @@
 //cppimport
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/stl.h>
 #include <iostream>
 #include <vector>
 #include <chrono>
@@ -49,7 +50,8 @@ unsigned long long sum_all_elements(py::list my_list) {
  */
 vector<unsigned long long> redistribute_nonzeros(
         py::array_t<unsigned long long> intervals, 
-        py::list coords, int proc_count, 
+        py::list coords, 
+        unsigned long long proc_count, 
         py::array_t<int> prefix_mult) {
     // Count of nonzeros assigned to each processor
     vector<unsigned long long> proc_counts(proc_count, 0);

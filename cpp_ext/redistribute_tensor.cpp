@@ -61,7 +61,10 @@ vector<unsigned long long> redistribute_nonzeros(
         py::list coords,
         py::array_t<double> values,
         unsigned long long proc_count, 
-        py::array_t<int> prefix_mult) {
+        py::array_t<int> prefix_mult,
+        py::list recv_buffer_lst,
+        py::function allocate_recv_buffers 
+        ) {
     // Count of nonzeros assigned to each processor
     vector<unsigned long long> send_counts(proc_count, 0);
     vector<unsigned long long> recv_counts(proc_count, 0);
@@ -124,11 +127,23 @@ vector<unsigned long long> redistribute_nonzeros(
 
     vector<vector<unsigned long long>> send_buffers_idx;
     vector<double> send_buffer_values(nnz, 0.0);
-    // We will use numpy to allocate the receive buffers for us
+
+    vector<unsigned long long*> recv_buffers_idx;
+    double* recv_buffer_values;
+
+    allocate_recv_buffers(dim, total_received_coords, recv_buffer_lst);
 
     for(int i = 0; i < dim; i++) {
         send_buffers_idx.emplace_back(nnz, 0);
+
+        py::array_t<unsigned long long> arr = recv_buffer_lst[i].cast<py::array_t<unsigned long long>>();
+        py::buffer_info info = arr.request();
+        recv_buffers_idx.push_back(static_cast<unsigned long long*>(info.ptr));
     }
+
+    py::array_t<double> arr = recv_buffer_lst[dim].cast<py::array_t<double>>();
+    info = arr.request();
+    recv_buffer_values = static_cast<double*>(info.ptr);
 
     // Pack the send buffers
     prefix_sum(send_counts, send_offsets);
@@ -154,7 +169,7 @@ vector<unsigned long long> redistribute_nonzeros(
                         send_counts.data(), 
                         send_offsets.data(), 
                         MPI_UNSIGNED_LONG_LONG, 
-                        TODO RECV BUFFER HERE, recv_counts.data(), recv_offsets.data(), 
+                        recv_buffers_idx[j], recv_counts.data(), recv_offsets.data(), 
                         MPI_UNSIGNED_LONG_LONG, MPI_COMM_WORLD 
                         );
     }
@@ -163,7 +178,7 @@ vector<unsigned long long> redistribute_nonzeros(
                     send_counts.data(), 
                     send_offsets.data(), 
                     MPI_DOUBLE, 
-                    TODO RECV BUFFER HERE, recv_counts.data(), recv_offsets.data(), 
+                    recv_buffers_values, recv_counts.data(), recv_offsets.data(), 
                     MPI_DOUBLE, MPI_COMM_WORLD 
                     );
 }

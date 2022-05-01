@@ -6,7 +6,13 @@ from grid import Grid, TensorGrid
 from mpi4py import MPI
 from common import *
 import cppimport.import_hook
-import cpp_ext.redistribute_tensor as rd 
+import cpp_ext.redistribute_tensor as rd
+
+def allocate_recv_buffers(dim, count, lst):
+    for i in range(dim):
+        lst.append(np.zeros(count, dtype=np.ulonglong))
+
+    lst.append(np.zeros(count, dtype=np.double))
 
 class DistSparseTensor:
     def __init__(self, tensor_file):
@@ -48,5 +54,6 @@ if __name__=='__main__':
     prefix_array = grid.get_prefix_array()
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
 
-    proc_recv_cts = rd.redistribute_nonzeros(tensor_grid.intervals, x.tensor_idxs, grid.world_size, prefix_array)
+    recv_buffers = []
+    proc_recv_cts = rd.redistribute_nonzeros(tensor_grid.intervals, x.tensor_idxs, x.values, grid.world_size, prefix_array, recv_buffers, allocate_recv_buffers)
     print(proc_recv_cts)

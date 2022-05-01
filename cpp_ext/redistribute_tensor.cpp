@@ -40,8 +40,16 @@ unsigned long long sum_all_elements(py::list my_list) {
     return total_sum;
 }
 
-//auto t = start_clock();
-//double time = stop_clock_get_elapsed(t);
+/*
+ * This is a bad prefix sum function.
+ */
+void prefix_sum(vector<unsigned long long> &values, vector<unsigned long long> &offsets) {
+    unsigned long long sum = 0;
+    for(unsigned long long i = 0; i < values.size(); i++) {
+        offsets.push_back(sum);
+        sum += values[i];
+    }
+}
 
 /*
  * Count up the nonzeros in preparation to allocate receive buffers. 
@@ -50,11 +58,18 @@ unsigned long long sum_all_elements(py::list my_list) {
  */
 vector<unsigned long long> redistribute_nonzeros(
         py::array_t<unsigned long long> intervals, 
-        py::list coords, 
+        py::list coords,
+        py::array_t<double> values,
         unsigned long long proc_count, 
         py::array_t<int> prefix_mult) {
     // Count of nonzeros assigned to each processor
-    vector<unsigned long long> proc_counts(proc_count, 0);
+    vector<unsigned long long> send_counts(proc_count, 0);
+    vector<unsigned long long> recv_counts(proc_count, 0);
+
+    vector<unsigned long long> send_offsets;
+    vector<unsigned long long> recv_offsets;
+
+    vector<unsigned long long> running_offsets;
 
     // Unpack the list of coordinate buffers into pointers 
     vector<unsigned long long*> buffer_ptrs;
@@ -80,6 +95,11 @@ vector<unsigned long long> redistribute_nonzeros(
 
     info = intervals.request();
     unsigned long long* interval_ptr = static_cast<unsigned long long*>(info.ptr);
+    
+    info = values.request();
+    double* value_ptr = static_cast<double*>(info.ptr);   
+
+    vector<int> processor_assignments(nnz, -1);
 
     // TODO: Could parallelize using OpenMP if we want faster IO 
     for(unsigned long long i = 0; i < nnz; i++) {
@@ -87,10 +107,65 @@ vector<unsigned long long> redistribute_nonzeros(
         for(int j = 0; j < dim; j++) {
             processor += prefixes[j] * (buffer_ptrs[j][i] / interval_ptr[j]); 
         }
-        proc_counts[processor]++;
+        send_counts[processor]++;
+        processor_assignments[i] = processor;
     }
 
-    return proc_counts;
+    MPI_Alltoall(send_counts.data(), 
+                1, MPI_UNSIGNED_LONG_LONG, 
+                recv_counts.data(), 
+                1, MPI_UNSIGNED_LONG_LONG, 
+                MPI_COMM_WORLD);
+
+    unsigned long long total_received_coords = 
+				std::accumulate(recv_counts.begin(), recv_counts.end(), 0);
+
+    prefix_sum(recv_counts, recv_offsets);
+
+    vector<vector<unsigned long long>> send_buffers_idx;
+    vector<double> send_buffer_values(nnz, 0.0);
+    // We will use numpy to allocate the receive buffers for us
+
+    for(int i = 0; i < dim; i++) {
+        send_buffers_idx.emplace_back(nnz, 0);
+    }
+
+    // Pack the send buffers
+    prefix_sum(send_counts, send_offsets);
+    running_offsets = send_offsets;
+
+    for(unsigned long long i = 0; i < nnz; i++) {
+        int owner = processor_assignments[i];
+        unsigned long long idx;
+
+        // #pragma omp atomic capture 
+        idx = running_offsets[owner]++;
+
+        for(int j = 0; j < dim; j++) {
+            send_buffers_idx[j][idx] = buffer_ptrs[j][i];
+        }
+        send_buffer_values[idx] = value_ptr[idx]; 
+    }
+
+    // Execute the AlltoAll operations
+
+    for(int j = 0; j < dim; j++) {
+        MPI_Alltoallv(send_buffer_idx[j].data(), 
+                        send_counts.data(), 
+                        send_offsets.data(), 
+                        MPI_UNSIGNED_LONG_LONG, 
+                        TODO RECV BUFFER HERE, recv_counts.data(), recv_offsets.data(), 
+                        MPI_UNSIGNED_LONG_LONG, MPI_COMM_WORLD 
+                        );
+    }
+
+    MPI_Alltoallv(send_buffer_values.data(), 
+                    send_counts.data(), 
+                    send_offsets.data(), 
+                    MPI_DOUBLE, 
+                    TODO RECV BUFFER HERE, recv_counts.data(), recv_offsets.data(), 
+                    MPI_DOUBLE, MPI_COMM_WORLD 
+                    );
 }
 
 PYBIND11_MODULE(redistribute_tensor, m) {

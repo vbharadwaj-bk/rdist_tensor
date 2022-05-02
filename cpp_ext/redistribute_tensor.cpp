@@ -164,21 +164,55 @@ vector<unsigned long long> redistribute_nonzeros(
 
     // Execute the AlltoAll operations
 
+    // ===================================================
+    // Explicit downcast: this errors if we have more than one
+    // integer's worth of data to transfer. We should replace this 
+    // with a more intelligent AlltoAll operation 
+
+    unsigned long long total_send_coords = 
+				std::accumulate(send_counts.begin(), send_counts.end(), 0);
+
+    vector<int> send_counts_dcast;
+    vector<int> send_offsets_dcast;
+    vector<int> recv_counts_dcast;
+    vector<int> recv_offsets_dcast;
+
+    if(total_send_coords >= INT32_MAX || total_received_coords >= INT32_MAX) {
+        cout << "ERROR, ALL_TO_ALL BUFFER_SIZE EXCEEDED!" << endl;
+        exit(1);
+    }
+    else {
+        for(int i = 0; i < proc_count; i++) {
+            send_counts_dcast.push_back((int) send_counts[i]);
+            send_offsets_dcast.push_back((int) send_offsets[i]);
+
+            recv_counts_dcast.push_back((int) recv_counts[i]);
+            recv_offsets_dcast.push_back((int) recv_offsets[i]);
+        } 
+    }
+
+    // ===================================================
+
+
     for(int j = 0; j < dim; j++) {
-        MPI_Alltoallv(send_buffer_idx[j].data(), 
-                        send_counts.data(), 
-                        send_offsets.data(), 
+        MPI_Alltoallv(send_buffers_idx[j].data(), 
+                        send_counts_dcast.data(), 
+                        send_offsets_dcast.data(), 
                         MPI_UNSIGNED_LONG_LONG, 
-                        recv_buffers_idx[j], recv_counts.data(), recv_offsets.data(), 
+                        recv_buffers_idx[j], 
+                        recv_counts_dcast.data(), 
+                        recv_offsets_dcast.data(), 
                         MPI_UNSIGNED_LONG_LONG, MPI_COMM_WORLD 
                         );
     }
 
     MPI_Alltoallv(send_buffer_values.data(), 
-                    send_counts.data(), 
-                    send_offsets.data(), 
+                    send_counts_dcast.data(), 
+                    send_offsets_dcast.data(), 
                     MPI_DOUBLE, 
-                    recv_buffers_values, recv_counts.data(), recv_offsets.data(), 
+                    recv_buffer_values, 
+                    recv_counts_dcast.data(), 
+                    recv_offsets_dcast.data(), 
                     MPI_DOUBLE, MPI_COMM_WORLD 
                     );
 }

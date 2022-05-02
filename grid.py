@@ -32,13 +32,16 @@ class Grid:
     def get_prefix_array(self):
         lst = [one_const]
         for i in range(self.dim - 1):
-            lst.append(lst[-1] * self.axesLengths[i])
+            lst.append(lst[-1] * self.axesLengths[-1-i])
 
         lst.reverse()
         return np.array(lst, dtype=np.int)
 
     def test_prefix_array(self):
         prefix_array = self.get_prefix_array()
+        if self.rank == 0:
+            print(f"Prefix Array: {prefix_array}")
+
         for i in range(self.world_size):
             coords = self.comm.Get_coords(i)
 
@@ -47,7 +50,8 @@ class Grid:
                 s += coords[j] * prefix_array[j] 
 
             if self.rank == 0: 
-                print(f"True Rank: {i}, Pfx. Rank: {s}")
+                print(f"True Rank: {i}, Coords: {coords}, Pfx. Rank: {s}")
+                pass
 
 class TensorGrid:
     def __init__(self, tensor_dims, grid=None):

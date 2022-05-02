@@ -49,7 +49,7 @@ class DistSparseTensor:
 
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    grid = Grid([3, 1, 3])
+    grid = Grid([2, 2, 1])
     prefix_array = grid.get_prefix_array()
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
     
@@ -64,7 +64,7 @@ def test_tensor_redistribute():
             end= tensor_grid.start_coords[j][grid.coords[j] + 1]
             val = recv_buffers[j][i]
             #print(f"Start: {start}, Val: {val}, End: {end}")
-            #assert(start <= val and val < end) 
+            assert(start <= val and val < end) 
 
 if __name__=='__main__':
     test_tensor_redistribute()

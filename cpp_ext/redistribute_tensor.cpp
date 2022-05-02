@@ -193,7 +193,6 @@ void redistribute_nonzeros(
 
     // ===================================================
 
-
     for(int j = 0; j < dim; j++) {
         MPI_Alltoallv(send_buffers_idx[j].data(), 
                         send_counts_dcast.data(), 

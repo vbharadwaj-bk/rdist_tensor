@@ -21,7 +21,6 @@ class DistSparseTensor:
         self.world_size = world_comm.Get_size()
         self.rank = world_comm.Get_rank()
 
-
         self.max_idxs = f['MAX_MODE_SET'][:]
         self.min_idxs = f['MIN_MODE_SET'][:]
         self.dim = len(self.max_idxs)
@@ -48,12 +47,20 @@ class DistSparseTensor:
         '''
         pass
 
-if __name__=='__main__':
+def test_tensor_redistribute():
     x = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    grid = Grid([2, 2, 2])
+    grid = Grid([1, 2, 2])
     prefix_array = grid.get_prefix_array()
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
 
     recv_buffers = []
-    proc_recv_cts = rd.redistribute_nonzeros(tensor_grid.intervals, x.tensor_idxs, x.values, grid.world_size, prefix_array, recv_buffers, allocate_recv_buffers)
-    print(proc_recv_cts)
+    rd.redistribute_nonzeros(tensor_grid.intervals, x.tensor_idxs, x.values, grid.world_size, prefix_array, recv_buffers, allocate_recv_buffers)
+
+    for i in range(len(recv_buffers[0])):
+        for j in range(x.dim):
+            start = tensor_grid.start_coords[j][grid.coords[j]]
+            end= tensor_grid.start_coords[j][grid.coords[j] + 1]
+            assert(start <= recv_buffers[j][i] and recv_buffers[j][i] < end) 
+
+if __name__=='__main__':
+    test_tensor_redistribute()

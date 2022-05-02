@@ -56,7 +56,7 @@ void prefix_sum(vector<unsigned long long> &values, vector<unsigned long long> &
  *
  *  
  */
-vector<unsigned long long> redistribute_nonzeros(
+void redistribute_nonzeros(
         py::array_t<unsigned long long> intervals, 
         py::list coords,
         py::array_t<double> values,
@@ -182,7 +182,7 @@ vector<unsigned long long> redistribute_nonzeros(
         exit(1);
     }
     else {
-        for(int i = 0; i < proc_count; i++) {
+        for(uint i = 0; i < proc_count; i++) {
             send_counts_dcast.push_back((int) send_counts[i]);
             send_offsets_dcast.push_back((int) send_offsets[i]);
 

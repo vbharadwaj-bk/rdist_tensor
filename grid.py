@@ -68,7 +68,8 @@ class TensorGrid:
                 self.intervals.append(interval)
 
                 coords = list(range(0, dim, interval))
-                coords.append(dim)
+                while len(coords) <= proc_count:
+                    coords.append(dim)
                 self.start_coords.append(coords)
 
 

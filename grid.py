@@ -57,11 +57,15 @@ class TensorGrid:
     def __init__(self, tensor_dims, grid=None):
         '''
         If grid is None, then we initialize the grid to the optimal 
-        dimensions to match the supplied tensor dimensions 
+        dimensions to match the supplied tensor dimensions.
+
+        start_coords: A collection of arrays representing tick marks
+        along the axes of the tensor.
         ''' 
         if grid is None:
             assert False
         else:
+            self.tensor_dims = tensor_dims
             self.start_coords = []
             self.intervals = []
             self.grid = grid
@@ -69,7 +73,7 @@ class TensorGrid:
             for i in range(len(tensor_dims)):
                 dim = tensor_dims[i]
                 proc_count = np.array([grid.axesLengths[i]], dtype=np.ulonglong)[0]
-                interval = round_to_nearest_np_arr(dim, proc_count) // proc_count
+                interval = round_to_nearest_np_arr(dim, grid.world_size) // proc_count
                 self.intervals.append(interval)
 
                 coords = list(range(0, dim, interval))
@@ -79,5 +83,14 @@ class TensorGrid:
 
 
 if __name__=='__main__':
-    grid = Grid([3, 3, 3])
-    tGrid = TensorGrid([5, 1, 20], grid=grid)
+    #grid = Grid([3, 3, 3])
+    #tGrid = TensorGrid([5, 1, 20], grid=grid)
+
+    #print(f"Dim: {dim}")
+    x = np.array([2482], dtype=np.ulonglong)
+    f = x[0]
+
+    val = round_to_nearest_np_arr(f, 64)
+    #val = (f + 64) // (64 * 64)
+
+    print(val)

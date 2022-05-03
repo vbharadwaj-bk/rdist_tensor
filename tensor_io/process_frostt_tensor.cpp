@@ -7,7 +7,7 @@
 #include <cassert>
 #include <hdf5.h>
 
-#define BUFFER_SIZE 3
+#define BUFFER_SIZE 10000
 
 using namespace std;
 
@@ -174,5 +174,7 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 }
 
 int main(int* argc, char** argv) {
-    convertFromFROSTT("../../tensors/test.tns", 4);
+    string name(argv[1]);
+    unsigned long long num_lines = atol(argv[2]);
+    convertFromFROSTT(name, num_lines);
 }

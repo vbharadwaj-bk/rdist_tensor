@@ -41,9 +41,13 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 
     hid_t idx_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
     hid_t val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
+
     hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
 
+
     hid_t mode_size_dataspace = H5Screate_simple(1, &dim, NULL);
+
+
     string max_mode_set = "MAX_MODE_SET";
     string min_mode_set = "MIN_MODE_SET";
 
@@ -63,6 +67,7 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 
     cout << "Dimension: " << dim << endl; 
     cout << "NNZ: " << num_lines << endl; 
+
 
     for(int i = 0; i < dim; i++) {
         idx_buffers.emplace_back(new unsigned long long[BUFFER_SIZE]);
@@ -111,7 +116,6 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
         if(pos_in_buffer == buffer_size) {
             hsize_t offset = i + 1 - pos_in_buffer;
 
-            cout << "Offset: " << offset << endl;
             int status = H5Sselect_hyperslab(file_dataspace, H5S_SELECT_SET, &offset, NULL, 
                     &buffer_size, NULL);
 
@@ -176,5 +180,6 @@ void convertFromFROSTT(string in_file, unsigned long long num_lines) {
 int main(int* argc, char** argv) {
     string name(argv[1]);
     unsigned long long num_lines = atol(argv[2]);
+ 
     convertFromFROSTT(name, num_lines);
 }

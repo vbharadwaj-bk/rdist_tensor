@@ -64,6 +64,7 @@ class TensorGrid:
         else:
             self.start_coords = []
             self.intervals = []
+            self.grid = grid
 
             for i in range(len(tensor_dims)):
                 dim = tensor_dims[i]

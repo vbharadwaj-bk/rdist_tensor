@@ -47,24 +47,41 @@ class DistSparseTensor:
         '''
         pass
 
+    def redistribute_nonzeros(self, tensor_grid, debug=False):
+        '''
+        Redistribute the nonzeros according to the provided tensor grid.
+        '''
+        grid = tensor_grid.grid
+        prefix_array = grid.get_prefix_array()
+
+
+        recv_buffers = []
+
+        rd.redistribute_nonzeros(tensor_grid.intervals, \
+            self.tensor_idxs, \
+            self.values, \
+            grid.world_size, \
+            prefix_array, recv_buffers, allocate_recv_buffers)
+
+        self.tensor_idxs = recv_buffers[:-1]
+        self.values = recv_buffers[-1]
+
+        if debug:
+            for i in range(len(recv_buffers[0])):
+                for j in range(self.dim):
+                    start = tensor_grid.start_coords[j][grid.coords[j]]
+                    end= tensor_grid.start_coords[j][grid.coords[j] + 1]
+                    val = recv_buffers[j][i]
+                    #print(f"Start: {start}, Val: {val}, End: {end}")
+                    assert(start <= val and val < end) 
+
+
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
     grid = Grid([1, 1, 1, 1])
-    prefix_array = grid.get_prefix_array()
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
-    
-    #grid.test_prefix_array()
-
-    recv_buffers = []
-    rd.redistribute_nonzeros(tensor_grid.intervals, x.tensor_idxs, x.values, grid.world_size, prefix_array, recv_buffers, allocate_recv_buffers)
-
-    for i in range(len(recv_buffers[0])):
-        for j in range(x.dim):
-            start = tensor_grid.start_coords[j][grid.coords[j]]
-            end= tensor_grid.start_coords[j][grid.coords[j] + 1]
-            val = recv_buffers[j][i]
-            #print(f"Start: {start}, Val: {val}, End: {end}")
-            assert(start <= val and val < end) 
+    x.redistribute_nonzeros(tensor_grid)
+    print("Finished nonzero distribution!")
 
 if __name__=='__main__':
     test_tensor_redistribute()

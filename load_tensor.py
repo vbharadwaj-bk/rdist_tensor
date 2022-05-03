@@ -48,8 +48,8 @@ class DistSparseTensor:
         pass
 
 def test_tensor_redistribute():
-    x = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    grid = Grid([2, 2, 1])
+    x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
+    grid = Grid([1, 1, 1, 1])
     prefix_array = grid.get_prefix_array()
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
     

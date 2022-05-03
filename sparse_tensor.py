@@ -72,16 +72,18 @@ class DistSparseTensor:
                     start = tensor_grid.start_coords[j][grid.coords[j]]
                     end= tensor_grid.start_coords[j][grid.coords[j] + 1]
                     val = recv_buffers[j][i]
-                    #print(f"Start: {start}, Val: {val}, End: {end}")
-                    assert(start <= val and val < end) 
+                    assert(start <= val and val < end)
+
+            MPI.COMM_WORLD.Barrier()
+            if self.rank == 0:
+                print("Finished debug test!")
 
 
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
-    grid = Grid([1, 1, 1, 1])
+    grid = Grid([4, 4, 4, 1])
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
-    x.redistribute_nonzeros(tensor_grid)
-    print("Finished nonzero distribution!")
+    x.redistribute_nonzeros(tensor_grid, debug=True)
 
 if __name__=='__main__':
     test_tensor_redistribute()

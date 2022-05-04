@@ -7,6 +7,7 @@ from mpi4py import MPI
 from common import *
 import cppimport.import_hook
 import cpp_ext.redistribute_tensor as rd
+import cpp_ext.tensor_kernels as tensor_kernels 
 
 def allocate_recv_buffers(dim, count, lst):
     for i in range(dim):
@@ -78,6 +79,17 @@ class DistSparseTensor:
             if self.rank == 0:
                 print("Finished debug test!")
 
+    def mttkrp(self, factors, mode, buffer):
+        '''
+        For convenience, factors is sized equal to the dimension of the
+        tensor, even though there's always one factor we ignore in the
+        MTTKRP contribution.
+
+        Mode is the index of the mode to isolate along the column axis
+        when matricizing the tensor
+        '''
+        tensor_kernels.sp_mttkrp(mode, factors, \
+            self.tensor_idxs, self.values, buffer) 
 
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
@@ -85,5 +97,20 @@ def test_tensor_redistribute():
     tensor_grid = TensorGrid(x.max_idxs, grid=grid)
     x.redistribute_nonzeros(tensor_grid, debug=True)
 
+def test_mttkrp():
+    x = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    factors = []
+
+    rank = np.array([5], dtype=np.ulonglong)[0] 
+    for i in range(x.dim):
+        factors.append(np.array(list(range(x.max_idxs[i] * rank))).reshape((x.max_idxs[i], rank)))
+
+    x.mttkrp(factors, 0, factors[0])
+    #grid = Grid([1, 1, 1])
+    #tensor_grid = TensorGrid(x.max_idxs, grid=grid)
+    
+
+
 if __name__=='__main__':
-    test_tensor_redistribute()
+    #test_tensor_redistribute()
+    test_mttkrp()

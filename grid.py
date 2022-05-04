@@ -85,12 +85,4 @@ class TensorGrid:
 if __name__=='__main__':
     #grid = Grid([3, 3, 3])
     #tGrid = TensorGrid([5, 1, 20], grid=grid)
-
-    #print(f"Dim: {dim}")
-    x = np.array([2482], dtype=np.ulonglong)
-    f = x[0]
-
-    val = round_to_nearest_np_arr(f, 64)
-    #val = (f + 64) // (64 * 64)
-
-    print(val)
+    pass

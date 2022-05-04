@@ -22,24 +22,6 @@ double stop_clock_get_elapsed(my_timer_t &start) {
     return diff.count();
 }
 
-
-unsigned long long sum_all_elements(py::list my_list) {
-    unsigned long long total_sum = 0;
-
-    for(py::handle obj : my_list) {
-        py::array_t<unsigned long long> idxs = obj.cast<py::array_t<unsigned long long>>();
-
-        py::buffer_info info = idxs.request();
-        auto ptr = static_cast<unsigned long long*>(info.ptr);
-
-        for(int i = 0; i < info.shape[0]; i++) {
-            total_sum += ptr[i];
-        }
-    }
-
-    return total_sum;
-}
-
 /*
  * This is a bad prefix sum function.
  */
@@ -53,8 +35,7 @@ void prefix_sum(vector<unsigned long long> &values, vector<unsigned long long> &
 
 /*
  * Count up the nonzeros in preparation to allocate receive buffers. 
- *
- *  
+ * 
  */
 void redistribute_nonzeros(
         py::array_t<unsigned long long> intervals, 
@@ -217,7 +198,6 @@ void redistribute_nonzeros(
 }
 
 PYBIND11_MODULE(redistribute_tensor, m) {
-    m.def("sum_all_elements", &sum_all_elements);
     m.def("redistribute_nonzeros", &redistribute_nonzeros);
 }
 

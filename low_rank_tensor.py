@@ -1,126 +1,20 @@
-import mpi4py
+from distmat import *
 import numpy as np
-from numpy.random import Generator, Philox
-
 import numpy.linalg as la
-from grid import Grid
-from local_kernels import *
-from sketching import *
-from common import *
-
-from mpi4py import MPI
-
-import time
-import json
-
-# Matrix is partitioned into block rows across processors
-# This class is designed so that each slice of the processor
-# grid holds a chunk of matrices. The slice dimension is
-# the axis along which to ``align" the distribution of the factor 
-class DistMat1D:
-    def __init__(self, rows, cols, grid, slice_dim):
-        self.rows = rows 
-        self.padded_rows = round_to_nearest(rows, grid.world_size)
-        self.cols = cols
-        self.local_rows_padded = self.padded_rows // grid.world_size
-        self.local_window_size = self.local_rows_padded * self.cols
-
-        self.grid = grid
-        self.slice_dim = slice_dim
-
-        self.row_position = grid.slices[slice_dim].Get_rank() + \
-            grid.coords[slice_dim] * grid.slices[slice_dim].Get_size()
-
-        # Compute the true count of the rows that this processor owns 
-        self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
-        self.rowct = max(self.rowct, 0)
-
-        self.data = np.zeros((self.local_rows_padded, self.cols))   
-        self.row_idxs = np.array(list(range(self.rowct)), dtype=np.int64)
-
-        # TODO: Should store the padding offset here, add a view
-        # into the matrix that represents the true data
-        #print(f"Rank: {grid.rank}\t{self.grid.slices[0].Get_rank()}")
-        #print(f"Row position: {self.row_position}")
-
-    def initialize_deterministic(self, offset):
-        value_start = self.row_position * self.local_window_size 
-        self.data = np.array(range(value_start, value_start + self.local_window_size)).reshape(self.local_rows_padded, self.cols)
-        self.data = np.cos((self.data + offset) * 5)
- 
-    def initialize_random(self, random_seed=42):
-        #gen = Philox(random_seed)
-        #gen = gen.advance(self.row_position * self.local_window_size)
-        #rg = Generator(gen)
-        self.data = np.random.rand(*self.data.shape) - 0.5
-
-    def compute_gram_matrix(self):
-        if self.rowct == 0:
-            ncol = np.shape(self.data)[1]
-            self.gram = np.zeros((ncol, ncol))
-        else:
-            data_trunc = self.data[:self.rowct]
-            self.gram = (data_trunc.T @ data_trunc)
-
-        self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram)
-
-    def compute_leverage_scores(self):
-        gram_inv = la.pinv(self.gram)
- 
-        self.leverage_scores = np.sum((self.data @ gram_inv) * self.data, axis=1)
-
-        # Leverage weight is the sum of the leverage scores held by  
-        normalization_factor = np.array(np.sum(self.leverage_scores))
-        self.grid.comm.Allreduce(MPI.IN_PLACE, normalization_factor)
-
-        if normalization_factor != 0:
-            self.leverage_scores /= normalization_factor 
-
-        self.leverage_weight = np.array(np.sum(self.leverage_scores))
-
-    def allgather_factor(self, with_leverage=False):
-        slice_dim = self.slice_dim
-        slice_size = self.grid.slices[slice_dim].Get_size()
-        buffer_rowct = self.local_rows_padded * slice_size
-        buffer_data = np.zeros((buffer_rowct, self.cols))
-        buffer_leverage = np.zeros(buffer_rowct)
-
-        self.grid.slices[slice_dim].Allgather([self.data, MPI.DOUBLE], 
-                [buffer_data, MPI.DOUBLE])
-
-
-        # Handle the overhang when mode length is not divisible by
-        # the processor count 
-        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * self.grid.coords[slice_dim])
-        truncated_rowct = max(truncated_rowct, 0) 
-        buffer_data = buffer_data[:truncated_rowct] 
-
-        self.gathered_factor = buffer_data
-
-        if with_leverage:
-            self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
-                    [buffer_leverage, MPI.DOUBLE])
-            buffer_leverage = buffer_leverage[:truncated_rowct]
-            self.gathered_leverage = buffer_leverage 
-
-def start_clock():
-    return time.time()
-
-def stop_clock_and_add(t0, dict, key):
-    t1 = time.time()
-    dict[key] += t1 - t0 
-
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
-    def __init__(self, grid, mode_sizes, rank, singular_values): 
+    def __init__(self, tensor_grid, mode_sizes, rank, singular_values): 
         self.rank = rank
-        self.grid = grid
-        self.mode_sizes = mode_sizes
+        self.grid = tensor_grid
+        self.tensor_grid = tensor_grid
+        self.mode_sizes = tensor_grid.tensor_dims
+
         self.dim = len(mode_sizes)
-        self.factors = [DistMat1D(mode_sizes[i], rank, grid, i)
+        self.factors = [DistMat1D(rank, tensor_grid, i)
                     for i in range(self.dim)]
 
+        # TODO: This array is currently useless, need to fix! 
         self.singular_values = np.array(singular_values)
         
     # Replicate data on each slice and all-gather all factors accoording to the
@@ -143,7 +37,6 @@ class DistLowRank:
 
     def materialize_tensor(self):
         gathered_matrices, _ = self.allgather_factors([True] * self.dim)
-        #self.local_materialized = np.einsum('r,ir,jr,kr->ijk', self.singular_values, *gathered_matrices)
         self.local_materialized = tensor_from_factors_sval(self.singular_values, gathered_matrices) 
 
     # Materialize the tensor starting only from the given singular
@@ -279,3 +172,5 @@ class DistLowRank:
             json_obj = json.dumps(statistics, indent=4)
             f.write(json_obj + ",\n")
             f.close()
+
+if __name__=='__main__':

@@ -1,3 +1,4 @@
+import time
 import numpy as np
 import numpy.linalg as la
 from mpi4py import MPI
@@ -20,3 +21,10 @@ def get_norm_distributed(buf, world):
     result = np.zeros(1)
     world.Allreduce([val, MPI.DOUBLE], [result, MPI.DOUBLE]) 
     return np.sqrt(result)
+
+def start_clock():
+    return time.time()
+
+def stop_clock_and_add(t0, dict, key):
+    t1 = time.time()
+    dict[key] += t1 - t0 

@@ -4,7 +4,7 @@ from numpy.random import Generator, Philox
 from mpi4py import MPI
 import argparse
 
-from candecomp_standard import DistLowRank, get_norm_distributed
+from distmat import DistLowRank, get_norm_distributed
 from grid import Grid
 
 def compute_best_residual(ground_truth, target_rank):

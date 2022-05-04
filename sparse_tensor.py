@@ -98,17 +98,25 @@ def test_tensor_redistribute():
     x.redistribute_nonzeros(tensor_grid, debug=True)
 
 def test_mttkrp():
-    x = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
     factors = []
 
-    rank = np.array([5], dtype=np.ulonglong)[0] 
+    rank = np.array([25], dtype=np.ulonglong)[0] 
     for i in range(x.dim):
         factors.append(np.array(list(range(x.max_idxs[i] * rank)), dtype=np.double).reshape((x.max_idxs[i], rank)))
+    
+    #for factor in factors:
+    #    print(factor)
 
+    m = np.zeros_like(factors[1], dtype=np.double)
 
-    m = np.zeros_like(factors[0], dtype=np.double)
-    x.mttkrp(factors, 0, factors[0])
-    print(factors[0])
+    print("Starting MTTKRP...")
+    start = time.time()
+    x.mttkrp(factors, 1, m)
+    interval = time.time() - start
+
+    print(f"MTTKRP Completed in {interval} seconds!")
+    #print(m)
     #grid = Grid([1, 1, 1])
     #tensor_grid = TensorGrid(x.max_idxs, grid=grid)
     

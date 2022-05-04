@@ -68,7 +68,7 @@ void sp_mttkrp(
 
         for(int j = 0; j < dim; j++) {
             if(j != mode) {
-                double* row_ptr = factor_ptrs[j] + (i * col_count);
+                double* row_ptr = factor_ptrs[j] + (idx_ptrs[j][i] * col_count);
                 for(int k = 0; k < col_count; k++) {
                     accum_ptr[k] *= row_ptr[k]; 
                 }

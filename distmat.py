@@ -35,8 +35,9 @@ class DistMat1D:
         self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
         self.rowct = max(self.rowct, 0)
 
-        self.data = np.zeros((self.local_rows_padded, self.cols))   
-        self.row_idxs = np.array(list(range(self.rowct)), dtype=np.int64)
+        self.data = np.zeros((self.local_rows_padded, self.cols), dtype=np.double)   
+        
+        #self.row_idxs = np.array(list(range(self.rowct)), dtype=np.int64)
 
         # TODO: Should store the padding offset here, add a view
         # into the matrix that represents the true data

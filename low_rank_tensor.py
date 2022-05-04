@@ -1,16 +1,17 @@
 from distmat import *
 import numpy as np
 import numpy.linalg as la
+import json
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
-    def __init__(self, tensor_grid, mode_sizes, rank, singular_values): 
+    def __init__(self, tensor_grid, rank, singular_values): 
         self.rank = rank
-        self.grid = tensor_grid
+        self.grid = tensor_grid.grid
         self.tensor_grid = tensor_grid
         self.mode_sizes = tensor_grid.tensor_dims
 
-        self.dim = len(mode_sizes)
+        self.dim = len(tensor_grid.tensor_dims)
         self.factors = [DistMat1D(rank, tensor_grid, i)
                     for i in range(self.dim)]
 
@@ -61,7 +62,6 @@ class DistLowRank:
     # class's factors with a given dense tensor. Also performs 
     # gram matrix computation. 
     def optimize_factor(self, local_ten, mode_to_leave, timer_dict, sketching_pct=None):
-
         sketching = sketching_pct is not None
         factors_to_gather = [True] * self.dim
         factors_to_gather[mode_to_leave] = False
@@ -94,34 +94,32 @@ class DistLowRank:
         krp_gram_inv = la.pinv(gram_prod)
         stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
-
         start = start_clock() 
-        gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather, with_leverage=sketching) 
+        gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather, with_leverage=sketching)
+
+        dummy = np.zeros(5)
+        gathered_matrices.insert(mode_to_leave, dummy)
+
         stop_clock_and_add(start, timer_dict, "Slice Replication")
 
-        # Compute a local MTTKRP
         start = start_clock() 
-        matricized_tensor = matricize_tensor(local_ten, mode_to_leave)
-        mttkrp_unreduced = None
+        mttkrp_unreduced = np.zeros((self.tensor_grid.intervals[mode_to_leave], self.rank))  
+        local_ten.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)
 
-        if sketching_pct is None:
-            mttkrp_unreduced = matricized_tensor.T @ krp(gathered_matrices)
-        else:
-            lhs, rhs = LeverageProdSketch(gathered_matrices, gathered_leverage, matricized_tensor, sketching_pct) 
-            mttkrp_unreduced =  rhs.T @ lhs
         MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "MTTKRP")
         start = start_clock()
+
         # Padding before reduce-scatter. Is there a smarter way to do this? 
 
-        padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
+        #padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
 
-        reduce_scatter_buffer = np.zeros((padded_rowct, self.rank))
-        reduce_scatter_buffer[:len(mttkrp_unreduced)] = mttkrp_unreduced
+        #reduce_scatter_buffer = np.zeros((padded_rowct, self.rank))
+        #reduce_scatter_buffer[:len(mttkrp_unreduced)] = mttkrp_unreduced
 
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
-        self.grid.slices[mode_to_leave].Reduce_scatter([reduce_scatter_buffer, MPI.DOUBLE], 
+        self.grid.slices[mode_to_leave].Reduce_scatter([mttkrp_unreduced, MPI.DOUBLE], 
                 [mttkrp_reduced, MPI.DOUBLE])  
         stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 

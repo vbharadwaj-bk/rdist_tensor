@@ -55,7 +55,6 @@ class DistSparseTensor:
         grid = tensor_grid.grid
         prefix_array = grid.get_prefix_array()
 
-
         recv_buffers = []
 
         rd.redistribute_nonzeros(tensor_grid.intervals, \

@@ -1,4 +1,5 @@
 import numpy as np
+from numpy.random import default_rng
 import h5py
 
 import numpy as np
@@ -41,12 +42,24 @@ class DistSparseTensor:
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 
-    def random_permute(self):
+    def random_permute(self, seed=42):
         '''
         Applies a random permutation to the indices of the sparse
-        tensor. 
+        tensor. We could definitely make this more efficient, but meh 
         '''
-        pass
+        if seed is None:
+            assert False
+            # TODO: Select a random seed here and broadcast it to all other
+            # processes!
+ 
+            # Fill the seed here after broadcasting, make it consistent on all processors 
+
+        rng = np.random.default_rng(seed)
+        for i in range(self.dim):
+            idxs = np.array(list(range(self.max_idxs[i])), dtype=np.ulonglong)
+            perm = rng.permutation(idxs)
+            self.tensor_idxs[i] = perm[self.tensor_idxs[i]] 
+
 
     def redistribute_nonzeros(self, tensor_grid, debug=False):
         '''

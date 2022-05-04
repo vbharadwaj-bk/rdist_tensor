@@ -35,17 +35,17 @@ void sp_mttkrp(
 
     for(int i = 0; i < dim; i++) {
         py::array_t<unsigned long long> arr1 = idxs[i].cast<py::array_t<unsigned long long>>();
-        py::buffer_info info = arr1.request();
-        idx_ptrs.push_back(static_cast<unsigned long long*>(info.ptr));
+        py::buffer_info info1 = arr1.request();
+        idx_ptrs.push_back(static_cast<unsigned long long*>(info1.ptr));
 
         py::array_t<double> arr2 = factors[i].cast<py::array_t<double>>();
-        info = arr2.request();
-        factor_ptrs.push_back(static_cast<double*>(info.ptr));
+        py::buffer_info info2 = arr2.request();
+        factor_ptrs.push_back(static_cast<double*>(info2.ptr));
         
         if(first_element){
             first_element = false;
-            nnz = arr1.shape[0];
-            col_count = arr2.shape[1];
+            nnz = info1.shape[0];
+            col_count = info2.shape[1];
         }
     }
 
@@ -68,7 +68,7 @@ void sp_mttkrp(
 
         for(int j = 0; j < dim; j++) {
             if(j != mode) {
-                double* row_ptr = factor_ptrs[j][i * col_count];
+                double* row_ptr = factor_ptrs[j] + (i * col_count);
                 for(int k = 0; k < col_count; k++) {
                     accum_ptr[k] *= row_ptr[k]; 
                 }
@@ -76,7 +76,7 @@ void sp_mttkrp(
         }
 
         unsigned long long out_row_idx = idx_ptrs[mode][i];
-        double* out_row_ptr = result_ptr[out_row_idx * col_count];
+        double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
         for(int k = 0; k < col_count; k++) {
             out_row_ptr[k] += accum_ptr[k]; 

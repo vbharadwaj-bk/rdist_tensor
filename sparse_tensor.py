@@ -103,9 +103,12 @@ def test_mttkrp():
 
     rank = np.array([5], dtype=np.ulonglong)[0] 
     for i in range(x.dim):
-        factors.append(np.array(list(range(x.max_idxs[i] * rank))).reshape((x.max_idxs[i], rank)))
+        factors.append(np.array(list(range(x.max_idxs[i] * rank)), dtype=np.double).reshape((x.max_idxs[i], rank)))
 
+
+    m = np.zeros_like(factors[0], dtype=np.double)
     x.mttkrp(factors, 0, factors[0])
+    print(factors[0])
     #grid = Grid([1, 1, 1])
     #tensor_grid = TensorGrid(x.max_idxs, grid=grid)
     

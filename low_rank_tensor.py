@@ -188,6 +188,10 @@ class DistLowRank:
             for mode_to_optimize in range(self.dim):
                 self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)
 
+
+        values = self.compute_tensor_values(local_ground_truth.tensor_idxs) 
+        print(values)
+
         if self.grid.rank == 0:
             #f = open(output_file, 'a')
             print(statistics)

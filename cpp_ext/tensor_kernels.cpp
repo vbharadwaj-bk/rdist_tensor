@@ -95,11 +95,11 @@ public:
     py::buffer_info info;
     T* ptr;
 
-    PyArray(py::array_t<T> arr_py) {
+    NumpyArray(py::array_t<T> arr_py) {
         info = arr_py.request();
         ptr = static_cast<T*>(info.ptr);
     }
-}
+};
 
 template<typename T>
 class NumpyList {
@@ -112,12 +112,12 @@ public:
         length = py::len(input_list);
         for(int i = 0; i < length; i++) {
             py::array_t<T> casted = input_list[i].cast<py::array_t<T>>();
-            py::buffer_info info = casted.request();
-            infos.push_back(info);
-            ptrs.push_back(static_cast<T*>(info.ptr));
+            infos.push_back(casted.request());
+            //infos.push_back(info);
+            ptrs.push_back(static_cast<T*>(infos[i].ptr));
         }
     }
-}
+};
 
 void compute_tensor_values(
         py::list factors_py,
@@ -130,14 +130,17 @@ void compute_tensor_values(
     unsigned long long nnz = idxs.infos[0].shape[0];
     unsigned long long cols = factors.infos[0].shape[1];
 
-    vector<double*> base_ptrs(nullptr, factors.length);
+    vector<double*> base_ptrs;
+    for(int j = 0; j < factors.length; j++) {
+        base_ptrs.push_back(nullptr);
+    }
 
     for(unsigned long long i = 0; i < nnz; i++) {
         for(int j = 0; j < factors.length; j++) {
             base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
         } 
         double value = 0.0;
-        for(int k = 0; k < cols; k++) {
+        for(unsigned long long k = 0; k < cols; k++) {
             double coord_buffer = 1.0;
             for(int j = 0; j < factors.length; j++) {
                 coord_buffer *= base_ptrs[j][k]; 

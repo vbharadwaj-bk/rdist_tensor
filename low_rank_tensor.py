@@ -3,6 +3,7 @@ import numpy as np
 import numpy.linalg as la
 import json
 
+import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 
 # Initializes a distributed tensor of a known low rank
@@ -39,6 +40,9 @@ class DistLowRank:
             return gathered_matrices, None
 
     def materialize_tensor(self):
+        '''
+        TODO: THIS FUNCTION IS CURRENTLY BROKEN!
+        '''
         gathered_matrices, _ = self.allgather_factors([True] * self.dim)
         self.local_materialized = tensor_from_factors_sval(self.singular_values, gathered_matrices) 
 
@@ -66,12 +70,13 @@ class DistLowRank:
         at specific indices
         '''
         result = np.zeros(len(idxs[0]), dtype=np.double)
-        tensor_kernels.compute_tensor_values(self.factors, idxs, result)
+        gathered_matrices, _ = self.allgather_factors([True] * self.dim)
+        tensor_kernels.compute_tensor_values(gathered_matrices, idxs, result)
         return result
 
     def compute_loss(self, ground_truth):
         if ground_truth.type == "SPARSE_TENSOR":
-            lr_values = self.compute_tensor_values(ground_truth.tensor_idxs)
+            lr_values = self.compute_tensor_values(ground_truth.tensor_idxs) 
             loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
             return loss
         else:

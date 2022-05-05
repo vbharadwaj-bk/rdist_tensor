@@ -18,6 +18,8 @@ def allocate_recv_buffers(dim, count, lst):
 
 class DistSparseTensor:
     def __init__(self, tensor_file):
+        self.type = "SPARSE_TENSOR"
+
         f = h5py.File(tensor_file, 'r')
         world_comm = MPI.COMM_WORLD
         self.world_size = world_comm.Get_size()

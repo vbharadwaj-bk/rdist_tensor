@@ -3,6 +3,8 @@ import numpy as np
 import numpy.linalg as la
 import json
 
+import cpp_ext.tensor_kernels as tensor_kernels 
+
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
     def __init__(self, tensor_grid, rank, singular_values): 
@@ -57,6 +59,23 @@ class DistLowRank:
     def initialize_factors_random(self, random_seed=42):
         for factor in self.factors:
             factor.initialize_random(random_seed=random_seed)
+
+    def compute_tensor_values(self, idxs):
+        '''
+        Calls into the C++ layer to compute the value of the low rank tensor
+        at specific indices
+        '''
+        result = np.zeros(len(idxs[0]), dtype=np.double)
+        tensor_kernels.compute_tensor_values(self.factors, idxs, result)
+        return result
+
+    def compute_loss(self, ground_truth):
+        if ground_truth.type == "SPARSE_TENSOR":
+            lr_values = self.compute_tensor_values(ground_truth.tensor_idxs)
+            loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
+            return loss
+        else:
+            assert False 
 
     # Computes a distributed MTTKRP of all but one of this 
     # class's factors with a given dense tensor. Also performs 
@@ -151,12 +170,12 @@ class DistLowRank:
 
         if compute_accuracy:
             self.materialize_tensor()
-            loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
+            loss = self.compute_loss(local_ground_truth) 
 
         for iter in range(num_iterations):
             if compute_accuracy:
                 self.materialize_tensor()
-                loss = get_norm_distributed(local_ground_truth - self.local_materialized, self.grid.comm)
+                loss = self.compute_loss(local_ground_truth) 
 
                 if self.grid.rank == 0:
                     print("Residual after iteration {}: {}".format(iter, loss)) 

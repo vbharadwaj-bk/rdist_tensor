@@ -89,8 +89,68 @@ void sp_mttkrp(
     }
 }
 
+template<typename T>
+class NumpyArray {
+public:
+    py::buffer_info info;
+    T* ptr;
+
+    PyArray(py::array_t<T> arr_py) {
+        info = arr_py.request();
+        ptr = static_cast<T*>(info.ptr);
+    }
+}
+
+template<typename T>
+class NumpyList {
+public:
+    vector<py::buffer_info> infos;
+    vector<T*> ptrs;
+    int length;
+
+    NumpyList(py::list input_list) {
+        length = py::len(input_list);
+        for(int i = 0; i < length; i++) {
+            py::array_t<T> casted = input_list[i].cast<py::array_t<T>>();
+            py::buffer_info info = casted.request();
+            infos.push_back(info);
+            ptrs.push_back(static_cast<T*>(info.ptr));
+        }
+    }
+}
+
+void compute_tensor_values(
+        py::list factors_py,
+        py::list idxs_py,
+        py::array_t<double> result_py) {
+    NumpyList<double> factors(factors_py);
+    NumpyList<unsigned long long> idxs(idxs_py);
+    NumpyArray<double> result(result_py);
+
+    unsigned long long nnz = idxs.infos[0].shape[0];
+    unsigned long long cols = factors.infos[0].shape[1];
+
+    vector<double*> base_ptrs(nullptr, factors.length);
+
+    for(unsigned long long i = 0; i < nnz; i++) {
+        for(int j = 0; j < factors.length; j++) {
+            base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
+        } 
+        double value = 0.0;
+        for(int k = 0; k < cols; k++) {
+            double coord_buffer = 1.0;
+            for(int j = 0; j < factors.length; j++) {
+                coord_buffer *= base_ptrs[j][k]; 
+            }
+            value += coord_buffer;
+        }
+        result.ptr[i] = value;
+    }
+}
+
 PYBIND11_MODULE(tensor_kernels, m) {
     m.def("sp_mttkrp", &sp_mttkrp);
+    m.def("compute_tensor_values", &compute_tensor_values);
 }
 
 /*

@@ -173,13 +173,8 @@ class DistLowRank:
 
         self.singular_values = np.ones(self.rank)
 
-        if compute_accuracy:
-            self.materialize_tensor()
-            loss = self.compute_loss(local_ground_truth) 
-
         for iter in range(num_iterations):
             if compute_accuracy:
-                self.materialize_tensor()
                 loss = self.compute_loss(local_ground_truth) 
 
                 if self.grid.rank == 0:
@@ -189,8 +184,9 @@ class DistLowRank:
                 self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)
 
 
-        values = self.compute_tensor_values(local_ground_truth.tensor_idxs) 
-        print(values)
+        #values = self.compute_tensor_values(local_ground_truth.tensor_idxs)
+        #print(values)
+
 
         if self.grid.rank == 0:
             #f = open(output_file, 'a')

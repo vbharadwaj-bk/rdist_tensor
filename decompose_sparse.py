@@ -36,8 +36,8 @@ if __name__=='__main__':
     if args is None:
         exit(1)
 
-    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    grid = Grid([1, 1, 1])
+    ground_truth = DistSparseTensor("tensors/nips.tns_converted.hdf5")
+    grid = Grid([1, 1, 1, 1])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
 

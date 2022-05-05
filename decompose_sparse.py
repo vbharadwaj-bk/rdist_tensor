@@ -37,13 +37,13 @@ if __name__=='__main__':
         exit(1)
 
     ground_truth = DistSparseTensor("tensors/nips.tns_converted.hdf5")
-    grid = Grid([1, 1, 1, 1])
+    grid = Grid([2, 2, 2, 1])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
 
     ten_to_optimize = DistLowRank(tensor_grid, args.trank, None)
     #ten_to_optimize.initialize_factors_deterministic(0.05)
-    ten_to_optimize.initialize_factors_random(args.rs) 
+    ten_to_optimize.initialize_factors_deterministic(args.rs) 
 
     if grid.rank == 0:
         print(f"Starting benchmark...")

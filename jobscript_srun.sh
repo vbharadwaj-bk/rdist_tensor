@@ -22,4 +22,4 @@
 #done
 
 
-srun -n 1 python decompose_sparse.py -t 30 -iter 10 -o data/test.out
+srun -n 8 python decompose_sparse.py -t 30 -iter 10 -o data/test.out

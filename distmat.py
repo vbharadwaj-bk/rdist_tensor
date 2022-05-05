@@ -32,8 +32,10 @@ class DistMat1D:
             self.grid.coords[slice_dim] * self.grid.slices[slice_dim].Get_size())
 
         # Compute the true count of the rows that this processor owns 
-        self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
-        self.rowct = max(self.rowct, 0)
+        if(self.row_position * self.local_rows_padded > self.rows):
+            self.rowct = cl(0)
+        else:
+            self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
 
         self.data = np.zeros((self.local_rows_padded, self.cols), dtype=np.double)   
         
@@ -77,9 +79,13 @@ class DistMat1D:
 
 
         # Handle the overhang when mode length is not divisible by
-        # the processor count 
-        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * cl(self.grid.coords[slice_dim]))
-        truncated_rowct = max(truncated_rowct, 0) 
+        # the processor count
+
+        if buffer_rowct * cl(self.grid.coords[slice_dim]) > self.rows:
+            truncated_rowct = 0
+        else:
+            truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * cl(self.grid.coords[slice_dim]))
+
         buffer_data = buffer_data[:truncated_rowct] 
 
         self.gathered_factor = buffer_data

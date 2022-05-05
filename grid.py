@@ -79,6 +79,8 @@ class TensorGrid:
                 coords = list(range(0, dim, interval))
                 while len(coords) <= proc_count:
                     coords.append(dim)
+
+                coords = np.array(coords, dtype=np.ulonglong)
                 self.start_coords.append(coords)
 
 

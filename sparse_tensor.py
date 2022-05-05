@@ -89,9 +89,13 @@ class DistSparseTensor:
                     val = recv_buffers[j][i]
                     assert(start <= val and val < end)
 
-            MPI.COMM_WORLD.Barrier()
             if self.rank == 0:
                 print("Finished debug test!")
+  
+        for j in range(self.dim):
+            self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
+
+        print(f"Count: {len(self.tensor_idxs[0])}")
 
     def mttkrp(self, factors, mode, buffer):
         '''

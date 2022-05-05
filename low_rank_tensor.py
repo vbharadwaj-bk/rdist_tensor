@@ -97,15 +97,14 @@ class DistLowRank:
         start = start_clock() 
         gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather, with_leverage=sketching)
 
-        dummy = np.zeros(5)
+        dummy = None
         gathered_matrices.insert(mode_to_leave, dummy)
 
         stop_clock_and_add(start, timer_dict, "Slice Replication")
 
         start = start_clock() 
-        mttkrp_unreduced = np.zeros((self.tensor_grid.intervals[mode_to_leave], self.rank))  
+        mttkrp_unreduced = np.zeros((self.tensor_grid.intervals[mode_to_leave], self.rank)) 
         local_ten.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)
-
         MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "MTTKRP")
         start = start_clock()
@@ -166,10 +165,11 @@ class DistLowRank:
                 self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)
 
         if self.grid.rank == 0:
-            f = open(output_file, 'a')
-            json_obj = json.dumps(statistics, indent=4)
-            f.write(json_obj + ",\n")
-            f.close()
+            #f = open(output_file, 'a')
+            print(statistics)
+            #json_obj = json.dumps(statistics, indent=4)
+            #f.write(json_obj + ",\n")
+            #f.close()
 
 if __name__=='__main__':
     pass

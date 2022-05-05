@@ -38,14 +38,19 @@ void sp_mttkrp(
         py::buffer_info info1 = arr1.request();
         idx_ptrs.push_back(static_cast<unsigned long long*>(info1.ptr));
 
-        py::array_t<double> arr2 = factors[i].cast<py::array_t<double>>();
-        py::buffer_info info2 = arr2.request();
-        factor_ptrs.push_back(static_cast<double*>(info2.ptr));
-        
-        if(first_element){
-            first_element = false;
-            nnz = info1.shape[0];
-            col_count = info2.shape[1];
+        if(i != mode) {
+            py::array_t<double> arr2 = factors[i].cast<py::array_t<double>>();
+            py::buffer_info info2 = arr2.request();
+            factor_ptrs.push_back(static_cast<double*>(info2.ptr));
+            
+            if(first_element) {
+                first_element = false;
+                nnz = info1.shape[0];
+                col_count = info2.shape[1];
+            }
+        }
+        else {
+            factor_ptrs.push_back(nullptr);
         }
     }
 

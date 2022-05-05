@@ -18,18 +18,18 @@ class DistMat1D:
     def __init__(self, cols, tensor_grid, slice_dim):
         self.grid = tensor_grid.grid
         self.rows = tensor_grid.tensor_dims[slice_dim] 
+        self.cols = cl(cols)
 
         # TODO: This computation is pretty redundant compared to the one
-        # already in grid.py... 
-        self.padded_rows = round_to_nearest(self.rows, self.grid.world_size)
-        self.local_rows_padded = self.padded_rows // self.grid.world_size
+        # already in grid.py...
+        self.padded_rows = round_to_nearest_np_arr(self.rows, self.grid.world_size)
+        self.local_rows_padded = self.padded_rows // cl(self.grid.world_size)
         self.local_window_size = self.local_rows_padded * self.cols
-        self.cols = cols
 
         self.slice_dim = slice_dim
 
-        self.row_position = self.grid.slices[slice_dim].Get_rank() + \
-            self.grid.coords[slice_dim] * self.grid.slices[slice_dim].Get_size()
+        self.row_position = cl(self.grid.slices[slice_dim].Get_rank() + \
+            self.grid.coords[slice_dim] * self.grid.slices[slice_dim].Get_size())
 
         # Compute the true count of the rows that this processor owns 
         self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
@@ -67,7 +67,7 @@ class DistMat1D:
 
     def allgather_factor(self, with_leverage=False):
         slice_dim = self.slice_dim
-        slice_size = self.grid.slices[slice_dim].Get_size()
+        slice_size = cl(self.grid.slices[slice_dim].Get_size())
         buffer_rowct = self.local_rows_padded * slice_size
         buffer_data = np.zeros((buffer_rowct, self.cols))
         buffer_leverage = np.zeros(buffer_rowct)
@@ -78,7 +78,7 @@ class DistMat1D:
 
         # Handle the overhang when mode length is not divisible by
         # the processor count 
-        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * self.grid.coords[slice_dim])
+        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * cl(self.grid.coords[slice_dim]))
         truncated_rowct = max(truncated_rowct, 0) 
         buffer_data = buffer_data[:truncated_rowct] 
 

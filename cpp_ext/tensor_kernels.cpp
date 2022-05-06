@@ -66,6 +66,10 @@ void sp_mttkrp(
     vector<double> accum_buffer(col_count, 1.0);
     double* accum_ptr = accum_buffer.data();
 
+    // DEBUGGING!!
+    //cout << "NNZ: " << nnz << endl;
+    // END DEBUGGING!
+
     for(unsigned long long i = 0; i < nnz; i++) {
         for(int k = 0; k < col_count; k++) {
             accum_ptr[k] = value_ptr[i];

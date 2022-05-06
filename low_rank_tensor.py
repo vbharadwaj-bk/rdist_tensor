@@ -126,6 +126,7 @@ class DistLowRank:
 
         stop_clock_and_add(start, timer_dict, "Slice Replication")
 
+        MPI.COMM_WORLD.Barrier()
         start = start_clock() 
         mttkrp_unreduced = np.zeros((self.tensor_grid.intervals[mode_to_leave], self.rank)) 
         local_ten.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)

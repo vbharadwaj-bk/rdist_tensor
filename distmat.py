@@ -49,7 +49,7 @@ class DistMat1D:
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
         self.data = np.array(range(value_start, value_start + self.local_window_size)).reshape(self.local_rows_padded, self.cols)
-        self.data = np.cos((self.data + offset) * 5)
+        #self.data = np.cos((self.data + offset) * 5)
  
     def initialize_random(self, random_seed=42):
         #gen = Philox(random_seed)

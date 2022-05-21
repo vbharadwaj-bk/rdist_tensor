@@ -34,7 +34,7 @@ void redistribute_nonzeros(
         unsigned long long proc_count, 
         py::array_t<int> prefix_mult_py,
         py::list recv_idx_py,
-        py::array<double> recv_values_py,
+        py::list recv_values_py,
         py::function allocate_recv_buffers 
         ) {
 
@@ -43,8 +43,6 @@ void redistribute_nonzeros(
     NumpyList<unsigned long long> coords(coords_py); 
     NumpyArray<double> values(values_py); 
     NumpyArray<int> prefix_mult(prefix_mult_py);
-    NumpyList<unsigned long long> recv_idx(recv_idx_py);
-    NumpyList<double> recv_values(recv_values_py);
 
     unsigned long long nnz = coords.infos[0].shape[0];
     int dim = prefix_mult.info.shape[0];
@@ -56,14 +54,14 @@ void redistribute_nonzeros(
     vector<unsigned long long> send_offsets;
     vector<unsigned long long> recv_offsets;
     vector<unsigned long long> running_offsets;
- 
+
     vector<int> processor_assignments(nnz, -1);
 
     // TODO: Could parallelize using OpenMP if we want faster IO 
     for(unsigned long long i = 0; i < nnz; i++) {
         unsigned long long processor = 0;
         for(int j = 0; j < dim; j++) {
-            processor += prefixes_mult.ptr[j] * (coords.ptrs[j][i] / intervals.ptr[j]); 
+            processor += prefix_mult.ptr[j] * (coords.ptrs[j][i] / intervals.ptr[j]); 
         }
         send_counts[processor]++;
         processor_assignments[i] = processor;
@@ -84,6 +82,8 @@ void redistribute_nonzeros(
     vector<double> send_values(nnz, 0.0);
 
     allocate_recv_buffers(dim, total_received_coords, recv_idx_py, recv_values_py);
+    NumpyList<unsigned long long> recv_idx(recv_idx_py);
+    NumpyList<double> recv_values(recv_values_py);
 
     for(int i = 0; i < dim; i++) {
         send_idx.emplace_back(nnz, 0);
@@ -101,7 +101,7 @@ void redistribute_nonzeros(
         idx = running_offsets[owner]++;
 
         for(int j = 0; j < dim; j++) {
-            send_idx[j][idx] = buffer_ptrs[j][i];
+            send_idx[j][idx] = coords.ptrs[j][i];
         }
         send_values[idx] = values.ptr[idx]; 
     }
@@ -153,7 +153,7 @@ void redistribute_nonzeros(
                     send_counts_dcast.data(), 
                     send_offsets_dcast.data(), 
                     MPI_DOUBLE, 
-                    recv_values.ptr, 
+                    recv_values.ptrs[0], 
                     recv_counts_dcast.data(), 
                     recv_offsets_dcast.data(), 
                     MPI_DOUBLE, MPI_COMM_WORLD 

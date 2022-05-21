@@ -11,11 +11,11 @@ import cppimport.import_hook
 import cpp_ext.redistribute_tensor as rd
 import cpp_ext.tensor_kernels as tensor_kernels 
 
-def allocate_recv_buffers(dim, count, lst):
+def allocate_recv_buffers(dim, count, lst_idx, lst_values):
     for i in range(dim):
-        lst.append(np.zeros(count, dtype=np.ulonglong))
+        lst_idx.append(np.zeros(count, dtype=np.ulonglong))
 
-    lst.append(np.zeros(count, dtype=np.double))
+    lst_values.append(np.zeros(count, dtype=np.double))
 
 class DistSparseTensor:
     def __init__(self, tensor_file):
@@ -79,19 +79,24 @@ class DistSparseTensor:
         '''
         Redistribute the nonzeros according to the provided tensor grid.
         '''
+        assert( tensor_grid.grid.dim == self.dim)
         grid = tensor_grid.grid
         prefix_array = grid.get_prefix_array()
 
         recv_buffers = []
+        recv_values = []
+
+        print(self.tensor_idxs)
 
         rd.redistribute_nonzeros(tensor_grid.intervals, \
             self.tensor_idxs, \
             self.values, \
             grid.world_size, \
-            prefix_array, recv_buffers, allocate_recv_buffers)
+            prefix_array, recv_buffers, recv_values, \
+            allocate_recv_buffers)
 
-        self.tensor_idxs = recv_buffers[:-1]
-        self.values = recv_buffers[-1]
+        self.tensor_idxs = recv_buffers
+        self.values = recv_values[0]
 
         if debug:
             for i in range(len(recv_buffers[0])):
@@ -149,8 +154,6 @@ def test_mttkrp():
     #print(m)
     #grid = Grid([1, 1, 1])
     #tensor_grid = TensorGrid(x.max_idxs, grid=grid)
-    
-
 
 if __name__=='__main__':
     #test_tensor_redistribute()

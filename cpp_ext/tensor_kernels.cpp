@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include "common.h"
 
 using namespace std;
 namespace py = pybind11;
@@ -96,35 +97,6 @@ void sp_mttkrp(
     }
 }
 
-template<typename T>
-class NumpyArray {
-public:
-    py::buffer_info info;
-    T* ptr;
-
-    NumpyArray(py::array_t<T> arr_py) {
-        info = arr_py.request();
-        ptr = static_cast<T*>(info.ptr);
-    }
-};
-
-template<typename T>
-class NumpyList {
-public:
-    vector<py::buffer_info> infos;
-    vector<T*> ptrs;
-    int length;
-
-    NumpyList(py::list input_list) {
-        length = py::len(input_list);
-        for(int i = 0; i < length; i++) {
-            py::array_t<T> casted = input_list[i].cast<py::array_t<T>>();
-            infos.push_back(casted.request());
-            //infos.push_back(info);
-            ptrs.push_back(static_cast<T*>(infos[i].ptr));
-        }
-    }
-};
 
 void compute_tensor_values(
         py::list factors_py,

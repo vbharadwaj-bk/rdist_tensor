@@ -7,20 +7,10 @@
 #include <chrono>
 #include <mpi.h>
 
+#include "common.h"
+
 using namespace std;
 namespace py = pybind11;
-
-typedef chrono::time_point<std::chrono::steady_clock> my_timer_t; 
-
-my_timer_t start_clock() {
-    return std::chrono::steady_clock::now();
-}
-
-double stop_clock_get_elapsed(my_timer_t &start) {
-    auto end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> diff = end - start;
-    return diff.count();
-}
 
 /*
  * This is a bad prefix sum function.
@@ -38,58 +28,42 @@ void prefix_sum(vector<unsigned long long> &values, vector<unsigned long long> &
  * 
  */
 void redistribute_nonzeros(
-        py::array_t<unsigned long long> intervals, 
-        py::list coords,
-        py::array_t<double> values,
+        py::array_t<unsigned long long> intervals_py, 
+        py::list coords_py,
+        py::array_t<double> values_py,
         unsigned long long proc_count, 
-        py::array_t<int> prefix_mult,
-        py::list recv_buffer_lst,
+        py::array_t<int> prefix_mult_py,
+        py::list recv_idx_py,
+        py::array<double> recv_values_py,
         py::function allocate_recv_buffers 
         ) {
-    // Count of nonzeros assigned to each processor
+
+    // Unpack the parameters 
+    NumpyArray<unsigned long long> intervals(intervals_py); 
+    NumpyList<unsigned long long> coords(coords_py); 
+    NumpyArray<double> values(values_py); 
+    NumpyArray<int> prefix_mult(prefix_mult_py);
+    NumpyList<unsigned long long> recv_idx(recv_idx_py);
+    NumpyList<double> recv_values(recv_values_py);
+
+    unsigned long long nnz = coords.infos[0].shape[0];
+    int dim = prefix_mult.info.shape[0];
+
+    // Initialize AlltoAll data structures 
     vector<unsigned long long> send_counts(proc_count, 0);
     vector<unsigned long long> recv_counts(proc_count, 0);
 
     vector<unsigned long long> send_offsets;
     vector<unsigned long long> recv_offsets;
-
     vector<unsigned long long> running_offsets;
-
-    // Unpack the list of coordinate buffers into pointers 
-    vector<unsigned long long*> buffer_ptrs;
-
-    unsigned long long nnz;
-    bool first_element = true;
-    for(py::handle obj : coords) { 
-
-        py::array_t<unsigned long long> idxs = obj.cast<py::array_t<unsigned long long>>();
-
-        py::buffer_info info = idxs.request();
-        buffer_ptrs.push_back(static_cast<unsigned long long*>(info.ptr));
-        
-        if(first_element) {
-            first_element = false;
-            nnz = info.shape[0];
-        }
-    }
-
-    py::buffer_info info = prefix_mult.request();
-    int* prefixes = static_cast<int*>(info.ptr);
-    int dim = info.shape[0];
-
-    info = intervals.request();
-    unsigned long long* interval_ptr = static_cast<unsigned long long*>(info.ptr);
-    
-    info = values.request();
-    double* value_ptr = static_cast<double*>(info.ptr);   
-
+ 
     vector<int> processor_assignments(nnz, -1);
 
     // TODO: Could parallelize using OpenMP if we want faster IO 
     for(unsigned long long i = 0; i < nnz; i++) {
         unsigned long long processor = 0;
         for(int j = 0; j < dim; j++) {
-            processor += prefixes[j] * (buffer_ptrs[j][i] / interval_ptr[j]); 
+            processor += prefixes_mult.ptr[j] * (coords.ptrs[j][i] / intervals.ptr[j]); 
         }
         send_counts[processor]++;
         processor_assignments[i] = processor;
@@ -106,25 +80,14 @@ void redistribute_nonzeros(
 
     prefix_sum(recv_counts, recv_offsets);
 
-    vector<vector<unsigned long long>> send_buffers_idx;
-    vector<double> send_buffer_values(nnz, 0.0);
+    vector<vector<unsigned long long>> send_idx;
+    vector<double> send_values(nnz, 0.0);
 
-    vector<unsigned long long*> recv_buffers_idx;
-    double* recv_buffer_values;
-
-    allocate_recv_buffers(dim, total_received_coords, recv_buffer_lst);
+    allocate_recv_buffers(dim, total_received_coords, recv_idx_py, recv_values_py);
 
     for(int i = 0; i < dim; i++) {
-        send_buffers_idx.emplace_back(nnz, 0);
-
-        py::array_t<unsigned long long> arr = recv_buffer_lst[i].cast<py::array_t<unsigned long long>>();
-        py::buffer_info info = arr.request();
-        recv_buffers_idx.push_back(static_cast<unsigned long long*>(info.ptr));
+        send_idx.emplace_back(nnz, 0);
     }
-
-    py::array_t<double> arr = recv_buffer_lst[dim].cast<py::array_t<double>>();
-    info = arr.request();
-    recv_buffer_values = static_cast<double*>(info.ptr);
 
     // Pack the send buffers
     prefix_sum(send_counts, send_offsets);
@@ -138,9 +101,9 @@ void redistribute_nonzeros(
         idx = running_offsets[owner]++;
 
         for(int j = 0; j < dim; j++) {
-            send_buffers_idx[j][idx] = buffer_ptrs[j][i];
+            send_idx[j][idx] = buffer_ptrs[j][i];
         }
-        send_buffer_values[idx] = value_ptr[idx]; 
+        send_values[idx] = values.ptr[idx]; 
     }
 
     // Execute the AlltoAll operations
@@ -175,22 +138,22 @@ void redistribute_nonzeros(
     // ===================================================
 
     for(int j = 0; j < dim; j++) {
-        MPI_Alltoallv(send_buffers_idx[j].data(), 
+        MPI_Alltoallv(send_idx[j].data(), 
                         send_counts_dcast.data(), 
                         send_offsets_dcast.data(), 
                         MPI_UNSIGNED_LONG_LONG, 
-                        recv_buffers_idx[j], 
+                        recv_idx.ptrs[j], 
                         recv_counts_dcast.data(), 
                         recv_offsets_dcast.data(), 
                         MPI_UNSIGNED_LONG_LONG, MPI_COMM_WORLD 
                         );
     }
 
-    MPI_Alltoallv(send_buffer_values.data(), 
+    MPI_Alltoallv(send_values.data(), 
                     send_counts_dcast.data(), 
                     send_offsets_dcast.data(), 
                     MPI_DOUBLE, 
-                    recv_buffer_values, 
+                    recv_values.ptr, 
                     recv_counts_dcast.data(), 
                     recv_offsets_dcast.data(), 
                     MPI_DOUBLE, MPI_COMM_WORLD 

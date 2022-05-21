@@ -63,6 +63,9 @@ void sp_mttkrp(
     // =======================================================
     // The code below actually implements the MTTKRP! 
     // =======================================================
+
+    // TODO: Write a unit test for "sparsifying" a dense tensor.
+
     vector<double> accum_buffer(col_count, 1.0);
     double* accum_ptr = accum_buffer.data();
 

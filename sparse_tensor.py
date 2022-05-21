@@ -3,6 +3,7 @@ from numpy.random import default_rng
 import h5py
 
 import numpy as np
+import numpy.linalg as la
 from grid import Grid, TensorGrid
 from mpi4py import MPI
 from common import *
@@ -44,6 +45,11 @@ class DistSparseTensor:
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 
+        local_norm = la.norm(self.values) ** 2
+        result = np.zeros(1, dtype=np.double)
+        world_comm.Allreduce([local_norm, MPI.DOUBLE], [result, MPI.DOUBLE]) 
+        self.tensor_norm = np.sqrt(result.item())
+
     def random_permute(self, seed=42):
         '''
         Applies a random permutation to the indices of the sparse
@@ -60,7 +66,13 @@ class DistSparseTensor:
         for i in range(self.dim):
             idxs = np.array(list(range(self.max_idxs[i])), dtype=np.ulonglong)
             perm = rng.permutation(idxs)
-            self.tensor_idxs[i] = perm[self.tensor_idxs[i]] 
+            self.tensor_idxs[i] = perm[self.tensor_idxs[i]]
+
+    def gather_tensor(self):
+        '''
+        Warning: This function is for debugging purposes only!
+        '''
+        pass        
 
 
     def redistribute_nonzeros(self, tensor_grid, debug=False):

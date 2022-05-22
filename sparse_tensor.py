@@ -86,8 +86,6 @@ class DistSparseTensor:
         recv_buffers = []
         recv_values = []
 
-        print(self.tensor_idxs)
-
         rd.redistribute_nonzeros(tensor_grid.intervals, \
             self.tensor_idxs, \
             self.values, \

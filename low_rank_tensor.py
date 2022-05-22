@@ -23,21 +23,14 @@ class DistLowRank:
         
     # Replicate data on each slice and all-gather all factors accoording to the
     # provided true / false array 
-    def allgather_factors(self, which_factors, with_leverage=False):
+    def allgather_factors(self, which_factors):
         gathered_matrices = []
-        gathered_leverage = []
         for i in range(self.dim):
             if which_factors[i]:
-                self.factors[i].allgather_factor(with_leverage)
+                self.factors[i].allgather_factor()
                 gathered_matrices.append(self.factors[i].gathered_factor)
 
-                if with_leverage: 
-                    gathered_leverage.append(self.factors[i].gathered_leverage)
-
-        if with_leverage:
-            return gathered_matrices, gathered_leverage
-        else:
-            return gathered_matrices, None
+        return gathered_matrices, None
 
     def materialize_tensor(self):
         '''
@@ -146,7 +139,7 @@ class DistLowRank:
         stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
         start = start_clock() 
-        gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather, with_leverage=sketching)
+        gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather)
 
         dummy = None
         gathered_matrices.insert(mode_to_leave, dummy)

@@ -48,14 +48,14 @@ class DistMat1D:
 
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
-        self.data = np.array(range(value_start, value_start + self.local_window_size)).reshape(self.local_rows_padded, self.cols)
+        self.data = np.array(range(value_start, value_start + self.local_window_size), dtype=np.double).reshape(self.local_rows_padded, self.cols)
         #self.data = np.cos((self.data + offset) * 5)
  
     def initialize_random(self, random_seed=42):
         #gen = Philox(random_seed)
         #gen = gen.advance(self.row_position * self.local_window_size)
         #rg = Generator(gen)
-        self.data = np.random.rand(*self.data.shape) - 0.5
+        self.data = np.random.rand(*self.data.shape, dtype=np.double) - 0.5
 
     def compute_gram_matrix(self):
         if self.rowct == 0:
@@ -67,16 +67,14 @@ class DistMat1D:
 
         self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram)
 
-    def allgather_factor(self, with_leverage=False):
+    def allgather_factor(self):
         slice_dim = self.slice_dim
         slice_size = cl(self.grid.slices[slice_dim].Get_size())
         buffer_rowct = self.local_rows_padded * slice_size
-        buffer_data = np.zeros((buffer_rowct, self.cols))
-        buffer_leverage = np.zeros(buffer_rowct)
+        buffer_data = np.zeros((buffer_rowct, self.cols), dtype=np.double)
 
         self.grid.slices[slice_dim].Allgather([self.data, MPI.DOUBLE], 
                 [buffer_data, MPI.DOUBLE])
-
 
         # Handle the overhang when mode length is not divisible by
         # the processor count
@@ -89,12 +87,6 @@ class DistMat1D:
         buffer_data = buffer_data[:truncated_rowct] 
 
         self.gathered_factor = buffer_data
-
-        if with_leverage:
-            self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
-                    [buffer_leverage, MPI.DOUBLE])
-            buffer_leverage = buffer_leverage[:truncated_rowct]
-            self.gathered_leverage = buffer_leverage 
 
     #=================================================================
     # METHODS RELATED TO SKETCHING GO HERE!!!

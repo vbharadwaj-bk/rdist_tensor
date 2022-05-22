@@ -97,7 +97,6 @@ void sp_mttkrp(
     }
 }
 
-
 void compute_tensor_values(
         py::list factors_py,
         py::list idxs_py,

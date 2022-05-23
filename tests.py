@@ -15,6 +15,29 @@ def test_allgather():
     print(f"Initial: {x}")
     print(f"Initial: {y}")
 
+def test_mttkrp():
+    ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
+    grid_dims = [2, 2, 2, 1]
+    grid = Grid(grid_dims)
+    tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
+    ground_truth.redistribute_nonzeros(tensor_grid)
+
+    rank = 10
+
+    ten_to_optimize = DistLowRank(tensor_grid, rank, None)
+    ten_to_optimize.initialize_factors_deterministic(42)
+
+    gathered_matrices, _ = self.allgather_factors([True] * len(grid_dims))
+
+    world_comm = MPI.COMM_WORLD
+    mttkrp_unreduced = np.zeros((tensor_grid.intervals[mode_to_leave], rank)) 
+    mode_to_leave = 0
+    local_ten.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)  
+    mttkrp_reduced = np.zeros_like(mttkrp_unreduced, dtype=np.double) 
+    world_comm.Allreduce(mttkrp_unreduced, mttkrp_reduced)
+    
+    print("Finished!")
+
 def test_tensor_evaluation():
     ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
     grid = Grid([2, 2, 2, 1])
@@ -64,4 +87,5 @@ def test_tensor_evaluation():
 
 if __name__=='__main__':
     #test_allgather()
-	test_tensor_evaluation()
+	#test_tensor_evaluation()
+    test_mttkrp()

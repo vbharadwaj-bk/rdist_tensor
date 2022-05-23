@@ -115,14 +115,20 @@ class DistSparseTensor:
     def mttkrp(self, factors, mode, buffer):
         '''
         For convenience, factors is sized equal to the dimension of the
-        tensor, even though there's always one factor we ignore in the
-        MTTKRP contribution.
+        tensor, so we replace the factor at the mode to replace with the
+        output buffer.
 
         Mode is the index of the mode to isolate along the column axis
         when matricizing the tensor
         '''
-        tensor_kernels.sp_mttkrp(mode, factors, \
-            self.tensor_idxs, self.values, buffer) 
+        factor_args = []
+        for i in range(len(factors)):
+            if i==mode:
+                factor_args.append(buffer)
+            else:
+                factor_args.append(factors[i])
+        tensor_kernels.sp_mttkrp(mode, factor_args, \
+            self.tensor_idxs, self.values) 
 
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/nips.tns_converted.hdf5")

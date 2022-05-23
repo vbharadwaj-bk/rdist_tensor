@@ -17,78 +17,42 @@ namespace py = pybind11;
  */
 void sp_mttkrp(
         int mode,
-        py::list factors,
-        py::list idxs,
-        py::array_t<double> values,
-        py::array_t<double> result
+        py::list factors_py,
+        py::list idxs_py,
+        py::array_t<double> values_py
         ) {
 
-    vector<double*> factor_ptrs;
-    vector<unsigned long long*> idx_ptrs;
-    double* value_ptr;
-    double* result_ptr;
+    NumpyList<double> factors(factors_py);
+    NumpyList<unsigned long long> idxs(idxs_py);
+    NumpyArray<double> values(values_py);
 
-    int dim = py::len(factors);
-
-    unsigned long long nnz;
-    int col_count;
-    bool first_element = true;
-
-    for(int i = 0; i < dim; i++) {
-        py::array_t<unsigned long long> arr1 = idxs[i].cast<py::array_t<unsigned long long>>();
-        py::buffer_info info1 = arr1.request();
-        idx_ptrs.push_back(static_cast<unsigned long long*>(info1.ptr));
-
-        if(i != mode) {
-            py::array_t<double> arr2 = factors[i].cast<py::array_t<double>>();
-            py::buffer_info info2 = arr2.request();
-            factor_ptrs.push_back(static_cast<double*>(info2.ptr));
-            
-            if(first_element) {
-                first_element = false;
-                nnz = info1.shape[0];
-                col_count = info2.shape[1];
-            }
-        }
-        else {
-            factor_ptrs.push_back(nullptr);
-        }
-    }
-
-    py::buffer_info info = values.request();
-    value_ptr = static_cast<double*>(info.ptr);
-
-    info = result.request();
-    result_ptr = static_cast<double*>(info.ptr);
+    int dim = factors.length;
+    unsigned long long nnz = idxs.infos[0].shape[0];
+    int col_count = factors.infos[0].shape[1];
+    double* result_ptr = factors.ptrs[mode];
 
     // =======================================================
     // The code below actually implements the MTTKRP! 
     // =======================================================
 
-    // TODO: Write a unit test for "sparsifying" a dense tensor.
-
     vector<double> accum_buffer(col_count, 1.0);
     double* accum_ptr = accum_buffer.data();
 
-    // DEBUGGING!!
-    //cout << "NNZ: " << nnz << endl;
-    // END DEBUGGING!
-
     for(unsigned long long i = 0; i < nnz; i++) {
         for(int k = 0; k < col_count; k++) {
-            accum_ptr[k] = value_ptr[i];
+            accum_ptr[k] = values.ptr[i];
         }
 
         for(int j = 0; j < dim; j++) {
             if(j != mode) {
-                double* row_ptr = factor_ptrs[j] + (idx_ptrs[j][i] * col_count);
+                double* row_ptr = factors.ptrs[j] + (idxs.ptrs[j][i] * col_count);
                 for(int k = 0; k < col_count; k++) {
                     accum_ptr[k] *= row_ptr[k]; 
                 }
             }
         }
 
-        unsigned long long out_row_idx = idx_ptrs[mode][i];
+        unsigned long long out_row_idx = idxs.ptrs[mode][i];
         double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
         for(int k = 0; k < col_count; k++) {

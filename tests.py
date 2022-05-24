@@ -44,8 +44,8 @@ def test_mttkrp():
     print("Finished!")
 
 def test_tensor_evaluation():
-    ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid = Grid([2, 2, 2, 1])
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid = Grid([1, 1, 1])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
 
@@ -79,7 +79,8 @@ def test_tensor_evaluation():
         for i in range(ground_truth.nnz):
             coord = tuple([idx_buffers[j][i] for j in range(dim)])
             overall_dict[coord] = values[i]
-            rows = [np.array(list(range(10 * int(i), 10 * (int(i) + 1))), dtype=np.double) for i in coord]
+
+            rows = [np.cos((np.array(list(range(10 * int(i), 10 * (int(i) + 1))), dtype=np.double) + 42) * 5) for i in coord]
             accum = np.ones(10)
             for j in range(dim):
                 accum *= rows[j]

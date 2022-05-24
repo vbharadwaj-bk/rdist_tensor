@@ -37,7 +37,7 @@ if __name__=='__main__':
         exit(1)
 
     ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid = Grid([2, 2, 2, 1])
+    grid = Grid([1, 1, 1, 1])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
 

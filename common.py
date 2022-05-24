@@ -26,6 +26,12 @@ def get_norm_distributed(buf, world):
     world.Allreduce([val, MPI.DOUBLE], [result, MPI.DOUBLE]) 
     return np.sqrt(result)
 
+def get_sum_distributed(buf, world):
+    val = np.sum(buf)
+    result = np.zeros(1)
+    world.Allreduce([val, MPI.DOUBLE], [result, MPI.DOUBLE]) 
+    return result 
+
 def start_clock():
     return time.time()
 

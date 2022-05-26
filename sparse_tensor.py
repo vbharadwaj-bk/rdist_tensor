@@ -135,31 +135,31 @@ class DistSparseTensor:
         self.debug_list = []
 
         # This is a manual MTTKRP
-        interactions = 0
-        test_accum = 0.0
-        for i in range(len(self.values)):
-            coord = [self.tensor_idxs[j][i] for j in range(self.dim)]
-            accum = np.ones(factors[0].shape[1])
-            for j in range(self.dim):
-                if j != mode:
-                    accum *= factor_args[j][coord[j]]
+        #interactions = 0
+        #test_accum = 0.0
+        #for i in range(len(self.values)):
+        #    coord = [self.tensor_idxs[j][i] for j in range(self.dim)]
+        #    accum = np.ones(factors[0].shape[1])
+        #    for j in range(self.dim):
+        #        if j != mode:
+        #            accum *= factor_args[j][coord[j]]
 
-            factor_args[mode][coord[mode]] += self.values[i] * accum
+        #    factor_args[mode][coord[mode]] += self.values[i] * accum
 
-            if self.original_tensor_idxs[1][i] == 0:
-                interactions += 1
+        #    if self.original_tensor_idxs[1][i] == 0:
+        #        interactions += 1
                 #print(f'{self.rank} {self.values[i]} {accum}')
-                temp = 1.0
-                for j in range(self.dim): 
-                    if j != mode:
-                        temp *= factor_args[j][coord[j]][0]
-                test_accum += self.values[i] * temp 
+        #        temp = 1.0
+        #        for j in range(self.dim): 
+        #            if j != mode:
+        #                temp *= factor_args[j][coord[j]][0]
+        #        test_accum += self.values[i] * temp 
 
-        print(f"Test Accumulator: {test_accum}")
+        #print(f"Test Accumulator: {test_accum}")
 
-        print(f"Interaction Count: {interactions}")
-        #tensor_kernels.sp_mttkrp(mode, factor_args, \
-        #    self.tensor_idxs, self.values) 
+        #print(f"Interaction Count: {interactions}")
+        tensor_kernels.sp_mttkrp(mode, factor_args, \
+            self.tensor_idxs, self.values) 
 
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/nips.tns_converted.hdf5")

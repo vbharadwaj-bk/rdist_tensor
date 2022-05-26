@@ -7,3 +7,4 @@ tensors/*
 *.cpython*
 cpp_ext/build
 .ipynb_checkpoints/*
+*.swp

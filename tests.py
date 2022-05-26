@@ -18,7 +18,7 @@ def test_allgather():
 def test_mttkrp():
     world_comm = MPI.COMM_WORLD
     ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid_dims = [2, 2, 2, 1]
+    grid_dims = [4, 4, 4, 1]
     grid = Grid(grid_dims)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
 

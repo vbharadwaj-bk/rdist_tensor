@@ -77,20 +77,19 @@ class DistLowRank:
             nonzero_loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
             #nonzero_loss = (nonzero_loss ** 2) * ground_truth.nnz / np.ceil(alpha * sfit)
 
-            rejection_samples = [] 
+            #rejection_samples = [] 
 
-            for j in range(self.dim):
-                start = self.tensor_grid.start_coords[j][self.grid.coords[j]]
-                end = self.tensor_grid.start_coords[j][self.grid.coords[j] + 1]
+            #for j in range(self.dim):
+            #    start = self.tensor_grid.start_coords[j][self.grid.coords[j]]
+            #    end = self.tensor_grid.start_coords[j][self.grid.coords[j] + 1]
 
-                idxs = np.random.randint(0, end - start, size=len(ground_truth.tensor_idxs[0]), dtype=np.ulonglong) 
+            #    idxs = np.random.randint(0, end - start, size=len(ground_truth.tensor_idxs[0]), dtype=np.ulonglong) 
 
-                # Fix the rejection sampling
+                # TODO: Fix the rejection sampling with a bloom filter! 
+            #    rejection_samples.append(idxs)
 
-                rejection_samples.append(idxs)
-
-            rejection_values = self.compute_tensor_values(rejection_samples)
-            rejection_loss = get_norm_distributed(rejection_values, self.grid.comm)
+            #rejection_values = self.compute_tensor_values(rejection_samples)
+            #rejection_loss = get_norm_distributed(rejection_values, self.grid.comm)
             
             #rejection_loss = rejection_loss ** 2
             #dense_entries = np.prod(np.array(self.tensor_grid.tensor_dims, dtype=np.double))
@@ -98,7 +97,8 @@ class DistLowRank:
             #estimated_fit = 1 - (np.sqrt(nonzero_loss + rejection_loss) / ground_truth.tensor_norm) 
 
             #return estimated_fit
-            return nonzero_loss
+            #return rejection_loss 
+            return nonzero_loss 
         else:
             assert False 
 

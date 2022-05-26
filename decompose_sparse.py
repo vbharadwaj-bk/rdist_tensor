@@ -42,7 +42,6 @@ if __name__=='__main__':
     ground_truth.redistribute_nonzeros(tensor_grid)
 
     ten_to_optimize = DistLowRank(tensor_grid, args.trank, None)
-    #ten_to_optimize.initialize_factors_deterministic(0.05)
     ten_to_optimize.initialize_factors_deterministic(args.rs) 
 
     if grid.rank == 0:

@@ -16,14 +16,14 @@ def test_allgather():
     print(f"Initial: {y}")
 
 def test_mttkrp():
-    ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid_dims = [2, 2, 2, 1]
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid_dims = [2, 2, 2]
     grid = Grid(grid_dims)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
     #ground_truth.values = np.ones_like(ground_truth.values, dtype=np.double)
 
-    rank = 5
+    rank = 1
     mode_to_leave = 1
 
     ten_to_optimize = DistLowRank(tensor_grid, rank, None)

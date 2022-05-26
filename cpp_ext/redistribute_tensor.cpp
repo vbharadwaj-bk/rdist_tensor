@@ -103,7 +103,7 @@ void redistribute_nonzeros(
         for(int j = 0; j < dim; j++) {
             send_idx[j][idx] = coords.ptrs[j][i];
         }
-        send_values[idx] = values.ptr[idx]; 
+        send_values[idx] = values.ptr[i]; 
     }
 
     // Execute the AlltoAll operations
@@ -148,7 +148,7 @@ void redistribute_nonzeros(
                         MPI_UNSIGNED_LONG_LONG, MPI_COMM_WORLD 
                         );
     }
-
+    
     MPI_Alltoallv(send_values.data(), 
                     send_counts_dcast.data(), 
                     send_offsets_dcast.data(), 

@@ -56,6 +56,7 @@ void sp_mttkrp(
         double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
         for(int k = 0; k < col_count; k++) {
+            //out_row_ptr[k] = factors.ptrs[0][idxs.ptrs[0][i] * col_count + k];
             out_row_ptr[k] += accum_ptr[k]; 
         }
     }

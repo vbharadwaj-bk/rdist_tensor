@@ -121,14 +121,25 @@ class DistSparseTensor:
         Mode is the index of the mode to isolate along the column axis
         when matricizing the tensor
         '''
+        print(factors)
         factor_args = []
         for i in range(len(factors)):
             if i==mode:
                 factor_args.append(buffer)
             else:
                 factor_args.append(factors[i])
-        tensor_kernels.sp_mttkrp(mode, factor_args, \
-            self.tensor_idxs, self.values) 
+
+        # This is a manual MTTKRP
+        for i in range(len(self.values)):
+            coord = [self.tensor_idxs[j][i] for j in range(self.dim)]
+            accum = np.ones(factors[0].shape[1])
+            for j in range(self.dim):
+                if j != mode:
+                    accum *= factor_args[j][coord[j]]
+
+            factor_args[mode][coord[mode]] += self.values[i] * accum
+        #tensor_kernels.sp_mttkrp(mode, factor_args, \
+        #    self.tensor_idxs, self.values) 
 
 def test_tensor_redistribute():
     x = DistSparseTensor("tensors/nips.tns_converted.hdf5")

@@ -106,7 +106,10 @@ class DistSparseTensor:
 
             if self.rank == 0:
                 print("Finished debug test!")
-  
+
+        # For debugging purposes only!
+        self.original_tensor_idxs = [el.copy() for el in self.tensor_idxs]
+
         for j in range(self.dim):
             self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
 
@@ -121,7 +124,7 @@ class DistSparseTensor:
         Mode is the index of the mode to isolate along the column axis
         when matricizing the tensor
         '''
-        print(factors)
+        #print(factors)
         factor_args = []
         for i in range(len(factors)):
             if i==mode:
@@ -129,7 +132,11 @@ class DistSparseTensor:
             else:
                 factor_args.append(factors[i])
 
+        self.debug_list = []
+
         # This is a manual MTTKRP
+        interactions = 0
+        test_accum = 0.0
         for i in range(len(self.values)):
             coord = [self.tensor_idxs[j][i] for j in range(self.dim)]
             accum = np.ones(factors[0].shape[1])
@@ -138,6 +145,19 @@ class DistSparseTensor:
                     accum *= factor_args[j][coord[j]]
 
             factor_args[mode][coord[mode]] += self.values[i] * accum
+
+            if self.original_tensor_idxs[1][i] == 0:
+                interactions += 1
+                #print(f'{self.rank} {self.values[i]} {accum}')
+                temp = 1.0
+                for j in range(self.dim): 
+                    if j != mode:
+                        temp *= factor_args[j][coord[j]][0]
+                test_accum += self.values[i] * temp 
+
+        print(f"Test Accumulator: {test_accum}")
+
+        print(f"Interaction Count: {interactions}")
         #tensor_kernels.sp_mttkrp(mode, factor_args, \
         #    self.tensor_idxs, self.values) 
 

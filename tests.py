@@ -16,10 +16,12 @@ def test_allgather():
     print(f"Initial: {y}")
 
 def test_mttkrp():
-    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    grid_dims = [2, 2, 2]
+    world_comm = MPI.COMM_WORLD
+    ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
+    grid_dims = [2, 2, 2, 1]
     grid = Grid(grid_dims)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
+
     ground_truth.redistribute_nonzeros(tensor_grid)
     #ground_truth.values = np.ones_like(ground_truth.values, dtype=np.double)
 
@@ -31,16 +33,18 @@ def test_mttkrp():
 
     gathered_matrices, _ = ten_to_optimize.allgather_factors([True] * len(grid_dims))
 
-    world_comm = MPI.COMM_WORLD
     mttkrp_unreduced = np.zeros((tensor_grid.intervals[mode_to_leave], rank)) 
+    mttkrp_final_buffer = np.zeros_like(mttkrp_unreduced)
 
-    ground_truth.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)  
+    ground_truth.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)
     mttkrp_reduced = np.zeros_like(ten_to_optimize.factors[mode_to_leave].data, dtype=np.double) 
 
     grid.slices[mode_to_leave].Reduce_scatter([mttkrp_unreduced, MPI.DOUBLE], 
             [mttkrp_reduced, MPI.DOUBLE])
 
-    print(get_sum_distributed(mttkrp_reduced, world_comm)) 
+    if grid.rank == 0:
+        print(f'First value: {mttkrp_reduced[0]}')
+
     print("Finished!")
 
 def test_tensor_evaluation():

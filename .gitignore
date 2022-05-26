@@ -6,3 +6,4 @@ tensors/*
 .rendered*
 *.cpython*
 cpp_ext/build
+.ipynb_checkpoints/*

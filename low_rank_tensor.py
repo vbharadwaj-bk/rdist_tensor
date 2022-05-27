@@ -187,10 +187,10 @@ class DistLowRank:
                         "Gram-Times-MTTKRP": 0.0
                         }
 
-        statistics["Mode Sizes"] = self.mode_sizes
+        statistics["Mode Sizes"] = self.mode_sizes.tolist()
         statistics["Tensor Target Rank"] = self.rank
         statistics["Processor Count"] = self.grid.world_size
-        statistics["Grid Dimensions"] = self.grid.axesLengths
+        statistics["Grid Dimensions"] = self.grid.axesLengths.tolist()
 
         self.singular_values = np.ones(self.rank)
 
@@ -208,11 +208,11 @@ class DistLowRank:
         #print(values)
 
         if self.grid.rank == 0:
-            #f = open(output_file, 'a')
+            f = open(output_file, 'a')
             print(statistics)
-            #json_obj = json.dumps(statistics, indent=4)
-            #f.write(json_obj + ",\n")
-            #f.close()
+            json_obj = json.dumps(statistics, indent=4)
+            f.write(json_obj + ",\n")
+            f.close()
 
 if __name__=='__main__':
     pass

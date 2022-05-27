@@ -59,9 +59,10 @@ class DistSparseTensor:
             assert False
             # TODO: Select a random seed here and broadcast it to all other
             # processes!
- 
-            # Fill the seed here after broadcasting, make it consistent on all processors 
 
+            # TODO: Save the permutation so that it can be inverted later! 
+
+            # Fill the seed here after broadcasting, make it consistent on all processors 
         rng = np.random.default_rng(seed)
         for i in range(self.dim):
             idxs = np.array(list(range(self.max_idxs[i])), dtype=np.ulonglong)
@@ -108,12 +109,21 @@ class DistSparseTensor:
                 print("Finished debug test!")
 
         # For debugging purposes only!
-        self.original_tensor_idxs = [el.copy() for el in self.tensor_idxs]
+        #self.original_tensor_idxs = [el.copy() for el in self.tensor_idxs]
 
         for j in range(self.dim):
             self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
 
-        print(f"Count: {len(self.tensor_idxs[0])}")
+        #print(f"{self.rank} Count: {len(self.tensor_idxs[0])}")
+
+        debug_printout = ""
+        for j in range(self.dim):
+            start = tensor_grid.start_coords[j][grid.coords[j]]
+            end= tensor_grid.start_coords[j][grid.coords[j] + 1]
+    
+            debug_printout += f"({start} {end}) "
+
+        print(f"{self.rank}: {debug_printout} : count : {len(self.tensor_idxs[0])}")
 
     def mttkrp(self, factors, mode, buffer):
         '''

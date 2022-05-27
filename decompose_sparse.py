@@ -37,8 +37,9 @@ if __name__=='__main__':
         exit(1)
 
     ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid = Grid([4, 4, 4, 1])
+    grid = Grid([4, 1, 4, 4])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
+    ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)
 
     ten_to_optimize = DistLowRank(tensor_grid, args.trank, None)

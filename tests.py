@@ -51,7 +51,8 @@ def test_mttkrp():
     print("Finished!")
 
 def test_tensor_evaluation():
-    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5") grid = Grid([1, 1, 1])
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid = Grid([1, 1, 1])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
 
@@ -104,6 +105,12 @@ def test_bloom_filter():
     ground_truth.redistribute_nonzeros(tensor_grid)
 
     idx_filter = bf.IndexFilter(ground_truth.tensor_idxs, 0.01)
+
+    test_probes = []
+    for j in range(3):
+        test_probes.append(np.array([2], dtype=np.ulonglong))
+
+    print(idx_filter.check_idxs(test_probes))
 
 
 if __name__=='__main__':

@@ -1,6 +1,6 @@
 //cppimport
 #include <cassert>
-#include <cfcntl>
+#include <fcntl.h>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <bits/stdc++.h>
 
+#include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -18,6 +19,12 @@
 
 using namespace std;
 namespace py = pybind11;
+
+/*
+ * These files were modified and glued together by
+ * Vivek Bharadwaj, 2022, from the libbloom source.
+ * A Python wrapper has been written. 
+ */
 
 /*
  *  Copyright (c) 2012-2019, Jyri J. Virkki
@@ -40,9 +47,6 @@ namespace py = pybind11;
 // 2. It will not produce the same results on little-endian and big-endian
 //    machines.
 
-/*
- * These files were modified and glued together  
- */
 unsigned int murmurhash2(const void * key, int len, const unsigned int seed)
 {
 	// 'm' and 'r' are mixing constants generated offline.
@@ -165,14 +169,6 @@ static int bloom_check_add(struct bloom * bloom,
   return 0;
 }
 
-
-int bloom_init_size(struct bloom * bloom, int entries, double error,
-                    unsigned int cache_size)
-{
-  return bloom_init(bloom, entries, error);
-}
-
-
 int bloom_init(struct bloom * bloom, int entries, double error)
 {
   bloom->ready = 0;
@@ -206,6 +202,12 @@ int bloom_init(struct bloom * bloom, int entries, double error)
 
   bloom->ready = 1;
   return 0;
+}
+
+int bloom_init_size(struct bloom * bloom, int entries, double error,
+                    unsigned int cache_size)
+{
+  return bloom_init(bloom, entries, error);
 }
 
 
@@ -259,7 +261,9 @@ const char * bloom_version()
  * processor. Efficient Python wrapper for the bloom filter. 
  */
 class IndexFilter {
-  struct bloom * bloom;
+  struct bloom bf;
+
+public:
   // False positive tolerance is a small double value 
   IndexFilter(py::list idxs_py, double fp_tol) {
     NumpyList<unsigned long long> idxs(idxs_py);
@@ -271,9 +275,13 @@ class IndexFilter {
     // bloom filter to fix this. 
     assert(nnz < INT32_MAX);
     int nnz_dcast = (int) nnz;
-    bloom_init(bloom, nnz, fp_tol);
+    int nnz_inflated = std::max(nnz_dcast, 1000);
+    int status = bloom_init(&bf, nnz_inflated, fp_tol);
 
-    vector<unsigned long long> buf;
+    assert(status == 0);
+
+
+    vector<unsigned long long> buf(dim, 0);
     unsigned long long * buf_ptr = buf.data();
     int buffer_len = 8 * dim; // A single unsigned double for each dimension 
 
@@ -281,7 +289,7 @@ class IndexFilter {
       for(int j = 0; j < dim; j++) {
         buf_ptr[j] = idxs.ptrs[j][i];
       }
-      bloom_add(bloom, buf_ptr, buffer_len);
+      bloom_add(&bf, buf_ptr, buffer_len);
     }
   }
 
@@ -290,9 +298,10 @@ class IndexFilter {
   // fill a boolean array instead. 
   vector<unsigned long long> check_idxs(py::list idxs_py) {
     NumpyList<unsigned long long> idxs(idxs_py);
+    int dim = idxs.length; 
     unsigned long long nnz = idxs.infos[0].shape[0];
 
-    vector<unsigned long long> buf;
+    vector<unsigned long long> buf(dim, 0);
     unsigned long long * buf_ptr = buf.data();
     int buffer_len = 8 * dim; // A single unsigned double for each dimension 
 
@@ -302,7 +311,7 @@ class IndexFilter {
       for(int j = 0; j < dim; j++) {
         buf_ptr[j] = idxs.ptrs[j][i];
       }
-      if(bloom_check(bloom, buf_ptr, buffer_len)) {
+      if(bloom_check(&bf, buf_ptr, buffer_len)) {
         collisions.push_back(i);
       }
     }
@@ -310,7 +319,7 @@ class IndexFilter {
   } 
 
   ~IndexFilter() {
-    bloom_free(bloom);
+    bloom_free(&bf);
   }
 };
 

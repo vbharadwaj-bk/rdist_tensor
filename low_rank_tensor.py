@@ -71,34 +71,43 @@ class DistLowRank:
         # Changing this parameter currently doesn't do anything without
         # changing the underlying code 
         if ground_truth.type == "SPARSE_TENSOR":
-            alpha = 0.5
             sfit = ground_truth.nnz * 2
             lr_values = self.compute_tensor_values(ground_truth.tensor_idxs) 
             nonzero_loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
-            #nonzero_loss = (nonzero_loss ** 2) * ground_truth.nnz / np.ceil(alpha * sfit)
 
-            #rejection_samples = [] 
+            zero_samples = [] 
 
-            #for j in range(self.dim):
-            #    start = self.tensor_grid.start_coords[j][self.grid.coords[j]]
-            #    end = self.tensor_grid.start_coords[j][self.grid.coords[j] + 1]
+            for j in range(self.dim):
+                start = self.tensor_grid.start_coords[j][self.grid.coords[j]]
+                end = self.tensor_grid.start_coords[j][self.grid.coords[j] + 1]
 
-            #    idxs = np.random.randint(0, end - start, size=len(ground_truth.tensor_idxs[0]), dtype=np.ulonglong) 
+                idxs = np.random.randint(0, end - start, size=len(ground_truth.tensor_idxs[0]), dtype=np.ulonglong) 
 
-                # TODO: Fix the rejection sampling with a bloom filter! 
-            #    rejection_samples.append(idxs)
+                zero_samples.append(idxs)
 
-            #rejection_values = self.compute_tensor_values(rejection_samples)
-            #rejection_loss = get_norm_distributed(rejection_values, self.grid.comm)
-            
-            #rejection_loss = rejection_loss ** 2
-            #dense_entries = np.prod(np.array(self.tensor_grid.tensor_dims, dtype=np.double))
-            #rejection_loss *= (dense_entries - ground_truth.nnz) / np.floor((1 - alpha) * sfit)
-            #estimated_fit = 1 - (np.sqrt(nonzero_loss + rejection_loss) / ground_truth.tensor_norm) 
+            collisions = ground_truth.idx_filter.check_idxs(zero_samples)
 
-            #return estimated_fit
+            print(f"# of collisions: {len(collisions)}") 
+
+            zero_values = self.compute_tensor_values(zero_samples)
+            # For every collision, we will zero out the rejection loss 
+            zero_values[collisions] = 0.0
+
+            # Exact computation of alpha and sfit here
+            sfit = ground_truth.nnz * 2 - len(collisions)
+            alpha = ground_truth.nnz / sfit 
+
+            nonzero_loss = (nonzero_loss ** 2) * ground_truth.nnz / np.ceil(alpha * sfit)
+            zero_loss = get_norm_distributed(zero_values, self.grid.comm)
+           
+            zero_loss = zero_loss ** 2
+            dense_entries = np.prod(np.array(self.tensor_grid.tensor_dims, dtype=np.double))
+            zero_loss *= (dense_entries - ground_truth.nnz) / np.floor((1 - alpha) * sfit)
+            estimated_fit = 1 - (np.sqrt(nonzero_loss + zero_loss) / ground_truth.tensor_norm) 
+
+            return estimated_fit
             #return rejection_loss 
-            return nonzero_loss 
+            #return nonzero_loss 
         else:
             assert False 
 

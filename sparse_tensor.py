@@ -10,6 +10,7 @@ from common import *
 import cppimport.import_hook
 import cpp_ext.redistribute_tensor as rd
 import cpp_ext.tensor_kernels as tensor_kernels 
+import cpp_ext.bloom_filter as bf
 
 def allocate_recv_buffers(dim, count, lst_idx, lst_values):
     for i in range(dim):
@@ -114,16 +115,18 @@ class DistSparseTensor:
         for j in range(self.dim):
             self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
 
+        self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.0001)
+
         #print(f"{self.rank} Count: {len(self.tensor_idxs[0])}")
 
-        debug_printout = ""
-        for j in range(self.dim):
-            start = tensor_grid.start_coords[j][grid.coords[j]]
-            end= tensor_grid.start_coords[j][grid.coords[j] + 1]
+        #debug_printout = ""
+        #for j in range(self.dim):
+        #    start = tensor_grid.start_coords[j][grid.coords[j]]
+        #    end= tensor_grid.start_coords[j][grid.coords[j] + 1]
     
-            debug_printout += f"({start} {end}) "
+        #    debug_printout += f"({start} {end}) "
 
-        print(f"{self.rank}: {debug_printout} : count : {len(self.tensor_idxs[0])}")
+        #print(f"{self.rank}: {debug_printout} : count : {len(self.tensor_idxs[0])}")
 
     def mttkrp(self, factors, mode, buffer):
         '''

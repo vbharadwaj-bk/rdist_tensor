@@ -86,8 +86,27 @@ class DistLowRank:
                 zero_samples.append(idxs)
 
             collisions = ground_truth.idx_filter.check_idxs(zero_samples)
+            collision_count = 0
 
-            print(f"# of collisions: {len(collisions)}") 
+            ground_truth_dict = {}
+            print("Starting verification....")
+            for i in range(ground_truth.nnz):
+                tup = (ground_truth.tensor_idxs[0][i], ground_truth.tensor_idxs[1][i], ground_truth.tensor_idxs[2][i], ground_truth.tensor_idxs[3][i])
+                ground_truth_dict[tup] = 1
+
+
+
+            for k in range(len(collisions)):
+                idx = collisions[k]
+                tup = (zero_samples[0][idx], zero_samples[1][idx], zero_samples[2][idx], zero_samples[3][idx])
+
+                if tup in ground_truth_dict:
+                    collision_count += 1
+
+            print(f"Estimated # of collisions: {len(collisions)}") 
+            print(f"True collision count: {collision_count}")
+            exit()
+
 
             zero_values = self.compute_tensor_values(zero_samples)
             # For every collision, we will zero out the rejection loss 

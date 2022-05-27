@@ -115,7 +115,7 @@ class DistSparseTensor:
         for j in range(self.dim):
             self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
 
-        self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.0001)
+        self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.00005)
 
         #print(f"{self.rank} Count: {len(self.tensor_idxs[0])}")
 

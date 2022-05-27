@@ -8,6 +8,9 @@ import argparse
 from low_rank_tensor import *
 from grid import *
 
+import cppimport.import_hook
+import cpp_ext.bloom_filter as bf 
+
 def test_allgather():
     x = np.array(list(range(25)), dtype=np.double).reshape((5, 5))
     y = np.zeros((5, 5), dtype=np.double) 
@@ -48,8 +51,7 @@ def test_mttkrp():
     print("Finished!")
 
 def test_tensor_evaluation():
-    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
-    grid = Grid([1, 1, 1])
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5") grid = Grid([1, 1, 1])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.redistribute_nonzeros(tensor_grid)
 
@@ -95,7 +97,17 @@ def test_tensor_evaluation():
 
         print("Finished!")
 
+def test_bloom_filter():
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid = Grid([1, 1, 1])
+    tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
+    ground_truth.redistribute_nonzeros(tensor_grid)
+
+    idx_filter = bf.IndexFilter(ground_truth.tensor_idxs, 0.01)
+
+
 if __name__=='__main__':
     #test_allgather()
 	#test_tensor_evaluation()
-    test_mttkrp()
+    #test_mttkrp()
+    test_bloom_filter()

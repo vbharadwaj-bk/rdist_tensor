@@ -295,7 +295,7 @@ public:
 
   // We can afford to return a vector since we expect relatively
   // few collisions. May need to modify this for the GPU case to
-  // fill a boolean array instead. 
+  // fill a boolean array
   vector<unsigned long long> check_idxs(py::list idxs_py) {
     NumpyList<unsigned long long> idxs(idxs_py);
     int dim = idxs.length; 

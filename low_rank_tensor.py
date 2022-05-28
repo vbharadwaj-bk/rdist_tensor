@@ -105,8 +105,6 @@ class DistLowRank:
             estimated_fit = 1 - (np.sqrt(nonzero_loss + zero_loss) / ground_truth.tensor_norm) 
 
             return estimated_fit
-            #return rejection_loss 
-            #return nonzero_loss 
         else:
             assert False 
 
@@ -162,13 +160,6 @@ class DistLowRank:
         stop_clock_and_add(start, timer_dict, "MTTKRP")
         start = start_clock()
 
-        # Padding before reduce-scatter. Is there a smarter way to do this? 
-
-        #padded_rowct = self.factors[mode_to_leave].local_rows_padded * self.grid.slices[mode_to_leave].Get_size()
-
-        #reduce_scatter_buffer = np.zeros((padded_rowct, self.rank))
-        #reduce_scatter_buffer[:len(mttkrp_unreduced)] = mttkrp_unreduced
-
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
 
         self.grid.slices[mode_to_leave].Reduce_scatter([mttkrp_unreduced, MPI.DOUBLE], 
@@ -211,9 +202,6 @@ class DistLowRank:
 
             for mode_to_optimize in range(self.dim):
                 self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)
-
-        #values = self.compute_tensor_values(local_ground_truth.tensor_idxs)
-        #print(values)
 
         if self.grid.rank == 0:
             f = open(output_file, 'a')

@@ -109,24 +109,11 @@ class DistSparseTensor:
             if self.rank == 0:
                 print("Finished debug test!")
 
-        # For debugging purposes only!
-        #self.original_tensor_idxs = [el.copy() for el in self.tensor_idxs]
-
         for j in range(self.dim):
             self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
 
         self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.00005)
 
-        #print(f"{self.rank} Count: {len(self.tensor_idxs[0])}")
-
-        #debug_printout = ""
-        #for j in range(self.dim):
-        #    start = tensor_grid.start_coords[j][grid.coords[j]]
-        #    end= tensor_grid.start_coords[j][grid.coords[j] + 1]
-    
-        #    debug_printout += f"({start} {end}) "
-
-        #print(f"{self.rank}: {debug_printout} : count : {len(self.tensor_idxs[0])}")
 
     def mttkrp(self, factors, mode, buffer):
         '''
@@ -137,72 +124,12 @@ class DistSparseTensor:
         Mode is the index of the mode to isolate along the column axis
         when matricizing the tensor
         '''
-        #print(factors)
         factor_args = []
         for i in range(len(factors)):
             if i==mode:
                 factor_args.append(buffer)
             else:
-                factor_args.append(factors[i])
+                factor_args.append(factors[i]) 
 
-        self.debug_list = []
-
-        # This is a manual MTTKRP
-        #interactions = 0
-        #test_accum = 0.0
-        #for i in range(len(self.values)):
-        #    coord = [self.tensor_idxs[j][i] for j in range(self.dim)]
-        #    accum = np.ones(factors[0].shape[1])
-        #    for j in range(self.dim):
-        #        if j != mode:
-        #            accum *= factor_args[j][coord[j]]
-
-        #    factor_args[mode][coord[mode]] += self.values[i] * accum
-
-        #    if self.original_tensor_idxs[1][i] == 0:
-        #        interactions += 1
-                #print(f'{self.rank} {self.values[i]} {accum}')
-        #        temp = 1.0
-        #        for j in range(self.dim): 
-        #            if j != mode:
-        #                temp *= factor_args[j][coord[j]][0]
-        #        test_accum += self.values[i] * temp 
-
-        #print(f"Test Accumulator: {test_accum}")
-
-        #print(f"Interaction Count: {interactions}")
         tensor_kernels.sp_mttkrp(mode, factor_args, \
             self.tensor_idxs, self.values) 
-
-def test_tensor_redistribute():
-    x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
-    grid = Grid([4, 4, 4, 1])
-    tensor_grid = TensorGrid(x.max_idxs, grid=grid)
-    x.redistribute_nonzeros(tensor_grid, debug=True)
-
-def test_mttkrp():
-    x = DistSparseTensor("tensors/nips.tns_converted.hdf5")
-    factors = []
-
-    rank = np.array([25], dtype=np.ulonglong)[0] 
-    for i in range(x.dim):
-        factors.append(np.array(list(range(x.max_idxs[i] * rank)), dtype=np.double).reshape((x.max_idxs[i], rank)))
-    
-    #for factor in factors:
-    #    print(factor)
-
-    m = np.zeros_like(factors[1], dtype=np.double)
-
-    print("Starting MTTKRP...")
-    start = time.time()
-    x.mttkrp(factors, 1, m)
-    interval = time.time() - start
-
-    print(f"MTTKRP Completed in {interval} seconds!")
-    #print(m)
-    #grid = Grid([1, 1, 1])
-    #tensor_grid = TensorGrid(x.max_idxs, grid=grid)
-
-if __name__=='__main__':
-    #test_tensor_redistribute()
-    test_mttkrp()

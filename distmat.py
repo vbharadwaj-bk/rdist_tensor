@@ -39,23 +39,12 @@ class DistMat1D:
 
         self.data = np.zeros((self.local_rows_padded, self.cols), dtype=np.double)   
         
-        #self.row_idxs = np.array(list(range(self.rowct)), dtype=np.int64)
-
-        # TODO: Should store the padding offset here, add a view
-        # into the matrix that represents the true data
-        #print(f"Rank: {grid.rank}\t{self.grid.slices[0].Get_rank()}")
-        #print(f"Row position: {self.row_position}")
-
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
-        #self.data += 1.0
         self.data = np.array(range(value_start, value_start + self.local_window_size), dtype=np.double).reshape(self.local_rows_padded, self.cols)
         self.data = np.cos((self.data + offset) * 5)
  
     def initialize_random(self, random_seed=42):
-        #gen = Philox(random_seed)
-        #gen = gen.advance(self.row_position * self.local_window_size)
-        #rg = Generator(gen)
         self.data = np.random.rand(*self.data.shape, dtype=np.double) - 0.5
 
     def compute_gram_matrix(self):

@@ -104,29 +104,28 @@ class DistLowRank:
             remaining = local_zeros_to_sample
             zero_loss = 0.0
 
-            # This usually terminates very quickly, 
-            # but we should add a maximum iteration count 
-            # just in case 
-            while remaining > 0:
-                zero_samples = [] 
-                for j in range(self.dim):
-                    start = tg.bound_starts[j]
-                    end = tg.bound_ends[j]
+            # TODO: Should put this in a while loop! 
+            zero_samples = [] 
+            for j in range(self.dim):
+                start = tg.bound_starts[j]
+                end = tg.bound_ends[j]
 
-                    idxs = np.random.randint(0, end - start, size=remaining, dtype=np.ulonglong) 
-                    zero_samples.append(idxs)
+                idxs = np.random.randint(0, end - start, size=remaining, dtype=np.ulonglong) 
+                zero_samples.append(idxs)
 
-                collisions = ground_truth.idx_filter.check_idxs(zero_samples)
-                zero_values = self.compute_tensor_values(zero_samples)
-                # For every collision, we will zero out the rejection loss 
-                zero_values[collisions] = 0.0
-                zero_loss += la.norm(zero_values) ** 2
-                remaining = len(collisions)
+            collisions = ground_truth.idx_filter.check_idxs(zero_samples)
+            zero_values = self.compute_tensor_values(zero_samples)
+
+
+            zero_values[collisions] = 0.0
+            zero_loss += la.norm(zero_values) ** 2
 
             # Exact computation of alpha and sfit here
 
+            local_zeros_to_sample -= len(collisions)
             true_zero_count = self.grid.comm.allreduce(local_zeros_to_sample)
-            sfit = ground_truth.nnz + true_zero_count 
+
+            sfit = ground_truth.nnz + true_zero_count
             alpha = ground_truth.nnz / sfit 
 
             nonzero_loss = (nonzero_loss ** 2) * ground_truth.nnz / np.ceil(alpha * sfit)

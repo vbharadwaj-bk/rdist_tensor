@@ -67,43 +67,74 @@ class DistLowRank:
         tensor_kernels.compute_tensor_values(gathered_matrices, idxs, result)
         return result
 
-    def compute_loss(self, ground_truth):
-        # Changing this parameter currently doesn't do anything without
-        # changing the underlying code 
-        if ground_truth.type == "SPARSE_TENSOR":
-            sfit = ground_truth.nnz * 2
+    def compute_loss(self, ground_truth, alpha=0.5):
+        '''
+        Ground truth: an instance of the tensor to decompose
+        nonzero_sample_frac: Fraction of nonzeros to sample;
+                             This param is currently not implemented!
+                             We instead compute the loss on all of
+                             the nonzeros
+        alpha: proportion of zeros to nonzeros in the sample.
+
+        TODO: Alpha is funged a bit in this computation, since we throw
+        out any zero samples that turn out to be nonzeros and recompute the
+        denominator. This computation is still valid with a slightly
+        different value of alpha, but we should eventually fix this.
+        '''
+        if ground_truth.type == "SPARSE_TENSOR": 
+            tg = self.tensor_grid
+            nnz_to_sample = ground_truth.nnz
+
+            # Compute the loss on the nonzeros 
             lr_values = self.compute_tensor_values(ground_truth.tensor_idxs) 
             nonzero_loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
 
-            zero_samples = [] 
+            # Compute the loss on the zeros
+            box_dims = [tg.bound_ends[j] - tg.bound_starts[j] for j in range(self.dim)]
+            logsum_box_dims = np.sum(np.log(box_dims))
+            logsum_full_ten_dims = np.sum(np.log(tg.tensor_dims)) 
 
-            for j in range(self.dim):
-                start = self.tensor_grid.start_coords[j][self.grid.coords[j]]
-                end = self.tensor_grid.start_coords[j][self.grid.coords[j] + 1]
+            vol_frac_owned = np.exp(logsum_box_dims - logsum_full_ten_dims)
 
-                idxs = np.random.randint(0, end - start, size=len(ground_truth.tensor_idxs[0]), dtype=np.ulonglong) 
+            # TODO: To get exactly the same distribution, we should
+            # really compute this value in two stages using a multinomial
+            # distribution... 
+            zeros_to_sample_global = ((1 / alpha) - 1) * ground_truth.nnz
+            local_zeros_to_sample = (vol_frac_owned * zeros_to_sample_global).astype(np.ulonglong)
+            remaining = local_zeros_to_sample
+            zero_loss = 0.0
 
-                zero_samples.append(idxs)
+            # This usually terminates very quickly, 
+            # but we should add a maximum iteration count 
+            # just in case 
+            while remaining > 0:
+                zero_samples = [] 
+                for j in range(self.dim):
+                    start = tg.bound_starts[j]
+                    end = tg.bound_ends[j]
 
-            collisions = ground_truth.idx_filter.check_idxs(zero_samples)
-            collision_count = 0
+                    idxs = np.random.randint(0, end - start, size=remaining, dtype=np.ulonglong) 
+                    zero_samples.append(idxs)
 
-            zero_values = self.compute_tensor_values(zero_samples)
-            # For every collision, we will zero out the rejection loss 
-            zero_values[collisions] = 0.0
+                collisions = ground_truth.idx_filter.check_idxs(zero_samples)
+                zero_values = self.compute_tensor_values(zero_samples)
+                # For every collision, we will zero out the rejection loss 
+                zero_values[collisions] = 0.0
+                zero_loss += la.norm(zero_values) ** 2
+                remaining = len(collisions)
 
             # Exact computation of alpha and sfit here
-            sfit = ground_truth.nnz * 2 - len(collisions)
+
+            true_zero_count = self.grid.comm.allreduce(local_zeros_to_sample)
+            sfit = ground_truth.nnz + true_zero_count 
             alpha = ground_truth.nnz / sfit 
 
             nonzero_loss = (nonzero_loss ** 2) * ground_truth.nnz / np.ceil(alpha * sfit)
-            zero_loss = get_norm_distributed(zero_values, self.grid.comm)
-           
-            zero_loss = zero_loss ** 2
+            zero_loss = self.grid.comm.allreduce(zero_loss)
+
             dense_entries = np.prod(np.array(self.tensor_grid.tensor_dims, dtype=np.double))
             zero_loss *= (dense_entries - ground_truth.nnz) / np.floor((1 - alpha) * sfit)
             estimated_fit = 1 - (np.sqrt(nonzero_loss + zero_loss) / ground_truth.tensor_norm) 
-
             return estimated_fit
         else:
             assert False 

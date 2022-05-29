@@ -70,7 +70,10 @@ class TensorGrid:
             self.intervals = []
             self.grid = grid
 
-            for i in range(len(tensor_dims)):
+            self.bound_starts = []
+            self.bound_ends = []
+
+            for i in range(self.grid.dim):
                 dim = tensor_dims[i]
                 proc_count = np.array([grid.axesLengths[i]], dtype=np.ulonglong)[0]
                 interval = round_to_nearest_np_arr(dim, grid.world_size) // proc_count
@@ -82,6 +85,9 @@ class TensorGrid:
 
                 coords = np.array(coords, dtype=np.ulonglong)
                 self.start_coords.append(coords)
+
+                self.bound_starts.append(coords[grid.coords[i]])
+                self.bound_ends.append(coords[grid.coords[i] + 1])
 
 
 if __name__=='__main__':

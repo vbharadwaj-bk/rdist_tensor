@@ -10,7 +10,7 @@ with open("tensors/frostt_tensors.txt", 'r') as frostt_file:
             print(f"File {filename} already exists! Skipping download...")
         else:
             subprocess.run(f"curl -o tensors/{filename}.gz {line}", shell=True)
-            subprocess.run(f"gunzip -D tensors/{filename}.gz", shell=True)
+            subprocess.run(f"gunzip -d tensors/{filename}.gz", shell=True)
 
         stdout = tempfile.TemporaryFile() 
         stderr = tempfile.TemporaryFile() 
@@ -21,10 +21,9 @@ with open("tensors/frostt_tensors.txt", 'r') as frostt_file:
         linecount = int(stdout.read().decode('UTF-8'))
         print(f"{filename}: {linecount}")
 
-        # THIS PART OF THE CODE IS BROKEN AND DOES NOT MESH WITH
-        # HDF5, for some reason!
-
         if os.path.exists(f"tensors/{filename}_converted.hdf5"):
             print(f"File {filename} HDF5 exists! Skipping conversion...")
         else:
             subprocess.run(f"./tensor_io/build/process_frostt_tensor tensors/{filename} {linecount}", shell=True)
+
+        print(f"Conversion of {filename} complete!")

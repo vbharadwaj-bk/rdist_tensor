@@ -1,0 +1,1 @@
+lfs setstripe -c 72 -S 8M my_datasets/

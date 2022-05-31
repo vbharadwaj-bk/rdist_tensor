@@ -36,8 +36,8 @@ if __name__=='__main__':
     if args is None:
         exit(1)
 
-    ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid = Grid([4, 1, 4, 4])
+    ground_truth = DistSparseTensor("/global/cscratch1/sd/vbharadw/tensors/nell-1.tns_converted.hdf5")
+    grid = Grid([8, 8, 8])
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)

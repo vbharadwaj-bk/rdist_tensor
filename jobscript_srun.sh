@@ -22,4 +22,4 @@
 #done
 
 . modules.sh
-srun -N 8 -n 256 python decompose_sparse.py -t 20 -iter 10 -o data/nell_test.out
+srun -N 1 -n 64 python decompose_sparse.py -t 20 -iter 10 -o data/uber_test.out

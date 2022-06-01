@@ -3,6 +3,8 @@ import numpy as np
 import numpy.linalg as la
 import json
 
+import exact_als
+
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 
@@ -31,23 +33,6 @@ class DistLowRank:
                 gathered_matrices.append(self.factors[i].gathered_factor)
 
         return gathered_matrices, None
-
-    def materialize_tensor(self):
-        '''
-        TODO: THIS FUNCTION IS CURRENTLY BROKEN!
-        '''
-        gathered_matrices, _ = self.allgather_factors([True] * self.dim)
-        self.local_materialized = tensor_from_factors_sval(self.singular_values, gathered_matrices) 
-
-    # Materialize the tensor starting only from the given singular
-    # value 
-    def partial_materialize(self, singular_value_start):
-        assert(singular_value_start < self.rank)
-
-        gathered_matrices, _ = self.allgather_factors([True] * self.dim)
-        gathered_matrices = [mat[:, singular_value_start:] for mat in gathered_matrices]
-        
-        return tensor_from_factors_sval(self.singular_values[singular_value_start:], gathered_matrices) 
 
     def initialize_factors_deterministic(self, offset):
         for factor in self.factors:
@@ -138,69 +123,9 @@ class DistLowRank:
         else:
             assert False 
 
-    # Computes a distributed MTTKRP of all but one of this 
-    # class's factors with a given dense tensor. Also performs 
-    # gram matrix computation. 
-    def optimize_factor(self, local_ten, mode_to_leave, timer_dict):
-        factors_to_gather = [True] * self.dim
-        factors_to_gather[mode_to_leave] = False
-
-        selected_indices = np.array(list(range(self.dim)))[factors_to_gather]
-        selected_factors = [self.factors[idx] for idx in selected_indices] 
-
-        # Compute gram matrices of all factors but the one we are currently
-        # optimizing for, perform leverage-score based sketching if necessary 
-        for idx in selected_indices:
-            factor = self.factors[idx]
-            
-            start = start_clock()
-            factor.compute_gram_matrix()
-            stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
-
-        start = start_clock() 
-        gram_prod = selected_factors[0].gram
-
-        for i in range(1, len(selected_factors)):
-            gram_prod = np.multiply(gram_prod, selected_factors[i].gram)
-
-        # Compute inverse of the gram matrix 
-        krp_gram_inv = la.pinv(gram_prod)
-        MPI.COMM_WORLD.Barrier()
-        stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
-
-
-        start = start_clock()
-        gathered_matrices = [factor.gathered_factor for factor in self.factors]
-
-        # The gathered factor to optimize is overwritten 
-        local_ten.mttkrp(gathered_matrices, mode_to_leave)
-        MPI.COMM_WORLD.Barrier()
-        stop_clock_and_add(start, timer_dict, "MTTKRP")
-
-        start = start_clock()
-        mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
-        self.grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
-                [mttkrp_reduced, MPI.DOUBLE])  
-        MPI.COMM_WORLD.Barrier()
-        stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
-        start = start_clock() 
-        res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
-        self.factors[mode_to_leave].data = res
-
-        MPI.COMM_WORLD.Barrier()
-        stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
-        
-        start = start_clock()  
-        self.factors[mode_to_leave].allgather_factor()
-        MPI.COMM_WORLD.Barrier()
-        stop_clock_and_add(start, timer_dict, "Slice All-gather")
-
-        return timer_dict
-
     def als_fit(self, local_ground_truth, num_iterations, sketching_pct, output_file, compute_accuracy=False):
         # Should initialize the singular values more intelligently, but this is fine
-        # for now:
-
+        # for now... 
         statistics = {
                         "Gram Matrix Computation": 0.0,
                         "Leverage Score Computation": 0.0,
@@ -229,7 +154,7 @@ class DistLowRank:
                     print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
-                self.optimize_factor(local_ground_truth, mode_to_optimize, statistics)
+                exact_als.optimize_factor(self.factors, self.grid, local_ground_truth, mode_to_optimize, statistics)
 
         if self.grid.rank == 0:
             f = open(output_file, 'a')

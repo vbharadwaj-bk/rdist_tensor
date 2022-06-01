@@ -141,8 +141,7 @@ class DistLowRank:
     # Computes a distributed MTTKRP of all but one of this 
     # class's factors with a given dense tensor. Also performs 
     # gram matrix computation. 
-    def optimize_factor(self, local_ten, mode_to_leave, timer_dict, sketching_pct=None):
-        sketching = sketching_pct is not None
+    def optimize_factor(self, local_ten, mode_to_leave, timer_dict):
         factors_to_gather = [True] * self.dim
         factors_to_gather[mode_to_leave] = False
 
@@ -158,12 +157,6 @@ class DistLowRank:
             factor.compute_gram_matrix()
             stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
-            if sketching_pct is not None:
-                start = start_clock() 
-                factor.compute_leverage_scores()
-                stop_clock_and_add(start, timer_dict, "Leverage Score Computation")
-
-
         start = start_clock() 
         gram_prod = selected_factors[0].gram
 
@@ -172,27 +165,21 @@ class DistLowRank:
 
         # Compute inverse of the gram matrix 
         krp_gram_inv = la.pinv(gram_prod)
+        MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
-        start = start_clock() 
-        gathered_matrices, gathered_leverage = self.allgather_factors(factors_to_gather)
 
-        dummy = None
-        gathered_matrices.insert(mode_to_leave, dummy)
+        start = start_clock()
+        gathered_matrices = [factor.gathered_factor for factor in self.factors]
 
-        stop_clock_and_add(start, timer_dict, "Slice Replication")
-
-        MPI.COMM_WORLD.Barrier()
-        start = start_clock() 
-        mttkrp_unreduced = np.zeros((self.tensor_grid.intervals[mode_to_leave], self.rank)) 
-        local_ten.mttkrp(gathered_matrices, mode_to_leave, mttkrp_unreduced)
+        # The gathered factor to optimize is overwritten 
+        local_ten.mttkrp(gathered_matrices, mode_to_leave)
         MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "MTTKRP")
+
         start = start_clock()
-
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
-
-        self.grid.slices[mode_to_leave].Reduce_scatter([mttkrp_unreduced, MPI.DOUBLE], 
+        self.grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
                 [mttkrp_reduced, MPI.DOUBLE])  
         stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
@@ -200,6 +187,10 @@ class DistLowRank:
         res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
         self.factors[mode_to_leave].data = res
         stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
+
+        start = start_clock()  
+        self.factors[mode_to_leave].allgather_factor()
+        stop_clock_and_add(start, timer_dict, "Slice All-gather")
 
         return timer_dict
 
@@ -210,7 +201,7 @@ class DistLowRank:
         statistics = {
                         "Gram Matrix Computation": 0.0,
                         "Leverage Score Computation": 0.0,
-                        "Slice Replication": 0.0,
+                        "Slice All-gather": 0.0,
                         "MTTKRP": 0.0,
                         "Slice Reduce-Scatter": 0.0,
                         "Gram-Times-MTTKRP": 0.0
@@ -223,6 +214,10 @@ class DistLowRank:
 
         self.singular_values = np.ones(self.rank)
 
+        # Initial allgather of tensor factors 
+        for mode in range(self.dim):
+            self.factors[mode].allgather_factor()
+
         for iter in range(num_iterations):
             if compute_accuracy:
                 loss = self.compute_loss(local_ground_truth) 
@@ -231,7 +226,7 @@ class DistLowRank:
                     print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
-                self.optimize_factor(local_ground_truth, mode_to_optimize, statistics, sketching_pct=sketching_pct)
+                self.optimize_factor(local_ground_truth, mode_to_optimize, statistics)
 
         if self.grid.rank == 0:
             f = open(output_file, 'a')

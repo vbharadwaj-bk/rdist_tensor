@@ -79,7 +79,7 @@ class DistMat1D:
         self.gathered_factor = buffer_data
 
     #=================================================================
-    # METHODS RELATED TO SKETCHING GO HERE!!!
+    # METHODS RELATED TO SKETCHING 
     #=================================================================
 
     def compute_leverage_scores(self):

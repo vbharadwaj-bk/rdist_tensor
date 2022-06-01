@@ -37,7 +37,9 @@ class DistMat1D:
         else:
             self.rowct = min(self.rows - self.row_position * self.local_rows_padded, self.local_rows_padded)
 
-        self.data = np.zeros((self.local_rows_padded, self.cols), dtype=np.double)   
+        self.data = np.zeros((self.local_rows_padded, self.cols), dtype=np.double)
+
+        self.gathered_factor = None
         
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
@@ -57,26 +59,28 @@ class DistMat1D:
 
         self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram)
 
-    def allgather_factor(self):
+    def allgather_factor(self, truncate=False):
         slice_dim = self.slice_dim
         slice_size = cl(self.grid.slices[slice_dim].Get_size())
         buffer_rowct = self.local_rows_padded * slice_size
-        buffer_data = np.zeros((buffer_rowct, self.cols), dtype=np.double)
+
+        if self.gathered_factor is None:
+            self.gathered_factor = np.zeros((buffer_rowct, self.cols), dtype=np.double)
 
         self.grid.slices[slice_dim].Allgather([self.data, MPI.DOUBLE], 
-                [buffer_data, MPI.DOUBLE])
+                [self.gathered_factor, MPI.DOUBLE])
 
         # Handle the overhang when mode length is not divisible by
         # the processor count
 
-        if buffer_rowct * cl(self.grid.coords[slice_dim]) > self.rows:
-            truncated_rowct = 0
-        else:
-            truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * cl(self.grid.coords[slice_dim]))
+        #if truncate:
+        #    if buffer_rowct * cl(self.grid.coords[slice_dim]) > self.rows:
+        #        truncated_rowct = 0
+        #    else:
+        #        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * cl(self.grid.coords[slice_dim]))
 
-        buffer_data = buffer_data[:truncated_rowct] 
-
-        self.gathered_factor = buffer_data
+        #    buffer_data = buffer_data[:truncated_rowct] 
+        #self.gathered_factor = buffer_data
 
     #=================================================================
     # METHODS RELATED TO SKETCHING 

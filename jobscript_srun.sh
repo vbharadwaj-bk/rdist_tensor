@@ -21,5 +21,5 @@
     #srun -n $proc_count python3 synth_cubic.py -d 3 -s 1200 -p 0.7 -g 30 -t 30 -iter 50 -o data/sketchp7_strong.out
 #done
 
-
-srun -N 16 -n 512 python decompose_sparse.py -t 30 -iter 50 -o data/nell_test.out
+. modules.sh
+srun -N 8 -n 256 python decompose_sparse.py -t 20 -iter 10 -o data/nell_test.out

@@ -181,15 +181,18 @@ class DistLowRank:
         mttkrp_reduced = np.zeros_like(self.factors[mode_to_leave].data)
         self.grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
                 [mttkrp_reduced, MPI.DOUBLE])  
+        MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
-
         start = start_clock() 
         res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
         self.factors[mode_to_leave].data = res
-        stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
 
+        MPI.COMM_WORLD.Barrier()
+        stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
+        
         start = start_clock()  
         self.factors[mode_to_leave].allgather_factor()
+        MPI.COMM_WORLD.Barrier()
         stop_clock_and_add(start, timer_dict, "Slice All-gather")
 
         return timer_dict

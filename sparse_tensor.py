@@ -115,7 +115,7 @@ class DistSparseTensor:
         self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.00005)
 
 
-    def mttkrp(self, factors, mode, buffer):
+    def mttkrp(self, factors, mode):
         '''
         For convenience, factors is sized equal to the dimension of the
         tensor, so we replace the factor at the mode to replace with the
@@ -123,13 +123,6 @@ class DistSparseTensor:
 
         Mode is the index of the mode to isolate along the column axis
         when matricizing the tensor
-        '''
-        factor_args = []
-        for i in range(len(factors)):
-            if i==mode:
-                factor_args.append(buffer)
-            else:
-                factor_args.append(factors[i]) 
-
-        tensor_kernels.sp_mttkrp(mode, factor_args, \
-            self.tensor_idxs, self.values) 
+        ''' 
+        factors[mode] *= 0.0
+        tensor_kernels.sp_mttkrp(mode, factors, self.tensor_idxs, self.values) 

@@ -99,3 +99,14 @@ class DistMat1D:
             self.leverage_scores /= normalization_factor 
 
         self.leverage_weight = np.array(np.sum(self.leverage_scores))
+
+    def allgather_leverage_scores(self):
+        slice_dim = self.slice_dim
+        slice_size = cl(self.grid.slices[slice_dim].Get_size())
+        buffer_rowct = self.local_rows_padded * slice_size
+
+        if self.gathered_leverage is None:
+            self.gathered_leverage = np.zeros(buffer_rowct, dtype=np.double)
+
+        self.grid.slices[slice_dim].Allgather([self.leverage_weight, MPI.DOUBLE], 
+                [self.gathered_leverage, MPI.DOUBLE])

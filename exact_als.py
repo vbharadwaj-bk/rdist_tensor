@@ -6,6 +6,11 @@ import json
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 
+def initial_setup(ten_to_optimize):
+	# Initial allgather of tensor factors 
+	for mode in range(ten_to_optimize.dim):
+		ten_to_optimize.factors[mode].allgather_factor()
+
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
 # gram matrix computation. 

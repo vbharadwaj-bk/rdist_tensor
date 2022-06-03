@@ -40,6 +40,7 @@ class DistMat1D:
         self.data = np.zeros((self.local_rows_padded, self.cols), dtype=np.double)
 
         self.gathered_factor = None
+        self.gathered_leverage = None
         
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 

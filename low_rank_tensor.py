@@ -4,6 +4,7 @@ import numpy.linalg as la
 import json
 
 import exact_als
+import tensor_stationary_opt0
 
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
@@ -142,9 +143,9 @@ class DistLowRank:
 
         self.singular_values = np.ones(self.rank)
 
-        # Initial allgather of tensor factors 
-        for mode in range(self.dim):
-            self.factors[mode].allgather_factor()
+        #alg = exact_als
+        alg = tensor_stationary_opt0
+        alg.initial_setup(self)
 
         for iter in range(num_iterations):
             if compute_accuracy:
@@ -154,7 +155,7 @@ class DistLowRank:
                     print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
-                exact_als.optimize_factor(self.factors, self.grid, local_ground_truth, mode_to_optimize, statistics)
+                alg.optimize_factor(self.factors, self.grid, local_ground_truth, mode_to_optimize, statistics)
 
         if self.grid.rank == 0:
             f = open(output_file, 'a')

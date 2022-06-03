@@ -9,14 +9,17 @@ from low_rank_tensor import *
 from grid import *
 
 import cppimport.import_hook
-import cpp_ext.bloom_filter as bf 
+import cpp_ext.bloom_filter as bf
 
-def test_allgather():
-    x = np.array(list(range(25)), dtype=np.double).reshape((5, 5))
-    y = np.zeros((5, 5), dtype=np.double) 
-    MPI.COMM_WORLD.Allgather([x, MPI.DOUBLE], [y, MPI.DOUBLE])
-    print(f"Initial: {x}")
-    print(f"Initial: {y}")
+def test_sampling():
+    world_comm = MPI.COMM_WORLD
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid_dims = [1, 1, 1]
+    grid = Grid(grid_dims)
+    tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
+    mode_to_leave = 2
+    sample_idxs = [np.array([0, 0]), np.array([0, 1])]
+    ground_truth.sample_nonzeros(sample_idxs, mode_to_leave)
 
 def test_mttkrp():
     world_comm = MPI.COMM_WORLD

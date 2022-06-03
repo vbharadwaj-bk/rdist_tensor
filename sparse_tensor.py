@@ -11,6 +11,8 @@ import cppimport.import_hook
 import cpp_ext.redistribute_tensor as rd
 import cpp_ext.tensor_kernels as tensor_kernels 
 import cpp_ext.bloom_filter as bf
+import cpp_ext.filter_nonzeros as nz_filter
+
 
 def allocate_recv_buffers(dim, count, lst_idx, lst_values):
     for i in range(dim):
@@ -125,4 +127,7 @@ class DistSparseTensor:
         when matricizing the tensor
         ''' 
         factors[mode] *= 0.0
-        tensor_kernels.sp_mttkrp(mode, factors, self.tensor_idxs, self.values) 
+        tensor_kernels.sp_mttkrp(mode, factors, self.tensor_idxs, self.values)
+
+    def sample_nonzeros(self, samples, mode):
+        nz_filter.sample_nonzeros(self.tensr_idxs, self.values, samples, mode)

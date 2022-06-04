@@ -130,4 +130,4 @@ class DistSparseTensor:
         tensor_kernels.sp_mttkrp(mode, factors, self.tensor_idxs, self.values)
 
     def sample_nonzeros(self, samples, mode):
-        nz_filter.sample_nonzeros(self.tensr_idxs, self.values, samples, mode)
+        return nz_filter.sample_nonzeros(self.tensor_idxs, self.values, samples, mode)

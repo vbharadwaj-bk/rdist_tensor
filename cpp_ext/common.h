@@ -51,6 +51,46 @@ public:
     }
 };
 
+class COOSparse {
+public:
+    vector<unsigned long long> rows;
+    vector<unsigned long long> cols;
+    vector<double> values;
+
+    void print_contents() {
+      for(unsigned long long i = 0; i < rows.size(); i++) {
+        cout << rows[i] 
+        << " " 
+        << cols[i] 
+        << " "
+        << values[i]
+        << endl;
+      }
+    }
+
+	/*
+	 * Computes Y := S . X, where S is this
+	 * sparse matrix.
+	 * 
+	 * This is currently a very inefficient single-threaded
+	 * version of the code. 
+	 */
+	void cpu_spmm(double* X, double* Y, int r) {
+		unsigned long long* row_ptr = rows.data();
+		unsigned long long* col_ptr = cols.data();
+		double* val_ptr = values.data();
+
+		for(unsigned long long i = 0; i < rows.size(); i++) {
+			unsigned long long row = row_ptr[i];
+			unsigned long long col = col_ptr[i];
+			double value = val_ptr[i];
+			for(int j = 0; j < r; j++) {
+				Y[row * r + j] += X[col * r + j] * value;
+			}
+		}
+	}
+};
+
 //-----------------------------------------------------------------------------
 // MurmurHash2, by Austin Appleby
 

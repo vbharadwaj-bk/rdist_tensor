@@ -19,7 +19,8 @@ def test_sampling():
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     mode_to_leave = 2
     sample_idxs = [np.array([0, 0]), np.array([0, 1])]
-    ground_truth.sample_nonzeros(sample_idxs, mode_to_leave)
+    samples = ground_truth.sample_nonzeros(sample_idxs, mode_to_leave)
+    samples.print_contents()
 
 def test_mttkrp():
     world_comm = MPI.COMM_WORLD
@@ -120,4 +121,5 @@ if __name__=='__main__':
     #test_allgather()
 	#test_tensor_evaluation()
     #test_mttkrp()
-    test_bloom_filter()
+    #test_bloom_filter()
+    test_sampling()

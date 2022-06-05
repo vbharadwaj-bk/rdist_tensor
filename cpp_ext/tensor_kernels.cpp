@@ -94,8 +94,40 @@ void compute_tensor_values(
     }
 }
 
+void sampled_mttkrp(
+        int mode,
+        py::list factors_py,
+        py::list krp_sample_idxs_py,
+        COOSparse &sampled_rhs
+) {
+    NumpyList<double> factors(factors_py);
+    NumpyList<unsigned long long> krp_samples(krp_sample_idxs_py);
+
+    int dim = factors.length;
+    unsigned long long num_samples = krp_samples.infos[0].shape[0];
+    unsigned long long nnz = idxs.infos[0].shape[0];
+    int r = factors.infos[0].shape[1];
+    double* result_ptr = factors.ptrs[mode];
+
+    vector<double> lhs(num_samples * r);
+
+    // Assemble the LHS using Hadamard products 
+    for(int i = 0; i < num_samples; i++) {
+        for(int j = 0; j < r; j++) {
+            lhs[i * r + j] = 1.0;
+        }
+        for(int k = 0; k < dim; k++) {
+            for(int j = 0; j < r; j++) {
+                lhs[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k][i]];
+            }
+        } 
+    }
+    sampled_rhs.cpu_spmm(lhs, result_ptr, r);
+}
+
 PYBIND11_MODULE(tensor_kernels, m) {
     m.def("sp_mttkrp", &sp_mttkrp);
+    m.def("sampled_mttkrp", &sampled_mttkrp);
     m.def("compute_tensor_values", &compute_tensor_values);
 }
 

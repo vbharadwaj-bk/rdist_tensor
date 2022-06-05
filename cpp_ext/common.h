@@ -69,7 +69,7 @@ public:
     }
 
 	/*
-	 * Computes Y := S . X, where S is this
+	 * Computes Y := S^T . X, where S is this
 	 * sparse matrix.
 	 * 
 	 * This is currently a very inefficient single-threaded
@@ -81,8 +81,9 @@ public:
 		double* val_ptr = values.data();
 
 		for(unsigned long long i = 0; i < rows.size(); i++) {
-			unsigned long long row = row_ptr[i];
-			unsigned long long col = col_ptr[i];
+			// We perform a transpose here
+			unsigned long long row = col_ptr[i];
+			unsigned long long col = row_ptr[i];
 			double value = val_ptr[i];
 			for(int j = 0; j < r; j++) {
 				Y[row * r + j] += X[col * r + j] * value;

@@ -104,8 +104,7 @@ void sampled_mttkrp(
     NumpyList<unsigned long long> krp_samples(krp_sample_idxs_py);
 
     int dim = factors.length;
-    unsigned long long num_samples = krp_samples.infos[0].shape[0];
-    unsigned long long nnz = idxs.infos[0].shape[0];
+    int num_samples = krp_samples.infos[0].shape[0];
     int r = factors.infos[0].shape[1];
     double* result_ptr = factors.ptrs[mode];
 
@@ -122,7 +121,7 @@ void sampled_mttkrp(
             }
         } 
     }
-    sampled_rhs.cpu_spmm(lhs, result_ptr, r);
+    sampled_rhs.cpu_spmm(lhs.data(), result_ptr, r);
 }
 
 PYBIND11_MODULE(tensor_kernels, m) {

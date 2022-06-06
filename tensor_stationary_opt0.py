@@ -42,7 +42,7 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	# The gathered factor to optimize is overwritten 
 	local_ten.mttkrp(gathered_matrices, mode_to_leave)
 	
-	gmttkrp = gathered_matrices[mode_to_leave]
+	gmttkrp = gathered_matrices[mode_to_leave].copy()
 	total_ten_entries = 1	
 	for i in range(dim):
 		total_ten_entries *= factors[i].data.shape[0] 
@@ -59,8 +59,15 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 					samples[j][i] = val % factors[j].data.shape[0]
 				val = val // factors[j].data.shape[0]
 
-	samples = local_ten.sample_nonzeros(samples, mode_to_leave)
-	samples.print_contents()	
+	sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
+	sampled_rhs.print_contents()
+
+	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
+
+	#print(gmttkrp)
+	#print(gathered_matrices[mode_to_leave])
+
+	print(la.norm(gmttkrp - gathered_matrices[mode_to_leave]))
 
 	exit()
 

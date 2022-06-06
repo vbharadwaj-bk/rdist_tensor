@@ -115,11 +115,19 @@ void sampled_mttkrp(
         for(int j = 0; j < r; j++) {
             lhs[i * r + j] = 1.0;
         }
+
         for(int k = 0; k < dim; k++) {
-            for(int j = 0; j < r; j++) {
-                lhs[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k][i]];
+            if(k < mode) {
+                for(int j = 0; j < r; j++) {
+                    lhs[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k][i] * r + j];
+                }
             }
-        } 
+            if(k > mode) {
+                for(int j = 0; j < r; j++) {
+                    lhs[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k-1][i] * r + j];
+                }
+            }
+        }
     }
     sampled_rhs.cpu_spmm(lhs.data(), result_ptr, r);
 }

@@ -82,7 +82,7 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
-	s = 100000
+	s = 131000
 	samples = [get_samples(factors[i].gathered_leverage, s) \
 		for i in range(dim) if i != mode_to_leave]
 

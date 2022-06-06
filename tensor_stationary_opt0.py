@@ -19,6 +19,7 @@ def initial_setup(ten_to_optimize):
 # class's factors with a given dense tensor. Also performs 
 # gram matrix computation. 
 def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
+	mode_to_leave = 1
 	dim = len(factors)
 	factors_to_gather = [True] * dim 
 	factors_to_gather[mode_to_leave] = False
@@ -60,7 +61,7 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 				val = val // factors[j].data.shape[0]
 
 	sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
-	sampled_rhs.print_contents()
+	#sampled_rhs.print_contents()
 
 	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
 

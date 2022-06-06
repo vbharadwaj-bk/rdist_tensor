@@ -4,7 +4,6 @@ from numpy.random import Generator, Philox
 import numpy.linalg as la
 from grid import Grid
 from local_kernels import *
-from sketching import *
 from common import *
 
 import mpi4py
@@ -109,5 +108,5 @@ class DistMat1D:
         if self.gathered_leverage is None:
             self.gathered_leverage = np.zeros(buffer_rowct, dtype=np.double)
 
-        self.grid.slices[slice_dim].Allgather([self.leverage_weight, MPI.DOUBLE], 
+        self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
                 [self.gathered_leverage, MPI.DOUBLE])

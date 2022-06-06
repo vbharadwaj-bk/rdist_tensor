@@ -35,6 +35,18 @@ import cpp_ext.tensor_kernels as tensor_kernels
 #local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
 #print(la.norm(gmttkrp - gathered_matrices[mode_to_leave]))
 
+
+	#s = 100000
+	#samples = [get_samples(factors[i].gathered_leverage, s) \
+	#	for i in range(dim) if i != mode_to_leave]
+
+	# To generate samples for this simplest implementation, each
+	# processor will take an equal number of samples from the locally
+	# owned portion of the data	
+	#sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
+	#local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
+	#local_ten.mttkrp(gathered_matrices, mode_to_leave)
+
 # ========================================
 
 def initial_setup(ten_to_optimize):
@@ -49,16 +61,16 @@ def initial_setup(ten_to_optimize):
 # class's factors with a given dense tensor. Also performs 
 # gram matrix computation. 
 def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
-	mode_to_leave = 1
 	dim = len(factors)
 	factors_to_gather = [True] * dim 
 	factors_to_gather[mode_to_leave] = False
 
 	selected_indices = np.array(list(range(dim)))[factors_to_gather]
-	selected_factors = [factors[idx] for idx in selected_indices] 	
+	selected_factors = [factors[idx] for idx in selected_indices] 
 
 	start = start_clock() 
 	gram_prod = selected_factors[0].gram
+
 	for i in range(1, len(selected_factors)):
 		gram_prod = np.multiply(gram_prod, selected_factors[i].gram)
 
@@ -70,20 +82,14 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
-	# Let's do the single-node case before we get
-	# to the multi-node case... note, we need to compress 
-	# factor matrices and perform several modifications for 
-	# the multi-node case
-
 	s = 100000
 	samples = [get_samples(factors[i].gathered_leverage, s) \
 		for i in range(dim) if i != mode_to_leave]
 
-	# To generate samples for this simplest implementation, each
-	# processor will take an equal number of samples from the locally
-	# owned portion of the data	
-
 	sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
+
+	# The gathered factor to optimize is overwritten 
+	#local_ten.mttkrp(gathered_matrices, mode_to_leave)
 	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
 
 	MPI.COMM_WORLD.Barrier()
@@ -101,14 +107,17 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
-	
+
+	start = start_clock()
+	factors[mode_to_leave].compute_gram_matrix()
+	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+
 	start = start_clock()  
 	factors[mode_to_leave].allgather_factor()
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice All-gather")
 
-	start = start_clock()
-	factors[mode_to_leave].compute_gram_matrix()
-	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+	factors[mode_to_leave].compute_leverage_scores()
+	factors[mode_to_leave].allgather_leverage_scores()
 
 	return timer_dict

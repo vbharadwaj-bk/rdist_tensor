@@ -2,10 +2,40 @@ from tokenize import group
 from distmat import *
 import numpy as np
 import numpy.linalg as la
-import json
 
+from sampling import *
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
+
+# ========================================
+# This is deprecated test code that just tests the sampled
+# MTTKRP and RHS nonzero filtering functions
+# to make sure everthing is working correctly
+
+#gmttkrp = gathered_matrices[mode_to_leave].copy()
+#total_ten_entries = 1	
+#for i in range(dim):
+#	total_ten_entries *= factors[i].data.shape[0] 
+
+#total_ten_entries = total_ten_entries // factors[mode_to_leave].data.shape[0]
+#samples = [np.zeros(total_ten_entries, dtype=np.ulonglong) for i in range(dim - 1)]
+#for i in range(total_ten_entries):
+#	val = i
+#	for j in range(dim):
+#		if j != mode_to_leave:
+#			if j > mode_to_leave:
+#				samples[j-1][i] = val % factors[j].data.shape[0]
+#			else:
+#				samples[j][i] = val % factors[j].data.shape[0]
+#			val = val // factors[j].data.shape[0]
+
+#sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
+#sampled_rhs.print_contents()
+
+#local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
+#print(la.norm(gmttkrp - gathered_matrices[mode_to_leave]))
+
+# ========================================
 
 def initial_setup(ten_to_optimize):
 	# Initial allgather of tensor factors 
@@ -40,37 +70,21 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
-	# The gathered factor to optimize is overwritten 
-	local_ten.mttkrp(gathered_matrices, mode_to_leave)
-	
-	gmttkrp = gathered_matrices[mode_to_leave].copy()
-	total_ten_entries = 1	
-	for i in range(dim):
-		total_ten_entries *= factors[i].data.shape[0] 
+	# Let's do the single-node case before we get
+	# to the multi-node case... note, we need to compress 
+	# factor matrices and perform several modifications for 
+	# the multi-node case
 
-	total_ten_entries = total_ten_entries // factors[mode_to_leave].data.shape[0]
-	samples = [np.zeros(total_ten_entries, dtype=np.ulonglong) for i in range(dim - 1)]
-	for i in range(total_ten_entries):
-		val = i
-		for j in range(dim):
-			if j != mode_to_leave:
-				if j > mode_to_leave:
-					samples[j-1][i] = val % factors[j].data.shape[0]
-				else:
-					samples[j][i] = val % factors[j].data.shape[0]
-				val = val // factors[j].data.shape[0]
+	s = 100000
+	samples = [get_samples(factors[i].gathered_leverage, s) \
+		for i in range(dim) if i != mode_to_leave]
+
+	# To generate samples for this simplest implementation, each
+	# processor will take an equal number of samples from the locally
+	# owned portion of the data	
 
 	sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
-	#sampled_rhs.print_contents()
-
 	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
-
-	#print(gmttkrp)
-	#print(gathered_matrices[mode_to_leave])
-
-	print(la.norm(gmttkrp - gathered_matrices[mode_to_leave]))
-
-	exit()
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")

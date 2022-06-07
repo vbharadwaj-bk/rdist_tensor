@@ -82,13 +82,13 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
-	s = 131000
+	s = 131072
 	samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
 		for i in range(dim) if i != mode_to_leave]
 
 	weight_prods = np.zeros(s, dtype=np.double)
 	weight_prods -= 0.5 * np.log(s)
-	for i in range(self.dim - 1):
+	for i in range(dim - 1):
 		weight_prods -= 0.5 * np.log(samples_and_weights[i][1]) 
 
 	weight_prods = np.exp(weight_prods)

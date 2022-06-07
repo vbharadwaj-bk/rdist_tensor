@@ -29,11 +29,16 @@ namespace py = pybind11;
  * 
  * This function builds and returns a sparse matrix 
  */
-COOSparse sample_nonzeros(py::list idxs_py, py::array_t<double> values_py, py::list sample_idxs_py, int mode_to_leave) {
+COOSparse sample_nonzeros(py::list idxs_py, 
+      py::array_t<double> values_py, 
+      py::list sample_idxs_py,
+      py::array_t<double> weights_py,
+      int mode_to_leave) {
     COOSparse gathered;
     NumpyList<unsigned long long> idxs(idxs_py); 
     NumpyArray<double> values(values_py); 
     NumpyList<unsigned long long> sample_idxs(sample_idxs_py);
+    NumpyArray<double> weights(weights_py);
 
     unsigned long long nnz = idxs.infos[0].shape[0];
     int num_samples = sample_idxs.infos[0].shape[0];
@@ -111,7 +116,7 @@ COOSparse sample_nonzeros(py::list idxs_py, py::array_t<double> values_py, py::l
       if(val != -1) {
         gathered.rows.push_back(val);
         gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
-        gathered.values.push_back(values.ptr[i]);
+        gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
 
     }

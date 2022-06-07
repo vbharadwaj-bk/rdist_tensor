@@ -83,14 +83,21 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
 	s = 131000
-	samples = [get_samples(factors[i].gathered_leverage, s) \
+	samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
 		for i in range(dim) if i != mode_to_leave]
 
-	sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
+	weight_prods = np.zeros(s, dtype=np.double)
+	weight_prods -= 0.5 * np.log(s)
+	for i in range(self.dim - 1):
+		weight_prods -= 0.5 * np.log(samples_and_weights[i][1]) 
+
+	weight_prods = np.exp(weight_prods)
+	samples = [el[0] for el in samples_and_weights]
+	sampled_rhs = local_ten.sample_nonzeros(samples, weight_prods, mode_to_leave)
 
 	# The gathered factor to optimize is overwritten 
 	#local_ten.mttkrp(gathered_matrices, mode_to_leave)
-	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
+	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs, weight_prods)
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")

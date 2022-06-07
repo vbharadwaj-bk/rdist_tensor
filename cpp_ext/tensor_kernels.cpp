@@ -98,10 +98,12 @@ void sampled_mttkrp(
         int mode,
         py::list factors_py,
         py::list krp_sample_idxs_py,
-        COOSparse &sampled_rhs
+        COOSparse &sampled_rhs,
+        py::array_t<double> weights_py
 ) {
     NumpyList<double> factors(factors_py);
     NumpyList<unsigned long long> krp_samples(krp_sample_idxs_py);
+    NumpyArray<double> weights(weights_py);
 
     int dim = factors.length;
     int num_samples = krp_samples.infos[0].shape[0];
@@ -113,7 +115,7 @@ void sampled_mttkrp(
     // Assemble the LHS using Hadamard products 
     for(int i = 0; i < num_samples; i++) {
         for(int j = 0; j < r; j++) {
-            lhs[i * r + j] = 1.0;
+            lhs[i * r + j] = weights.ptr[i];
         }
 
         for(int k = 0; k < dim; k++) {

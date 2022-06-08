@@ -64,9 +64,11 @@ void sp_mttkrp(
 
 void compute_tensor_values(
         py::list factors_py,
+        py::array_t<double> singular_values_py,
         py::list idxs_py,
         py::array_t<double> result_py) {
     NumpyList<double> factors(factors_py);
+    NumpyArray<double> singular_values(singular_values_py);
     NumpyList<unsigned long long> idxs(idxs_py);
     NumpyArray<double> result(result_py);
 
@@ -84,7 +86,7 @@ void compute_tensor_values(
         } 
         double value = 0.0;
         for(unsigned long long k = 0; k < cols; k++) {
-            double coord_buffer = 1.0;
+            double coord_buffer = singular_values[k];
             for(int j = 0; j < factors.length; j++) {
                 coord_buffer *= base_ptrs[j][k]; 
             }

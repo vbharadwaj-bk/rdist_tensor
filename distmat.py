@@ -40,7 +40,8 @@ class DistMat1D:
 
         self.gathered_factor = None
         self.gathered_leverage = None
-        
+        self.col_norms = np.zeros(cols, dtype=np.double)
+
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
         self.data = np.array(range(value_start, value_start + self.local_window_size), dtype=np.double).reshape(self.local_rows_padded, self.cols)
@@ -48,6 +49,13 @@ class DistMat1D:
  
     def initialize_random(self, random_seed=42):
         self.data = np.random.rand(*self.data.shape, dtype=np.double) - 0.5
+
+    def normalize_cols(self):
+        normsq_cols = la.norm(self.data, axis=1) ** 2
+        self.grid.comm.Allreduce(MPI.IN_PLACE, normsq_cols)
+        self.col_norms = np.sqrt(normsq_cols)
+        self.data = self.data @ np.diag(self.col_norms ** -1)
+
 
     def compute_gram_matrix(self):
         if self.rowct == 0:

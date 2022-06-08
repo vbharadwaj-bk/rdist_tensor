@@ -5,6 +5,20 @@ from mpi4py import MPI
 
 one_const = np.array([1], dtype=np.ulonglong)[0]
 
+def chain_multiply_buffers(bufs):
+    '''
+    Multiplies elementwise all of the buffers in the provided
+    list together.
+
+    Assumption: the input array bufs must be at least length 1. 
+    '''
+    prod = np.ones_like(bufs[0], dtype=np.double) 
+
+    for i in range(0, len(bufs)):
+        prod = np.multiply(prod, bufs[i])
+
+    return prod
+
 def cl(n):
     return np.array([n], dtype=np.ulonglong)[0]
 

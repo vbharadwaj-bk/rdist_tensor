@@ -11,7 +11,7 @@ import cpp_ext.tensor_kernels as tensor_kernels
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
-    def __init__(self, tensor_grid, rank, singular_values): 
+    def __init__(self, tensor_grid, rank): 
         self.rank = rank
         self.grid = tensor_grid.grid
         self.tensor_grid = tensor_grid
@@ -21,8 +21,7 @@ class DistLowRank:
         self.factors = [DistMat1D(rank, tensor_grid, i)
                     for i in range(self.dim)]
 
-        # TODO: This array is currently useless, need to fix! 
-        self.singular_values = np.array(singular_values)
+        self.initialized = False
         
     # Replicate data on each slice and all-gather all factors accoording to the
     # provided true / false array 
@@ -36,12 +35,19 @@ class DistLowRank:
         return gathered_matrices, None
 
     def initialize_factors_deterministic(self, offset):
+        self.initialized = True
         for factor in self.factors:
             factor.initialize_deterministic(offset)
+            factor.normalize_cols()
 
     def initialize_factors_random(self, random_seed=42):
+        self.initialized = True
         for factor in self.factors:
             factor.initialize_random(random_seed=random_seed)
+            factor.normalize_cols()
+
+    def get_singular_values(self):
+        return chain_multiply_buffers([factor.col_norms for factor in self.factors])
 
     def compute_tensor_values(self, idxs):
         '''
@@ -50,7 +56,7 @@ class DistLowRank:
         '''
         result = np.zeros(len(idxs[0]), dtype=np.double)
         gathered_matrices, _ = self.allgather_factors([True] * self.dim)
-        tensor_kernels.compute_tensor_values(gathered_matrices, idxs, result)
+        tensor_kernels.compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, result)
         return result
 
     def compute_loss(self, ground_truth, alpha=0.5):
@@ -75,6 +81,7 @@ class DistLowRank:
             lr_values = self.compute_tensor_values(ground_truth.tensor_idxs) 
             nonzero_loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
 
+            #return nonzero_loss
             # Compute the loss on the zeros
             box_dims = [tg.bound_ends[j] - tg.bound_starts[j] for j in range(self.dim)]
             logsum_box_dims = np.sum(np.log(box_dims))

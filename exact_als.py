@@ -1,4 +1,5 @@
 from distmat import *
+from common import *
 import numpy as np
 import numpy.linalg as la
 import json
@@ -14,7 +15,8 @@ def initial_setup(ten_to_optimize):
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
 # gram matrix computation. 
-def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
+def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict):
+	factors = ten_to_optimize.factors
 	dim = len(factors)
 	factors_to_gather = [True] * dim 
 	factors_to_gather[mode_to_leave] = False
@@ -32,10 +34,9 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 		stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
 	start = start_clock() 
-	gram_prod = selected_factors[0].gram
-
-	for i in range(1, len(selected_factors)):
-		gram_prod = np.multiply(gram_prod, selected_factors[i].gram)
+	singular_values = ten_to_optimize.get_singular_values() 
+	gram_matrices = [factor.gram for factor in selected_factors]
+	gram_prod = chain_multiply_buffers(gram_matrices) 
 
 	# Compute inverse of the gram matrix 
 	krp_gram_inv = la.pinv(gram_prod)
@@ -54,12 +55,17 @@ def optimize_factor(factors, grid, local_ten, mode_to_leave, timer_dict):
 	start = start_clock()
 	mttkrp_reduced = np.zeros_like(factors[mode_to_leave].data)
 	grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
-			[mttkrp_reduced, MPI.DOUBLE])  
+			[mttkrp_reduced, MPI.DOUBLE])
+
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 	start = start_clock() 
-	res = (krp_gram_inv @ mttkrp_reduced.T).T.copy()
+	res = (np.diag(singular_values ** -1) @ krp_gram_inv @ mttkrp_reduced.T).T.copy()
+
+	print(get_norm_distributed(la.pinv(gram_prod), MPI.COMM_WORLD)) 
+
 	factors[mode_to_leave].data = res
+	factors[mode_to_leave].normalize_cols()
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")

@@ -10,6 +10,7 @@ import cpp_ext.tensor_kernels as tensor_kernels
 def initial_setup(ten_to_optimize):
 	# Initial allgather of tensor factors 
 	for mode in range(ten_to_optimize.dim):
+		ten_to_optimize.factors[mode].normalize_cols()
 		ten_to_optimize.factors[mode].allgather_factor()
 
 # Computes a distributed MTTKRP of all but one of this 
@@ -34,9 +35,11 @@ def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict)
 		stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
 	start = start_clock() 
-	singular_values = ten_to_optimize.get_singular_values() 
+
+	col_norms = [factor.col_norms for factor in selected_factors]
 	gram_matrices = [factor.gram for factor in selected_factors]
 	gram_prod = chain_multiply_buffers(gram_matrices) 
+	singular_values = chain_multiply_buffers(col_norms) 
 
 	# Compute inverse of the gram matrix 
 	krp_gram_inv = la.pinv(gram_prod)
@@ -60,7 +63,8 @@ def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict)
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 	start = start_clock() 
-	res = (np.diag(singular_values ** -1) @ krp_gram_inv @ mttkrp_reduced.T).T.copy()
+	res = (np.diag(singular_values ** -1) @ krp_gram_inv @ mttkrp_reduced.T).T.copy()	
+
 
 	print(get_norm_distributed(la.pinv(gram_prod), MPI.COMM_WORLD)) 
 

@@ -51,9 +51,10 @@ class DistMat1D:
         self.data = np.random.rand(*self.data.shape, dtype=np.double) - 0.5
 
     def normalize_cols(self):
-        normsq_cols = la.norm(self.data, axis=1) ** 2
+        normsq_cols = la.norm(self.data, axis=0) ** 2
         self.grid.comm.Allreduce(MPI.IN_PLACE, normsq_cols)
         self.col_norms = np.sqrt(normsq_cols)
+        #self.col_norms = np.ones(self.cols, dtype=np.double)
         self.data = self.data @ np.diag(self.col_norms ** -1)
 
 

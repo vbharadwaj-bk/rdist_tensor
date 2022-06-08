@@ -162,7 +162,7 @@ class DistLowRank:
                     print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
-                alg.optimize_factor(self.factors, self.grid, local_ground_truth, mode_to_optimize, statistics)
+                alg.optimize_factor(self, self.grid, local_ground_truth, mode_to_optimize, statistics)
 
         if self.grid.rank == 0:
             f = open(output_file, 'a')

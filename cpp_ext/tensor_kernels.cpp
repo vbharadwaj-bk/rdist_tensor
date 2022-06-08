@@ -86,7 +86,7 @@ void compute_tensor_values(
         } 
         double value = 0.0;
         for(unsigned long long k = 0; k < cols; k++) {
-            double coord_buffer = singular_values[k];
+            double coord_buffer = singular_values.ptr[k];
             for(int j = 0; j < factors.length; j++) {
                 coord_buffer *= base_ptrs[j][k]; 
             }

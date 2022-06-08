@@ -42,7 +42,6 @@ def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict)
 	singular_values = chain_multiply_buffers(col_norms) 
 
 	# Compute inverse of the gram matrix 
-	krp_gram_inv = la.pinv(gram_prod)
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
@@ -63,10 +62,9 @@ def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict)
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 	start = start_clock() 
-	res = (np.diag(singular_values ** -1) @ krp_gram_inv @ mttkrp_reduced.T).T.copy()	
 
-
-	print(get_norm_distributed(la.pinv(gram_prod), MPI.COMM_WORLD)) 
+	lstsq_soln = la.lstsq(gram_prod, mttkrp_reduced.T, rcond=None)
+	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()
 
 	factors[mode_to_leave].data = res
 	factors[mode_to_leave].normalize_cols()

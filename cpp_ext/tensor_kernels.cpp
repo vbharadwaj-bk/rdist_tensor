@@ -100,11 +100,13 @@ void sampled_mttkrp(
         int mode,
         py::list factors_py,
         py::list krp_sample_idxs_py,
+        py::array_t<double> sampled_lhs_py,
         COOSparse &sampled_rhs,
         py::array_t<double> weights_py
 ) {
     NumpyList<double> factors(factors_py);
     NumpyList<unsigned long long> krp_samples(krp_sample_idxs_py);
+    NumpyArray<double> lhs(sampled_lhs_py);
     NumpyArray<double> weights(weights_py);
 
     int dim = factors.length;
@@ -112,28 +114,28 @@ void sampled_mttkrp(
     int r = factors.infos[0].shape[1];
     double* result_ptr = factors.ptrs[mode];
 
-    vector<double> lhs(num_samples * r);
+    //vector<double> lhs(num_samples * r);
 
     // Assemble the LHS using Hadamard products 
     for(int i = 0; i < num_samples; i++) {
         for(int j = 0; j < r; j++) {
-            lhs[i * r + j] = weights.ptr[i];
+            lhs.ptr[i * r + j] = weights.ptr[i];
         }
 
         for(int k = 0; k < dim; k++) {
             if(k < mode) {
                 for(int j = 0; j < r; j++) {
-                    lhs[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k][i] * r + j];
+                    lhs.ptr[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k][i] * r + j];
                 }
             }
             if(k > mode) {
                 for(int j = 0; j < r; j++) {
-                    lhs[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k-1][i] * r + j];
+                    lhs.ptr[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k-1][i] * r + j];
                 }
             }
         }
     }
-    sampled_rhs.cpu_spmm(lhs.data(), result_ptr, r);
+    sampled_rhs.cpu_spmm(lhs.ptr, result_ptr, r);
 }
 
 PYBIND11_MODULE(tensor_kernels, m) {

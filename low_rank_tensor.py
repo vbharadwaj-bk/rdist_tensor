@@ -150,8 +150,8 @@ class DistLowRank:
 
         self.singular_values = np.ones(self.rank)
 
-        alg = exact_als
-        #alg = tensor_stationary_opt0
+        #alg = exact_als
+        alg = tensor_stationary_opt0
         alg.initial_setup(self)
 
         for iter in range(num_iterations):

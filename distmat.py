@@ -99,7 +99,6 @@ class DistMat1D:
         gram_inv = la.pinv(self.gram)
  
         self.leverage_scores = np.sum((self.data @ gram_inv) * self.data, axis=1)
-
         #self.leverage_scores = np.ones(self.data.shape[0], dtype=np.double) 
 
         # Leverage weight is the sum of the leverage scores held by  

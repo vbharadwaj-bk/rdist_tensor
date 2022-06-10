@@ -38,11 +38,13 @@ COOSparse sample_nonzeros(py::list idxs_py,
     NumpyList<unsigned long long> idxs(idxs_py); 
     NumpyArray<double> values(values_py); 
     NumpyList<unsigned long long> sample_idxs(sample_idxs_py);
-    NumpyArray<double> weights(weights_py);
+    NumpyArray<double> weights(weights_py); 
 
     unsigned long long nnz = idxs.infos[0].shape[0];
     int num_samples = sample_idxs.infos[0].shape[0];
     int dim = idxs.length;
+
+    vector<int> counts(num_samples, 0);
 
     if(sample_idxs.length != dim - 1) {
       cout << "Error, incorrect sample dimensions" << endl;
@@ -62,6 +64,7 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
+    int unique_count = 0;
     for(int i = 0; i < num_samples; i++) {
       for(int j = 0; j < dim - 1; j++) {
         hbuf_ptr[j] = sample_idxs.ptrs[j][i];
@@ -69,12 +72,38 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
       unsigned int hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
 
+      bool found = false;
+
       // Should replace with atomics to make thread-safe 
       while(hashtbl_ptr[hash] != -1) {
+        int val = hashtbl[hash];
+        found = true;
+        for(int j = 0; j < dim - 1; j++) {
+          if(hbuf_ptr[j] != sample_idxs.ptrs[j][val]) {
+            found = false;
+          }
+        }
+        if(found) {
+          break;
+        }
         hash = (hash + 1) % hashtbl_size;
       }
-      hashtbl[hash] = i;
+      if(! found) {
+        hashtbl[hash] = i;
+        unique_count++;
+      }
+      counts[hashtbl[hash]]++;
     }
+
+    int total_count = 0;
+    for(int i = 0; i < counts.size(); i++) {
+      total_count += counts[i];
+      weights.ptr[i] *= sqrt(counts[i]);
+    }
+
+    //cout << "Total count: " << total_count << endl;
+    //cout << "Unique count: " << unique_count << endl;
+    //exit(0);
 
     // Check all items in the larger set against the hash table
 
@@ -89,10 +118,8 @@ COOSparse sample_nonzeros(py::list idxs_py,
         }
       }
 
-
       unsigned int hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
       int val;
-
 
       // TODO: This loop is unsafe, need to fix it! 
       while(true) {
@@ -118,6 +145,10 @@ COOSparse sample_nonzeros(py::list idxs_py,
         gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
         gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
+      // Problem: does the hashtable interfere with the
+      // weighting function?? I think so... when
+      // sampling repeated rows, appropriate weight will
+      // not be given... 
 
     }
     return gathered;

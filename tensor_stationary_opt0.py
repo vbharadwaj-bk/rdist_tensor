@@ -110,15 +110,15 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 			[mttkrp_reduced, MPI.DOUBLE])  
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
-	start = start_clock()
 
+	start = start_clock()
 	lstsq_soln = la.lstsq(gram_prod, mttkrp_reduced.T, rcond=None)
 	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()
 	factors[mode_to_leave].data = res
 	factors[mode_to_leave].normalize_cols()
 
 	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
+	stop_clock_and_add(start, timer_dict, "Gram LSTSQ Solve")
 
 	start = start_clock()
 	factors[mode_to_leave].compute_gram_matrix()
@@ -129,7 +129,9 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice All-gather")
 
+	start = start_clock()  
 	factors[mode_to_leave].compute_leverage_scores()
 	factors[mode_to_leave].allgather_leverage_scores()
+	stop_clock_and_add(start, timer_dict, "Leverage Score Computation")
 
 	return timer_dict

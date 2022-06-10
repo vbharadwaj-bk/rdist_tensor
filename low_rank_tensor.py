@@ -140,7 +140,7 @@ class DistLowRank:
                         "Slice All-gather": 0.0,
                         "MTTKRP": 0.0,
                         "Slice Reduce-Scatter": 0.0,
-                        "Gram-Times-MTTKRP": 0.0
+                        "Gram LSTSQ Solve": 0.0
                         }
 
         statistics["Mode Sizes"] = self.mode_sizes.tolist()

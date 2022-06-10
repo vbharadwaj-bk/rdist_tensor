@@ -8,11 +8,11 @@ import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 
 def initial_setup(ten_to_optimize):
-	arg_dict = args
 	# Initial allgather of tensor factors 
 	for mode in range(ten_to_optimize.dim):
 		ten_to_optimize.factors[mode].normalize_cols()
 		ten_to_optimize.factors[mode].allgather_factor()
+		ten_to_optimize.factors[mode].compute_gram_matrix()
 
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
@@ -26,17 +26,7 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	selected_indices = np.array(list(range(dim)))[factors_to_gather]
 	selected_factors = [factors[idx] for idx in selected_indices] 
 
-	# Compute gram matrices of all factors but the one we are currently
-	# optimizing for, perform leverage-score based sketching if necessary 
-	for idx in selected_indices:
-		factor = factors[idx]
-		
-		start = start_clock()
-		factor.compute_gram_matrix()
-		stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
-
 	start = start_clock() 
-
 	col_norms = [factor.col_norms for factor in selected_factors]
 	gram_matrices = [factor.gram for factor in selected_factors]
 	gram_prod = chain_multiply_buffers(gram_matrices) 
@@ -45,7 +35,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	# Compute inverse of the gram matrix 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
-
 
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
@@ -71,8 +60,12 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	factors[mode_to_leave].normalize_cols()
 
 	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "Gram-Times-MTTKRP")
-	
+	stop_clock_and_add(start, timer_dict, "Gram LSTSQ Solve")
+
+	start = start_clock()
+	factors[mode_to_leave].compute_gram_matrix()
+	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+
 	start = start_clock()  
 	factors[mode_to_leave].allgather_factor()
 	MPI.COMM_WORLD.Barrier()

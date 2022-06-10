@@ -101,10 +101,6 @@ COOSparse sample_nonzeros(py::list idxs_py,
       weights.ptr[i] *= sqrt(counts[i]);
     }
 
-    //cout << "Total count: " << total_count << endl;
-    //cout << "Unique count: " << unique_count << endl;
-    //exit(0);
-
     // Check all items in the larger set against the hash table
 
     for(unsigned long long i = 0; i < nnz; i++) {

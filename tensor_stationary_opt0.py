@@ -50,6 +50,8 @@ import cpp_ext.tensor_kernels as tensor_kernels
 # ========================================
 
 def initial_setup(ten_to_optimize):
+	# TODO: 	
+
 	# Initial allgather of tensor factors 
 	for mode in range(ten_to_optimize.dim):
 		ten_to_optimize.factors[mode].allgather_factor()
@@ -60,7 +62,7 @@ def initial_setup(ten_to_optimize):
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
 # gram matrix computation. 
-def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict):
+def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict):
 	factors = ten_to_optimize.factors
 	dim = len(factors)
 	r = factors[0].data.shape[1]
@@ -82,13 +84,9 @@ def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict)
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
-	s = 131000 
+	s = arg_dict['sample_count'] 
 	samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
 		for i in range(dim) if i != mode_to_leave]
-
-	# Debugging for the uber tensor
-
-	lst = [factor.data for factor in selected_factors]
 
 	weight_prods = np.zeros(s, dtype=np.double)
 	weight_prods -= 0.5 * np.log(s)
@@ -101,15 +99,7 @@ def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict)
 	# For debugging purposes, want a buffer for the sampled LHS	
 	sampled_lhs = np.zeros((s, r), dtype=np.double)	
 	sampled_rhs = local_ten.sample_nonzeros(samples, weight_prods, mode_to_leave)
-
-	# The gathered factor to optimize is overwritten 
-	local_ten.mttkrp(gathered_matrices, mode_to_leave)
-
-	ground_truth = la.lstsq(gram_prod, gathered_matrices[mode_to_leave].T, rcond=None)[0]
 	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_lhs, sampled_rhs, weight_prods)
-	surrogate_gram = sampled_lhs.T @ sampled_lhs
-	sampled_soln = la.lstsq(surrogate_gram, gathered_matrices[mode_to_leave].T, rcond=None)[0]
-	print(f"Sampling Relative Error: {la.norm(sampled_soln - ground_truth) / la.norm(ground_truth)}")	
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")

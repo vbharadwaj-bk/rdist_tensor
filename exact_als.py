@@ -8,6 +8,7 @@ import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 
 def initial_setup(ten_to_optimize):
+	arg_dict = args
 	# Initial allgather of tensor factors 
 	for mode in range(ten_to_optimize.dim):
 		ten_to_optimize.factors[mode].normalize_cols()
@@ -16,7 +17,7 @@ def initial_setup(ten_to_optimize):
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
 # gram matrix computation. 
-def optimize_factor(ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict):
+def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict):
 	factors = ten_to_optimize.factors
 	dim = len(factors)
 	factors_to_gather = [True] * dim 

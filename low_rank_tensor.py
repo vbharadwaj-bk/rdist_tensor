@@ -149,6 +149,7 @@ class DistLowRank:
         statistics["Grid Dimensions"] = self.grid.axesLengths.tolist()
 
         self.singular_values = np.ones(self.rank)
+        algorithm_arg_dict = {}
 
         if num_samples is None:
             alg = exact_als
@@ -156,6 +157,9 @@ class DistLowRank:
         else:
             alg = tensor_stationary_opt0
             statistics["Algorithm"] = "Leverage-Score Sampled ALS"
+            algorithm_arg_dict['sample_count'] = num_samples
+
+        statistics["Algorithm arguments"] = algorithm_arg_dict 
 
         alg.initial_setup(self)
 
@@ -171,7 +175,7 @@ class DistLowRank:
                     print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
 
             for mode_to_optimize in range(self.dim):
-                alg.optimize_factor(self, self.grid, local_ground_truth, mode_to_optimize, statistics)
+                alg.optimize_factor(algorithm_arg_dict, self, self.grid, local_ground_truth, mode_to_optimize, statistics)
 
         statistics["Loss Iterations"] = loss_iterations 
         statistics["Loss Values"] = loss_values 

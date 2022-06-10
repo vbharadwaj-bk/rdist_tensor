@@ -20,11 +20,13 @@ if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
 
     parser = argparse.ArgumentParser()
+    parser.add_argument('-i','--input', type="string", help='HDF5 of Input Tensor', required=True)
     parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int) 
-    parser.add_argument("-p", "--skrp", help="Fraction of samples to take from the full height of the Khatri-Rhao Product", required=False, type=float)
+    parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
     parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
     parser.add_argument("-o", "--output", help="Output file to print benchmark statistics", required=True)
+    parser.add_argument('-g','--grid', type="string", help='Grid Shape (Comma separated)', required=True)
 
     args = None
     try:
@@ -36,9 +38,11 @@ if __name__=='__main__':
     if args is None:
         exit(1)
 
-    #ground_truth = DistSparseTensor("/global/cscratch1/sd/vbharadw/tensors/uber.tns_converted.hdf5")
-    ground_truth = DistSparseTensor("tensors/uber.tns_converted.hdf5")
-    grid = Grid([1, 1, 1, 1])
+    grid_dimensions = [int(el) for el in args.grid]
+    # TODO: Should assert that the grid has the proper dimensions here!
+
+    ground_truth = DistSparseTensor(args.input)
+    grid = Grid(grid_dimensions)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)
@@ -49,4 +53,4 @@ if __name__=='__main__':
     if grid.rank == 0:
         print(f"Starting benchmark...")
 
-    ten_to_optimize.als_fit(ground_truth, output_file=args.output, num_iterations=args.iter, sketching_pct=args.skrp, compute_accuracy=True)
+    ten_to_optimize.als_fit(ground_truth, output_file=args.output, num_iterations=args.iter, num_samples=args.samples, compute_accuracy=True)

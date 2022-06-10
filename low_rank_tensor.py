@@ -131,7 +131,7 @@ class DistLowRank:
         else:
             assert False 
 
-    def als_fit(self, local_ground_truth, num_iterations, sketching_pct, output_file, compute_accuracy=False):
+    def als_fit(self, local_ground_truth, num_iterations, num_samples, output_file, compute_accuracy=False):
         # Should initialize the singular values more intelligently, but this is fine
         # for now... 
         statistics = {
@@ -150,13 +150,22 @@ class DistLowRank:
 
         self.singular_values = np.ones(self.rank)
 
-        #alg = exact_als
-        alg = tensor_stationary_opt0
+        if num_samples is None:
+            alg = exact_als
+            statistics["Algorithm"] = "Exact ALS"
+        else:
+            alg = tensor_stationary_opt0
+            statistics["Algorithm"] = "Leverage-Score Sampled ALS"
+
         alg.initial_setup(self)
 
+        loss_iterations = []
+        loss_values = []
         for iter in range(num_iterations):
             if compute_accuracy:
-                loss = self.compute_loss(local_ground_truth) 
+                loss = self.compute_loss(local_ground_truth)
+                loss_iterations.append(iter)
+                loss_values.append(loss.item())
 
                 if self.grid.rank == 0:
                     print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
@@ -164,12 +173,12 @@ class DistLowRank:
             for mode_to_optimize in range(self.dim):
                 alg.optimize_factor(self, self.grid, local_ground_truth, mode_to_optimize, statistics)
 
+        statistics["Loss Iterations"] = loss_iterations 
+        statistics["Loss Values"] = loss_values 
+
         if self.grid.rank == 0:
             f = open(output_file, 'a')
             print(statistics)
             json_obj = json.dumps(statistics, indent=4)
             f.write(json_obj + ",\n")
             f.close()
-
-if __name__=='__main__':
-    pass

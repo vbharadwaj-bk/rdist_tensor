@@ -24,8 +24,6 @@ namespace py = pybind11;
 
 /*
  * Assumptions that this function makes:
- * 1. We will sample fewer than 200 billion indices that we sample from the
- * Khatri-Rao product.
  * 
  * This function builds and returns a sparse matrix 
  */
@@ -41,7 +39,9 @@ COOSparse sample_nonzeros(py::list idxs_py,
     NumpyArray<double> weights(weights_py); 
 
     unsigned long long nnz = idxs.infos[0].shape[0];
-    int num_samples = sample_idxs.infos[0].shape[0];
+
+    // TODO: Add an assertion downcasting this!
+    int64_t num_samples = (int64_t) sample_idxs.infos[0].shape[0];
     int dim = idxs.length;
 
     vector<int> counts(num_samples, 0);
@@ -54,9 +54,9 @@ COOSparse sample_nonzeros(py::list idxs_py,
     double load_factor = 0.10;
 
     // lightweight hashtable that we can easily port to a GPU 
-    unsigned int hashtbl_size = (unsigned int) (num_samples / load_factor);
-    vector<int> hashtbl(hashtbl_size, -1);
-    int* hashtbl_ptr = hashtbl.data();
+    int64_t hashtbl_size = (int64_t) (num_samples / load_factor);
+    vector<int64_t> hashtbl(hashtbl_size, -1);
+    int64_t* hashtbl_ptr = hashtbl.data();
 
     vector<unsigned long long> hbuf(dim - 1, 0);
     unsigned long long* hbuf_ptr = hbuf.data();
@@ -64,19 +64,18 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
-    int unique_count = 0;
-    for(int i = 0; i < num_samples; i++) {
+    for(int64_t i = 0; i < num_samples; i++) {
       for(int j = 0; j < dim - 1; j++) {
         hbuf_ptr[j] = sample_idxs.ptrs[j][i];
       }
 
-      unsigned int hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
+      unsigned long long hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
 
       bool found = false;
 
       // Should replace with atomics to make thread-safe 
-      while(hashtbl_ptr[hash] != -1) {
-        int val = hashtbl[hash];
+      while(hashtbl_ptr[hash] != -1l) {
+        unsigned long long val = hashtbl[hash];
         found = true;
         for(int j = 0; j < dim - 1; j++) {
           if(hbuf_ptr[j] != sample_idxs.ptrs[j][val]) {
@@ -90,14 +89,11 @@ COOSparse sample_nonzeros(py::list idxs_py,
       }
       if(! found) {
         hashtbl[hash] = i;
-        unique_count++;
       }
       counts[hashtbl[hash]]++;
     }
 
-    int total_count = 0;
-    for(int i = 0; i < counts.size(); i++) {
-      total_count += counts[i];
+    for(int64_t i = 0; i < num_samples; i++) {
       weights.ptr[i] *= sqrt(counts[i]);
     }
 
@@ -114,8 +110,8 @@ COOSparse sample_nonzeros(py::list idxs_py,
         }
       }
 
-      unsigned int hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
-      int val;
+      unsigned long long hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
+      int64_t val;
 
       // TODO: This loop is unsafe, need to fix it! 
       while(true) {
@@ -141,11 +137,6 @@ COOSparse sample_nonzeros(py::list idxs_py,
         gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
         gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
-      // Problem: does the hashtable interfere with the
-      // weighting function?? I think so... when
-      // sampling repeated rows, appropriate weight will
-      // not be given... 
-
     }
     return gathered;
 }

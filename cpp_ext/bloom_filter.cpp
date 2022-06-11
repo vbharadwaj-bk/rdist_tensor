@@ -41,11 +41,11 @@ struct bloom
   // These fields are part of the public interface of this structure.
   // Client code may read these values if desired. Client code MUST NOT
   // modify any of these.
-  int entries;
+  uint64_t entries;
   double error;
-  int bits;
-  int bytes;
-  int hashes;
+  uint64_t bits;
+  uint64_t bytes;
+  uint hashes;
 
   // Fields below are private to the implementation. These may go away or
   // change incompatibly at any moment. Client code MUST NOT access or rely
@@ -56,9 +56,9 @@ struct bloom
 };
 
 inline static int test_bit_set_bit(unsigned char * buf,
-                                   unsigned int x, int set_bit)
+                                   uint64_t x, int set_bit)
 {
-  unsigned int byte = x >> 3;
+  uint64_t byte = x >> 3;
   unsigned char c = buf[byte];        // expensive memory access
   unsigned int mask = 1 << (x % 8);
 
@@ -78,13 +78,13 @@ static int bloom_check_add(struct bloom * bloom,
 {
   if (bloom->ready == 0) {
     printf("bloom at %p not initialized!\n", (void *)bloom);
-    return -1;
+    exit(1);
   }
 
   int hits = 0;
-  register unsigned int a = murmurhash2(buffer, len, 0x9747b28c);
-  register unsigned int b = murmurhash2(buffer, len, a);
-  register unsigned int x;
+  register uint64_t a = murmurhash2(buffer, len, 0x9747b28c);
+  register uint64_t b = murmurhash2(buffer, len, a);
+  register uint64_t x;
   register unsigned int i;
 
   for (i = 0; i < bloom->hashes; i++) {
@@ -104,11 +104,11 @@ static int bloom_check_add(struct bloom * bloom,
   return 0;
 }
 
-int bloom_init(struct bloom * bloom, int entries, double error)
+int bloom_init(struct bloom * bloom, uint64_t entries, double error)
 {
   bloom->ready = 0;
 
-  if (entries < 1000 || error == 0) {
+  if (entries < 1000ul || error == 0) {
     return 1;
   }
 
@@ -139,7 +139,7 @@ int bloom_init(struct bloom * bloom, int entries, double error)
   return 0;
 }
 
-int bloom_init_size(struct bloom * bloom, int entries, double error,
+int bloom_init_size(struct bloom * bloom, uint64_t entries, double error,
                     unsigned int cache_size)
 {
   return bloom_init(bloom, entries, error);
@@ -161,11 +161,11 @@ int bloom_add(struct bloom * bloom, const void * buffer, int len)
 void bloom_print(struct bloom * bloom)
 {
   printf("bloom at %p\n", (void *)bloom);
-  printf(" ->entries = %d\n", bloom->entries);
+  printf(" ->entries = %ld\n", bloom->entries);
   printf(" ->error = %f\n", bloom->error);
-  printf(" ->bits = %d\n", bloom->bits);
+  printf(" ->bits = %ld\n", bloom->bits);
   printf(" ->bits per elem = %f\n", bloom->bpe);
-  printf(" ->bytes = %d\n", bloom->bytes);
+  printf(" ->bytes = %ld\n", bloom->bytes);
   printf(" ->hash functions = %d\n", bloom->hashes);
 }
 
@@ -203,18 +203,11 @@ public:
   IndexFilter(py::list idxs_py, double fp_tol) {
     NumpyList<unsigned long long> idxs(idxs_py);
     int dim = idxs.length; 
-    unsigned long long nnz = idxs.infos[0].shape[0];
+    uint64_t nnz = idxs.infos[0].shape[0];
 
-    // TODO: This will fail if nnz is larger than
-    // the signed integer maximum! We should modify the
-    // bloom filter to fix this. 
-    assert(nnz < INT32_MAX);
-    int nnz_dcast = (int) nnz;
-    int nnz_inflated = std::max(nnz_dcast, 1000);
+    uint64_t nnz_inflated = std::max(nnz, 1000ul);
     int status = bloom_init(&bf, nnz_inflated, fp_tol);
-
     assert(status == 0);
-
 
     vector<unsigned long long> buf(dim, 0);
     unsigned long long * buf_ptr = buf.data();

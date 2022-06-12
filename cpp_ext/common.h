@@ -60,14 +60,15 @@ public:
     vector<double> values;
 
     void print_contents() {
-      for(unsigned long long i = 0; i < rows.size(); i++) {
+      /*for(unsigned long long i = 0; i < rows.size(); i++) {
         cout << rows[i] 
         << " " 
         << cols[i] 
         << " "
         << values[i]
         << endl;
-      }
+      }*/
+      cout << "NUMBER OF NNZ Sampled" << rows.size() << endl;
     }
 
 	/*

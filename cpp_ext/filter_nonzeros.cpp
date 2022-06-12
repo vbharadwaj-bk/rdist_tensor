@@ -54,7 +54,7 @@ COOSparse sample_nonzeros(py::list idxs_py,
     double load_factor = 0.10;
 
     // lightweight hashtable that we can easily port to a GPU 
-    int64_t hashtbl_size = (int64_t) (num_samples / load_factor);
+    uint64_t hashtbl_size = (uint64_t) (num_samples / load_factor);
     vector<int64_t> hashtbl(hashtbl_size, -1);
     int64_t* hashtbl_ptr = hashtbl.data();
 
@@ -69,7 +69,7 @@ COOSparse sample_nonzeros(py::list idxs_py,
         hbuf_ptr[j] = sample_idxs.ptrs[j][i];
       }
 
-      unsigned long long hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
+      uint64_t hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
 
       bool found = false;
 
@@ -99,7 +99,7 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
     // Check all items in the larger set against the hash table
 
-    for(unsigned long long i = 0; i < nnz; i++) {
+    for(uint64_t i = 0; i < nnz; i++) {
       // If we knew the dimension ahead of time, this loop could be compiled down. 
       for(int j = 0; j < dim; j++) {
         if(j < mode_to_leave) {
@@ -110,7 +110,7 @@ COOSparse sample_nonzeros(py::list idxs_py,
         }
       }
 
-      unsigned long long hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
+      uint64_t hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
       int64_t val;
 
       // TODO: This loop is unsafe, need to fix it! 

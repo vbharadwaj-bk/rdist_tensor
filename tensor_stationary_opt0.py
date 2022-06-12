@@ -101,6 +101,8 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	sampled_rhs = local_ten.sample_nonzeros(samples, weight_prods, mode_to_leave)
 	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_lhs, sampled_rhs, weight_prods)
 
+	sampled_rhs.print_contents()
+
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")
 

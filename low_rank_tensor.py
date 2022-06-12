@@ -166,6 +166,7 @@ class DistLowRank:
         loss_iterations = []
         loss_values = []
         for iter in range(num_iterations):
+            compute_accuracy = False
             if compute_accuracy:
                 loss = self.compute_loss(local_ground_truth)
                 loss_iterations.append(iter)

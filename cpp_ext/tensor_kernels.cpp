@@ -34,32 +34,35 @@ void sp_mttkrp(
     // =======================================================
     // The code below actually implements the MTTKRP! 
     // =======================================================
+    
+    #pragma omp parallel {
+        vector<double> accum_buffer(col_count, 1.0);
+        double* accum_ptr = accum_buffer.data();
 
-    vector<double> accum_buffer(col_count, 1.0);
-    double* accum_ptr = accum_buffer.data();
+        #pragma omp parallel for
+        for(unsigned long long i = 0; i < nnz; i++) {
+            for(int k = 0; k < col_count; k++) {
+                accum_ptr[k] = values.ptr[i];
+            }
 
-    for(unsigned long long i = 0; i < nnz; i++) {
-        for(int k = 0; k < col_count; k++) {
-            accum_ptr[k] = values.ptr[i];
-        }
-
-        for(int j = 0; j < dim; j++) {
-            if(j != mode) {
-                double* row_ptr = factors.ptrs[j] + (idxs.ptrs[j][i] * col_count);
-                for(int k = 0; k < col_count; k++) {
-                    accum_ptr[k] *= row_ptr[k]; 
+            for(int j = 0; j < dim; j++) {
+                if(j != mode) {
+                    double* row_ptr = factors.ptrs[j] + (idxs.ptrs[j][i] * col_count);
+                    for(int k = 0; k < col_count; k++) {
+                        accum_ptr[k] *= row_ptr[k]; 
+                    }
                 }
             }
-        }
 
-        unsigned long long out_row_idx = idxs.ptrs[mode][i];
-        double* out_row_ptr = result_ptr + (out_row_idx * col_count);
+            unsigned long long out_row_idx = idxs.ptrs[mode][i];
+            double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
-        for(int k = 0; k < col_count; k++) {
-            //out_row_ptr[k] = factors.ptrs[0][idxs.ptrs[0][i] * col_count + k];
-            out_row_ptr[k] += accum_ptr[k]; 
+            for(int k = 0; k < col_count; k++) {
+                #pragma omp atomic update
+                out_row_ptr[k] += accum_ptr[k]; 
+            }
         }
-    }
+    } 
 }
 
 void compute_tensor_values(
@@ -75,24 +78,28 @@ void compute_tensor_values(
     unsigned long long nnz = idxs.infos[0].shape[0];
     unsigned long long cols = factors.infos[0].shape[1];
 
-    vector<double*> base_ptrs;
-    for(int j = 0; j < factors.length; j++) {
-        base_ptrs.push_back(nullptr);
-    }
-
-    for(unsigned long long i = 0; i < nnz; i++) {
+    #pragma omp parallel
+    {
+        vector<double*> base_ptrs;
         for(int j = 0; j < factors.length; j++) {
-            base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
-        } 
-        double value = 0.0;
-        for(unsigned long long k = 0; k < cols; k++) {
-            double coord_buffer = singular_values.ptr[k];
-            for(int j = 0; j < factors.length; j++) {
-                coord_buffer *= base_ptrs[j][k]; 
-            }
-            value += coord_buffer;
+            base_ptrs.push_back(nullptr);
         }
-        result.ptr[i] = value;
+        
+        #pragma omp parallel for
+        for(unsigned long long i = 0; i < nnz; i++) {
+            for(int j = 0; j < factors.length; j++) {
+                base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
+            } 
+            double value = 0.0;
+            for(unsigned long long k = 0; k < cols; k++) {
+                double coord_buffer = singular_values.ptr[k];
+                for(int j = 0; j < factors.length; j++) {
+                    coord_buffer *= base_ptrs[j][k]; 
+                }
+                value += coord_buffer;
+            }
+            result.ptr[i] = value;
+        }
     }
 }
 

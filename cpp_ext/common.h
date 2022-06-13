@@ -24,6 +24,7 @@
 using namespace std;
 namespace py = pybind11;
 
+#pragma GCC visibility push(hidden)
 template<typename T>
 class NumpyArray {
 public:
@@ -68,7 +69,7 @@ public:
         << values[i]
         << endl;
       }*/
-      cout << "NUMBER OF NNZ Sampled" << rows.size() << endl;
+      cout << "NUMBER OF NNZ Sampled " << rows.size() << endl;
     }
 
 	/*

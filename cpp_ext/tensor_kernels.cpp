@@ -35,11 +35,12 @@ void sp_mttkrp(
     // The code below actually implements the MTTKRP! 
     // =======================================================
     
-    #pragma omp parallel {
+    #pragma omp parallel
+    {
         vector<double> accum_buffer(col_count, 1.0);
         double* accum_ptr = accum_buffer.data();
 
-        #pragma omp parallel for
+        #pragma omp for
         for(unsigned long long i = 0; i < nnz; i++) {
             for(int k = 0; k < col_count; k++) {
                 accum_ptr[k] = values.ptr[i];
@@ -58,7 +59,7 @@ void sp_mttkrp(
             double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
             for(int k = 0; k < col_count; k++) {
-                #pragma omp atomic update
+                //#pragma omp atomic update
                 out_row_ptr[k] += accum_ptr[k]; 
             }
         }
@@ -85,7 +86,7 @@ void compute_tensor_values(
             base_ptrs.push_back(nullptr);
         }
         
-        #pragma omp parallel for
+        #pragma omp for
         for(unsigned long long i = 0; i < nnz; i++) {
             for(int j = 0; j < factors.length; j++) {
                 base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
@@ -154,5 +155,6 @@ PYBIND11_MODULE(tensor_kernels, m) {
 /*
 <%
 setup_pybind11(cfg)
+cfg['extra_compile_args'] = ['-fopenmp']
 %>
 */

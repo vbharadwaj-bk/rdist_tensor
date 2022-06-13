@@ -2,7 +2,7 @@ __pycache__
 data/*
 visualization/*
 tensor_io/build/*
-one_sided_comm-bench/build/*
+one_sided_comm_bench/build/*
 tensors/*
 .rendered*
 *.cpython*

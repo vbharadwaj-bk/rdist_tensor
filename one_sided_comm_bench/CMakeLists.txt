@@ -8,3 +8,4 @@ set(CMAKE_CXX_STANDARD_REQUIRED YES)
 configure_file(modules.sh modules.sh COPYONLY)
 
 add_executable(bench_accum bench_accum_get.cpp)
+target_compile_options(bench_accum PRIVATE -O3)

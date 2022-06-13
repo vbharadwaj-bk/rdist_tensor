@@ -3,6 +3,7 @@ data/*
 visualization/*
 tensor_io/build/*
 one_sided_comm_bench/build/*
+!one_sided_comm_bench/build/jobscript.sh
 tensors/*
 .rendered*
 *.cpython*

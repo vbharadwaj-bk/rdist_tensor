@@ -84,12 +84,14 @@ public:
 		unsigned long long* col_ptr = cols.data();
 		double* val_ptr = values.data();
 
+    #pragma omp parallel for
 		for(unsigned long long i = 0; i < rows.size(); i++) {
 			// We perform a transpose here
 			unsigned long long row = col_ptr[i];
 			unsigned long long col = row_ptr[i];
 			double value = val_ptr[i];
 			for(int j = 0; j < r; j++) {
+        #pragma omp atomic update
 				Y[row * r + j] += X[col * r + j] * value;
 			}
 		}

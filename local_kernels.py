@@ -22,7 +22,6 @@ def krp(factor_matrices):
     return np.einsum(einsum_equation, *factor_matrices).reshape(height, width)
 
 def tensor_from_factors(factor_matrices):
-
     einsum_lhs = []
     einsum_rhs = ''
     for i in range(len(factor_matrices)):

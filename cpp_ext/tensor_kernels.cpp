@@ -59,7 +59,7 @@ void sp_mttkrp(
             double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
             for(int k = 0; k < col_count; k++) {
-                //#pragma omp atomic update
+                #pragma omp atomic update
                 out_row_ptr[k] += accum_ptr[k]; 
             }
         }
@@ -122,9 +122,8 @@ void sampled_mttkrp(
     int r = factors.infos[0].shape[1];
     double* result_ptr = factors.ptrs[mode];
 
-    //vector<double> lhs(num_samples * r);
-
-    // Assemble the LHS using Hadamard products 
+    // Assemble the LHS using Hadamard products
+    #pragma omp parallel for
     for(int i = 0; i < num_samples; i++) {
         for(int j = 0; j < r; j++) {
             lhs.ptr[i * r + j] = weights.ptr[i];

@@ -99,6 +99,13 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
     // Check all items in the larger set against the hash table
 
+    #pragma omp parallel
+    {
+    vector<unsigned long long> hbuf(dim - 1, 0);
+    unsigned long long* hbuf_ptr = hbuf.data();
+    int hbuf_len = 8 * (dim - 1);
+    
+    #pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
       // If we knew the dimension ahead of time, this loop could be compiled down. 
       for(int j = 0; j < dim; j++) {
@@ -133,11 +140,15 @@ COOSparse sample_nonzeros(py::list idxs_py,
         hash = (hash + 1) % hashtbl_size;
       }
       if(val != -1) {
-        gathered.rows.push_back(val);
-        gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
-        gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
+        #pragma omp critical
+        {
+          gathered.rows.push_back(val);
+          gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
+          gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
+        }
       }
     }
+    } 
     return gathered;
 }
 
@@ -151,5 +162,6 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 /*
 <%
 setup_pybind11(cfg)
+cfg['extra_compile_args'] = ['-fopenmp']
 %>
 */

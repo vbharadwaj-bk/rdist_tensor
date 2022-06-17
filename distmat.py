@@ -101,6 +101,8 @@ class DistMat1D:
         self.leverage_scores = np.sum((self.data @ gram_inv) * self.data, axis=1)
         #self.leverage_scores = np.ones(self.data.shape[0], dtype=np.double) 
 
+        self.leverage_scores = np.maximum(self.leverage_scores, 0.0)
+
         # Leverage weight is the sum of the leverage scores held by  
         normalization_factor = np.array(np.sum(self.leverage_scores))
         self.grid.comm.Allreduce(MPI.IN_PLACE, normalization_factor)

@@ -120,7 +120,7 @@ int bloom_init(struct bloom * bloom, uint64_t entries, double error)
   bloom->bpe = -(num / denom);
 
   double dentries = (double)entries;
-  bloom->bits = (int)(dentries * bloom->bpe);
+  bloom->bits = (uint64_t) (dentries * bloom->bpe);
 
   if (bloom->bits % 8) {
     bloom->bytes = (bloom->bits / 8) + 1;
@@ -260,5 +260,6 @@ PYBIND11_MODULE(bloom_filter, m) {
 /*
 <%
 setup_pybind11(cfg)
+cfg['extra_compile_args'] = ['-fopenmp']
 %>
 */

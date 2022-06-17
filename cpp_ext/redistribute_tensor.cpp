@@ -167,5 +167,6 @@ PYBIND11_MODULE(redistribute_tensor, m) {
 /*
 <%
 setup_pybind11(cfg)
+cfg['extra_compile_args'] = ['-fopenmp']
 %>
 */

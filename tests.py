@@ -1,6 +1,7 @@
 from sparse_tensor import *
 import numpy as np
 from numpy.random import Generator, Philox
+from sampling import *
 
 from mpi4py import MPI
 import argparse
@@ -21,6 +22,28 @@ def test_sampling():
     sample_idxs = [np.array([0, 0]), np.array([0, 1])]
     samples = ground_truth.sample_nonzeros(sample_idxs, mode_to_leave)
     samples.print_contents()
+
+def test_sampling_distributed():
+    ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
+    grid_dims = [2, 2, 2]
+    grid = Grid(grid_dims)
+    #tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
+    #ground_truth.redistribute_nonzeros(tensor_grid)
+
+    #mode_to_sample = 0
+    
+    #ten_to_optimize = DistLowRank(tensor_grid, rank, None)
+    #ten_to_optimize.initialize_factors_deterministic(42)
+
+    #ten_to_optimize.factors[0].compute_leverage_scores()
+
+    row_probs = [0.0, 0.0]
+
+    if grid.rank == 0 or grid.rank == 1:
+        row_probs = [0.25, 0.25]
+
+    get_samples_distributed(grid.comm, row_probs, 100)
+
 
 def test_mttkrp():
     world_comm = MPI.COMM_WORLD
@@ -122,4 +145,5 @@ if __name__=='__main__':
 	#test_tensor_evaluation()
     #test_mttkrp()
     #test_bloom_filter()
-    test_sampling()
+    #test_sampling()
+    test_sampling_distributed()

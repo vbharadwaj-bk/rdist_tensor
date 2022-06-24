@@ -5,6 +5,7 @@ import json
 
 import exact_als
 import tensor_stationary_opt0
+import accumulator_stationary_opt0
 
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
@@ -155,7 +156,7 @@ class DistLowRank:
             alg = exact_als
             statistics["Algorithm"] = "Exact ALS"
         else:
-            alg = tensor_stationary_opt0
+            alg = acumulator_stationary_opt0 
             statistics["Algorithm"] = "Leverage-Score Sampled ALS"
             algorithm_arg_dict['sample_count'] = num_samples
 

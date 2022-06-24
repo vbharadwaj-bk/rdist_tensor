@@ -6,57 +6,47 @@ from sampling import *
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 
-# ========================================
-# This is deprecated test code that just tests the sampled
-# MTTKRP and RHS nonzero filtering functions
-# to make sure everthing is working correctly
+def allgatherv(world, local_buffer):
+	'''
+	If the local buffer is one-dimensional, perform
+	a 1-dimensional all-gather. If two-dimensional,
+	the resulting maatrices are stacked on top of
+	each other, e.g. allgather(A1, A2) = [A1 A2].T	
+	'''
+	my_buffer_len = local_buffer.shape[0]
+	buffer_lengths = np.zeros(world.Get_size(), dtype=np.ulonglong) 
 
-#gmttkrp = gathered_matrices[mode_to_leave].copy()
-#total_ten_entries = 1	
-#for i in range(dim):
-#	total_ten_entries *= factors[i].data.shape[0] 
+	world.Allgather([nonzero_count, MPI.DOUBLE], 
+			[buffer_lengths, MPI.COMM_WORLD.Get_size()])	
 
-#total_ten_entries = total_ten_entries // factors[mode_to_leave].data.shape[0]
-#samples = [np.zeros(total_ten_entries, dtype=np.ulonglong) for i in range(dim - 1)]
-#for i in range(total_ten_entries):
-#	val = i
-#	for j in range(dim):
-#		if j != mode_to_leave:
-#			if j > mode_to_leave:
-#				samples[j-1][i] = val % factors[j].data.shape[0]
-#			else:
-#				samples[j][i] = val % factors[j].data.shape[0]
-#			val = val // factors[j].data.shape[0]
+	print(buffer_lengths)
 
-#sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
-#sampled_rhs.print_contents()
-
-#local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
-#print(la.norm(gmttkrp - gathered_matrices[mode_to_leave]))
-
-
-	#s = 100000
-	#samples = [get_samples(factors[i].gathered_leverage, s) \
-	#	for i in range(dim) if i != mode_to_leave]
-
-	# To generate samples for this simplest implementation, each
-	# processor will take an equal number of samples from the locally
-	# owned portion of the data	
-	#sampled_rhs = local_ten.sample_nonzeros(samples, mode_to_leave)
-	#local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_rhs)
-	#local_ten.mttkrp(gathered_matrices, mode_to_leave)
-
-# ========================================
 
 def initial_setup(ten_to_optimize):
-	# TODO: 	
-
 	# Initial allgather of tensor factors 
 	for mode in range(ten_to_optimize.dim):
 		ten_to_optimize.factors[mode].allgather_factor()
 		ten_to_optimize.factors[mode].compute_gram_matrix()
 		ten_to_optimize.factors[mode].compute_leverage_scores()
-		ten_to_optimize.factors[mode].allgather_leverage_scores()
+
+def gather_distributed_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
+	'''
+	With this approach, we gather fresh samples for every
+	tensor mode. 
+	'''
+	gathered_samples = []
+	for i in range(len(factors)):
+		if i != mode_to_leave:
+			factor = factors[i]
+			base_idx = factor.row_position * factor.local_rows_padded,
+
+			local_samples, local_probs = get_samples_distributed(
+					grid.world,
+					factors[i].leverage_scores,
+					dist_sample_count,
+					base_idx)
+
+			local_sample_count = len(local_samples)
 
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
@@ -84,8 +74,11 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
 	s = arg_dict['sample_count'] 
-	samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
-		for i in range(dim) if i != mode_to_leave]
+	#samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
+	#	for i in range(dim) if i != mode_to_leave]
+
+	sampled_lhs, samples, weights = None 
+	exit(1)
 
 	weight_prods = np.zeros(s, dtype=np.double)
 	weight_prods -= 0.5 * np.log(s)

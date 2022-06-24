@@ -110,7 +110,7 @@ class DistMat1D:
         if normalization_factor != 0:
             self.leverage_scores /= normalization_factor 
 
-        self.leverage_weight = np.array(np.sum(self.leverage_scores))
+        #self.leverage_weight = np.array(np.sum(self.leverage_scores))
 
     def allgather_leverage_scores(self):
         slice_dim = self.slice_dim

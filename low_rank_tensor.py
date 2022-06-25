@@ -156,7 +156,7 @@ class DistLowRank:
             alg = exact_als
             statistics["Algorithm"] = "Exact ALS"
         else:
-            alg = acumulator_stationary_opt0 
+            alg = accumulator_stationary_opt0 
             statistics["Algorithm"] = "Leverage-Score Sampled ALS"
             algorithm_arg_dict['sample_count'] = num_samples
 

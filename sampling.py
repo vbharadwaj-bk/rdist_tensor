@@ -2,6 +2,8 @@ import numpy as np
 import mpi4py
 from mpi4py import MPI
 
+from common import *
+
 from numpy.random import default_rng
 
 def get_samples(row_probs, num_samples):
@@ -11,7 +13,7 @@ def get_samples(row_probs, num_samples):
 
 	return sample_idxs, sampled_probs 
 
-def get_samples_distributed(world, row_probs, dist_sample_count, base_idx):
+def get_samples_distributed(world, row_probs, dist_sample_count):
 	seed_rng = np.random.default_rng()
 	if world.rank == 0:
 		seed = seed_rng.integers(50000000)
@@ -29,8 +31,8 @@ def get_samples_distributed(world, row_probs, dist_sample_count, base_idx):
 	local_sample_count = sample_counts[world.rank]
 
 	# Take local samples at random
-	row_range = list(range(base_idx, base_idx + len(row_probs)))
-	sample_idxs = np.random.choice(row_range, p=row_probs, size=local_sample_count) 
+	row_range = list(range(cl(len(row_probs))))
+	sample_idxs = np.random.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
 	sampled_probs = row_probs[sample_idxs]
 
 	return sample_idxs, sampled_probs

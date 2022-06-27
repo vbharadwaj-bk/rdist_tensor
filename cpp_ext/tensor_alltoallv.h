@@ -16,8 +16,8 @@ namespace py = pybind11;
 /*
  * This is a bad prefix sum function.
  */
-void prefix_sum(vector<unsigned long long> &values, vector<unsigned long long> &offsets) {
-    unsigned long long sum = 0;
+void prefix_sum(vector<uint64_t> &values, vector<uint64_t> &offsets) {
+    uint64_t sum = 0;
     for(unsigned long long i = 0; i < values.size(); i++) {
         offsets.push_back(sum);
         sum += values[i];
@@ -29,7 +29,7 @@ void prefix_sum(vector<unsigned long long> &values, vector<unsigned long long> &
  * processor_assignments, but we require precomputation
  * for efficiency. 
  */
-void redistribute_nonzeros(
+void tensor_alltoallv(
 		int dim,
 		uint64_t proc_count,
 		uint64_t nnz,
@@ -47,12 +47,13 @@ void redistribute_nonzeros(
     vector<uint64_t> recv_offsets;
     vector<uint64_t> running_offsets;
 
-    NumpyList<uint64_t> recv_idx(recv_idx_py);
-    NumpyList<double> recv_values(recv_values_py);
+    vector<vector<uint64_t>> send_idx;
 
-    vector<uint64_t> send_offsets;
-    vector<uint64_t> recv_offsets;
-    vector<uint64_t> running_offsets;
+    for(int i = 0; i < dim; i++) {
+        send_idx.emplace_back(nnz, 0);
+    }
+
+    vector<double> send_values(nnz, 0.0);
 
     MPI_Alltoall(send_counts.data(), 
                 1, MPI_UNSIGNED_LONG_LONG, 
@@ -65,16 +66,9 @@ void redistribute_nonzeros(
 
     prefix_sum(recv_counts, recv_offsets);
 
-    vector<vector<uint64_t>> send_idx;
-    vector<double> send_values(nnz, 0.0);
-
     allocate_recv_buffers(dim, total_received_coords, recv_idx_py, recv_values_py);
     NumpyList<uint64_t> recv_idx(recv_idx_py);
     NumpyList<double> recv_values(recv_values_py);
-
-    for(int i = 0; i < dim; i++) {
-        send_idx.emplace_back(nnz, 0);
-    }
 
     // Pack the send buffers
     prefix_sum(send_counts, send_offsets);

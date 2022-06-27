@@ -8,20 +8,19 @@
 #include <mpi.h>
 
 #include "common.h"
-#include 
+#include "tensor_alltoallv.h"
 
 using namespace std;
 namespace py = pybind11;
 
 /*
- * Count up the nonzeros in preparation to allocate receive buffers. 
- * 
+ * Count up the nonzeros in preparation to allocate receive buffers.  
  */
 void redistribute_nonzeros(
-        py::array_t<unsigned long long> intervals_py, 
+        py::array_t<uint64_t> intervals_py, 
         py::list coords_py,
         py::array_t<double> values_py,
-        unsigned long long proc_count, 
+        uint64_t proc_count, 
         py::array_t<int> prefix_mult_py,
         py::list recv_idx_py,
         py::list recv_values_py,
@@ -29,12 +28,12 @@ void redistribute_nonzeros(
         ) {
 
     // Unpack the parameters 
-    NumpyArray<unsigned long long> intervals(intervals_py); 
-    NumpyList<unsigned long long> coords(coords_py); 
+    NumpyArray<uint64_t> intervals(intervals_py); 
+    NumpyList<uint64_t> coords(coords_py); 
     NumpyArray<double> values(values_py); 
     NumpyArray<int> prefix_mult(prefix_mult_py);
 
-    unsigned long long nnz = coords.infos[0].shape[0];
+    uint64_t nnz = coords.infos[0].shape[0];
     int dim = prefix_mult.info.shape[0];
 
     // Initialize AlltoAll data structures 
@@ -51,7 +50,7 @@ void redistribute_nonzeros(
         processor_assignments[i] = processor;
     }
 
-    redistribute_nonzeros(
+    tensor_alltoallv(
 		dim,
 		proc_count,
 		nnz,

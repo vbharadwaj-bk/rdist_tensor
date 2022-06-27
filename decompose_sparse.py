@@ -7,9 +7,11 @@ import argparse
 from low_rank_tensor import *
 from grid import *
 from sparse_tensor import *
+from sampling import *
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
+    rank = MPI.COMM_WORLD.Get_rank()
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--input', type=str, help='HDF5 of Input Tensor', required=True)
@@ -22,13 +24,18 @@ if __name__=='__main__':
 
     args = None
     try:
-        if MPI.COMM_WORLD.Get_rank() == 0:
+        if rank == 0:
             args = parser.parse_args()
     finally:
         args = MPI.COMM_WORLD.bcast(args, root=0)
 
     if args is None:
         exit(1)
+
+    # Let every process have a different random
+    # seed based on its MPI rank; may be a better
+    # way to initialize, though... 
+    initialize_seed_generator(args.rs + rank)
 
     grid_dimensions = [int(el) for el in args.grid.split(',')]
     # TODO: Should assert that the grid has the proper dimensions here!

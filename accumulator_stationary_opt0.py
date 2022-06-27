@@ -26,8 +26,6 @@ def allgatherv(world, local_buffer, mpi_dtype):
 		print("Input buffer must be 1 or 2-dimensional")
 		exit(1)
 
-	print(f'Dimension: {local_buffer.ndim}')
-
 	sendcount = np.array([local_buffer.shape[0]], dtype=np.ulonglong)
 	sendcounts = np.empty(world.Get_size(), dtype=np.ulonglong) 
 
@@ -51,15 +49,16 @@ def allgatherv(world, local_buffer, mpi_dtype):
 		[recv_buffer, sendcounts, offsets, mpi_dtype]	
 		)
 
-	print(f'Local Buffer: {local_buffer}')
-	print(f'Receive Buffer: {recv_buffer}')
+	return recv_buffer
 
 def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 	'''
 	With this approach, we gather fresh samples for every
 	tensor mode. 
 	'''
-	gathered_samples = []
+	samples = []
+	probs = []
+
 	for i in range(len(factors)):
 		if i != mode_to_leave:
 			continue
@@ -74,8 +73,18 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 
 		sampled_rows = factors[i].data[local_samples]	
 		
-		#allgatherv(grid.comm, local_samples, MPI.UNSIGNED_LONG_LONG)
-		allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+		all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
+		all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
+		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+
+		# All processors apply a consistent random
+		# permutation to everything they receive 
+		seed = broadcast_common_seed(grid.comm)
+		for shuffle_el in [all_samples, all_probs, all_rows]:
+			rng = default_rng(seed=seed)
+			rng.shuffle(shuffle_el)
+
+		print("Made it here!")
 		exit(1)
 
 # Computes a distributed MTTKRP of all but one of this 

@@ -11,3 +11,4 @@ cpp_ext/build
 .ipynb_checkpoints/*
 *.swp
 conversion_receipt.out
+.vscode/*

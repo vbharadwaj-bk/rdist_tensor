@@ -57,7 +57,6 @@ class DistMat1D:
         #self.col_norms = np.ones(self.cols, dtype=np.double)
         self.data = self.data @ np.diag(self.col_norms ** -1)
 
-
     def compute_gram_matrix(self):
         if self.rowct == 0:
             ncol = np.shape(self.data)[1]

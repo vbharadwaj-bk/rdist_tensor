@@ -27,7 +27,7 @@ export OMP_NUM_THREADS=1
 # Sampled tests
 TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -n 2 python decompose_sparse.py -i $TENSOR -g "2,1,1,1" -t 5 -iter 5 -o $OUTPUT -s 131000 
+srun -N 1 -n 2 python decompose_sparse.py -i $TENSOR -g "2,1,1,1" -t 25 -iter 20 -o $OUTPUT #-s 131000 
 
 # Large-scale test
 #TENSOR=$SCRATCH/tensors/amazon-reviews.tns_converted.hdf5

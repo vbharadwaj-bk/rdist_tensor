@@ -6,21 +6,36 @@ from common import *
 
 from numpy.random import default_rng
 
+__seed = None 
+__seed_rng = None 
+
+def initialize_seed_generator(seed):
+	global __seed
+	global __seed_rng
+	__seed = seed
+	__seed_rng = default_rng(seed=seed)
+
+def get_random_seed():
+	global __seed
+	global __seed_rng
+	if __seed is None or __seed_rng is None:
+		print("Error, need to initialize seed RNG!")
+		exit(1)
+	return __seed_rng.integers(1000000000)
+
 def get_samples(row_probs, num_samples):
 	row_range = list(range(len(row_probs)))
 	sample_idxs = np.random.choice(row_range, p=row_probs, size=num_samples) 
 	sampled_probs = row_probs[sample_idxs]
 
-	return sample_idxs, sampled_probs 
+	return sample_idxs, sampled_probs
+
+def broadcast_common_seed(world):
+	seed = world.bcast(get_random_seed(), root=0)
+	return seed
 
 def get_samples_distributed(world, row_probs, dist_sample_count):
-	seed_rng = np.random.default_rng()
-	if world.rank == 0:
-		seed = seed_rng.integers(50000000)
-	else:
-		seed = None	
-	seed = world.bcast(seed, root=0)
-	rng = np.random.default_rng(seed=seed)
+	rng = default_rng(seed=broadcast_common_seed(world))
 
 	local_weight = np.sum(row_probs)
 	processor_weights = np.zeros(world.Get_size(), dtype=np.double)
@@ -32,7 +47,7 @@ def get_samples_distributed(world, row_probs, dist_sample_count):
 
 	# Take local samples at random
 	row_range = list(range(cl(len(row_probs))))
-	sample_idxs = np.random.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
+	sample_idxs = rng.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
 	sampled_probs = row_probs[sample_idxs]
 
 	return sample_idxs, sampled_probs

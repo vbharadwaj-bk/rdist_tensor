@@ -201,7 +201,7 @@ class IndexFilter {
 public:
   // False positive tolerance is a small double value 
   IndexFilter(py::list idxs_py, double fp_tol) {
-    NumpyList<unsigned long long> idxs(idxs_py);
+    NumpyList<uint64_t> idxs(idxs_py);
     int dim = idxs.length; 
     uint64_t nnz = idxs.infos[0].shape[0];
 
@@ -209,11 +209,11 @@ public:
     int status = bloom_init(&bf, nnz_inflated, fp_tol);
     assert(status == 0);
 
-    vector<unsigned long long> buf(dim, 0);
-    unsigned long long * buf_ptr = buf.data();
+    vector<uint64_t> buf(dim, 0);
+    uint64_t * buf_ptr = buf.data();
     int buffer_len = 8 * dim; // A single unsigned long for each dimension 
 
-    for(unsigned long long i = 0; i < nnz; i++) {
+    for(uint64_t i = 0; i < nnz; i++) {
       for(int j = 0; j < dim; j++) {
         buf_ptr[j] = idxs.ptrs[j][i];
       }
@@ -224,18 +224,18 @@ public:
   // We can afford to return a vector since we expect relatively
   // few collisions. May need to modify this for the GPU case to
   // fill a boolean array
-  vector<unsigned long long> check_idxs(py::list idxs_py) {
-    NumpyList<unsigned long long> idxs(idxs_py);
+  vector<uint64_t> check_idxs(py::list idxs_py) {
+    NumpyList<uint64_t> idxs(idxs_py);
     int dim = idxs.length; 
-    unsigned long long nnz = idxs.infos[0].shape[0];
+    uint64_t nnz = idxs.infos[0].shape[0];
 
-    vector<unsigned long long> buf(dim, 0);
-    unsigned long long * buf_ptr = buf.data();
+    vector<uint64_t> buf(dim, 0);
+    uint64_t * buf_ptr = buf.data();
     int buffer_len = 8 * dim; // A single unsigned double for each dimension 
 
-    vector<unsigned long long> collisions;
+    vector<uint64_t> collisions;
 
-    for(unsigned long long i = 0; i < nnz; i++) {
+    for(uint64_t i = 0; i < nnz; i++) {
       for(int j = 0; j < dim; j++) {
         buf_ptr[j] = idxs.ptrs[j][i];
       }

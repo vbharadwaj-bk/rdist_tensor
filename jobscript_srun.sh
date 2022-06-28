@@ -13,10 +13,10 @@
 export OMP_NUM_THREADS=1
 TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
 output="data/uber.out"
-#srun -n 1 -n 1 python decompose_sparse.py -i $tensor -g "1,1,1,1" -t 25 -iter 20 -o $output 
-#srun -n 1 -n 8 python decompose_sparse.py -i $tensor -g "2,1,2,2" -t 25 -iter 20 -o $output 
+srun -n 1 -n 1 python decompose_sparse.py -i $TENSOR -g "1,1,1,1" -t 25 -iter 20 -o $OUTPUT
+#srun -n 1 -n 8 python decompose_sparse.py -i $TENSOR -g "2,1,2,2" -t 25 -iter 20 -o $OUTPUT
 #srun -N 1 -n 27 python decompose_sparse.py -i $TENSOR -g "3,1,3,3" -t 25 -iter 20 -o $OUTPUT 
-srun -N 1 -n 64 python decompose_sparse.py -i $TENSOR -g "4,1,4,4" -t 25 -iter 30 -o $OUTPUT 
+#srun -N 1 -n 64 python decompose_sparse.py -i $TENSOR -g "4,1,4,4" -t 25 -iter 30 -o $OUTPUT 
 
 #TENSOR=$SCRATCH/tensors/nell-1.tns_converted.hdf5
 #OUTPUT="data/nell-1.out"

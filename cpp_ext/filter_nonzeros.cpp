@@ -33,12 +33,12 @@ COOSparse sample_nonzeros(py::list idxs_py,
       py::array_t<double> weights_py,
       int mode_to_leave) {
     COOSparse gathered;
-    NumpyList<unsigned long long> idxs(idxs_py); 
+    NumpyList<uint64_t> idxs(idxs_py); 
     NumpyArray<double> values(values_py); 
-    NumpyList<unsigned long long> sample_idxs(sample_idxs_py);
+    NumpyList<uint64_t> sample_idxs(sample_idxs_py);
     NumpyArray<double> weights(weights_py); 
 
-    unsigned long long nnz = idxs.infos[0].shape[0];
+    uint64_t nnz = idxs.infos[0].shape[0];
 
     // TODO: Add an assertion downcasting this!
     int64_t num_samples = (int64_t) sample_idxs.infos[0].shape[0];
@@ -58,8 +58,8 @@ COOSparse sample_nonzeros(py::list idxs_py,
     vector<int64_t> hashtbl(hashtbl_size, -1);
     int64_t* hashtbl_ptr = hashtbl.data();
 
-    vector<unsigned long long> hbuf(dim - 1, 0);
-    unsigned long long* hbuf_ptr = hbuf.data();
+    vector<uint64_t> hbuf(dim - 1, 0);
+    uint64_t* hbuf_ptr = hbuf.data();
     int hbuf_len = 8 * (dim - 1);
 
     // Insert all items into our hashtable; we will use simple linear probing 
@@ -75,7 +75,7 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
       // Should replace with atomics to make thread-safe 
       while(hashtbl_ptr[hash] != -1l) {
-        unsigned long long val = hashtbl[hash];
+        uint64_t val = hashtbl[hash];
         found = true;
         for(int j = 0; j < dim - 1; j++) {
           if(hbuf_ptr[j] != sample_idxs.ptrs[j][val]) {
@@ -101,8 +101,8 @@ COOSparse sample_nonzeros(py::list idxs_py,
 
     #pragma omp parallel
     {
-    vector<unsigned long long> hbuf(dim - 1, 0);
-    unsigned long long* hbuf_ptr = hbuf.data();
+    vector<uint64_t> hbuf(dim - 1, 0);
+    uint64_t* hbuf_ptr = hbuf.data();
     int hbuf_len = 8 * (dim - 1);
     
     #pragma omp for

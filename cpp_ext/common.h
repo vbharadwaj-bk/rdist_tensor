@@ -35,6 +35,9 @@ public:
         info = arr_py.request();
         ptr = static_cast<T*>(info.ptr);
     }
+    NumpyArray(T* input_ptr) {
+        ptr = input_ptr;
+    }
 };
 
 template<typename T>
@@ -52,16 +55,25 @@ public:
             ptrs.push_back(static_cast<T*>(infos[i].ptr));
         }
     }
+
+    // Should refactor class name to something 
+    // other than NumpyList, since this
+    // constructor exists. This constructor 
+    // does not perform any data copy 
+    NumpyList(vector<T*> input_list) {
+        length = input_list.size();
+        ptrs = input_list;
+    }
 };
 
 class COOSparse {
 public:
-    vector<unsigned long long> rows;
-    vector<unsigned long long> cols;
+    vector<uint64_t> rows;
+    vector<uint64_t> cols;
     vector<double> values;
 
     void print_contents() {
-      /*for(unsigned long long i = 0; i < rows.size(); i++) {
+      /*for(uint64_t i = 0; i < rows.size(); i++) {
         cout << rows[i] 
         << " " 
         << cols[i] 
@@ -80,15 +92,15 @@ public:
 	 * version of the code. 
 	 */
 	void cpu_spmm(double* X, double* Y, int r) {
-		unsigned long long* row_ptr = rows.data();
-		unsigned long long* col_ptr = cols.data();
+		uint64_t* row_ptr = rows.data();
+		uint64_t* col_ptr = cols.data();
 		double* val_ptr = values.data();
 
     #pragma omp parallel for
-		for(unsigned long long i = 0; i < rows.size(); i++) {
+		for(uint64_t i = 0; i < rows.size(); i++) {
 			// We perform a transpose here
-			unsigned long long row = col_ptr[i];
-			unsigned long long col = row_ptr[i];
+			uint64_t row = col_ptr[i];
+			uint64_t col = row_ptr[i];
 			double value = val_ptr[i];
 			for(int j = 0; j < r; j++) {
         #pragma omp atomic update

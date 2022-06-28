@@ -23,11 +23,11 @@ void sp_mttkrp(
         ) {
 
     NumpyList<double> factors(factors_py);
-    NumpyList<unsigned long long> idxs(idxs_py);
+    NumpyList<uint64_t> idxs(idxs_py);
     NumpyArray<double> values(values_py);
 
     int dim = factors.length;
-    unsigned long long nnz = idxs.infos[0].shape[0];
+    uint64_t nnz = idxs.infos[0].shape[0];
     int col_count = factors.infos[0].shape[1];
     double* result_ptr = factors.ptrs[mode];
 
@@ -41,7 +41,7 @@ void sp_mttkrp(
         double* accum_ptr = accum_buffer.data();
 
         #pragma omp for
-        for(unsigned long long i = 0; i < nnz; i++) {
+        for(uint64_t i = 0; i < nnz; i++) {
             for(int k = 0; k < col_count; k++) {
                 accum_ptr[k] = values.ptr[i];
             }
@@ -55,7 +55,7 @@ void sp_mttkrp(
                 }
             }
 
-            unsigned long long out_row_idx = idxs.ptrs[mode][i];
+            uint64_t out_row_idx = idxs.ptrs[mode][i];
             double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
             for(int k = 0; k < col_count; k++) {
@@ -73,11 +73,11 @@ void compute_tensor_values(
         py::array_t<double> result_py) {
     NumpyList<double> factors(factors_py);
     NumpyArray<double> singular_values(singular_values_py);
-    NumpyList<unsigned long long> idxs(idxs_py);
+    NumpyList<uint64_t> idxs(idxs_py);
     NumpyArray<double> result(result_py);
 
-    unsigned long long nnz = idxs.infos[0].shape[0];
-    unsigned long long cols = factors.infos[0].shape[1];
+    uint64_t nnz = idxs.infos[0].shape[0];
+    uint64_t cols = factors.infos[0].shape[1];
 
     #pragma omp parallel
     {
@@ -87,12 +87,12 @@ void compute_tensor_values(
         }
         
         #pragma omp for
-        for(unsigned long long i = 0; i < nnz; i++) {
+        for(uint64_t i = 0; i < nnz; i++) {
             for(int j = 0; j < factors.length; j++) {
                 base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
             } 
             double value = 0.0;
-            for(unsigned long long k = 0; k < cols; k++) {
+            for(uint64_t k = 0; k < cols; k++) {
                 double coord_buffer = singular_values.ptr[k];
                 for(int j = 0; j < factors.length; j++) {
                     coord_buffer *= base_ptrs[j][k]; 
@@ -113,7 +113,7 @@ void sampled_mttkrp(
         py::array_t<double> weights_py
 ) {
     NumpyList<double> factors(factors_py);
-    NumpyList<unsigned long long> krp_samples(krp_sample_idxs_py);
+    NumpyList<uint64_t> krp_samples(krp_sample_idxs_py);
     NumpyArray<double> lhs(sampled_lhs_py);
     NumpyArray<double> weights(weights_py);
 

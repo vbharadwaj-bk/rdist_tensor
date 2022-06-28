@@ -18,6 +18,7 @@
 #include <vector>
 
 #include "common.h"
+#include "tensor_alltoallv.h"
 
 using namespace std;
 namespace py = pybind11;
@@ -27,10 +28,10 @@ namespace py = pybind11;
  * 
  * This function builds and returns a sparse matrix 
  */
-COOSparse sample_nonzeros(py::list idxs_py, 
-      py::array_t<double> values_py, 
-      py::list sample_idxs_py,
-      py::array_t<double> weights_py,
+COOSparse sample_nonzeros(py::list &idxs_py, 
+      py::array_t<double> &values_py, 
+      py::list &sample_idxs_py,
+      py::array_t<double> &weights_py,
       int mode_to_leave) {
     COOSparse gathered;
     NumpyList<uint64_t> idxs(idxs_py); 
@@ -152,11 +153,71 @@ COOSparse sample_nonzeros(py::list idxs_py,
     return gathered;
 }
 
+void sample_nonzeros_redistribute(
+      py::list idxs_py, 
+      py::array_t<double> values_py, 
+      py::list sample_idxs_py,
+      py::array_t<double> weights_py,
+      int mode_to_leave,
+      uint64_t row_divisor,
+      py::array_t<int> row_order_to_proc_py,  
+      py::list recv_idx_py,
+      py::list recv_values_py,
+      py::function allocate_recv_buffers 
+      ) {
+
+      COOSparse gathered = 
+        sample_nonzeros(
+          idxs_py, 
+          values_py, 
+          sample_idxs_py,
+          weights_py,
+          mode_to_leave);
+
+      uint64_t nnz = gathered.rows.size(); 
+
+      vector<uint64_t*> coords;
+      coords.push_back(gathered.rows.data());
+      coords.push_back(gathered.cols.data());
+      uint64_t* col_ptr = gathered.cols.data(); 
+
+      NumpyList<uint64_t> coords_wrapped(coords);
+      NumpyArray<double> values_wrapped(coords);
+      NumpyArray<int> row_order_to_proc(row_order_to_proc_py);
+
+      uint64_t proc_count = row_order_to_proc.info.shape[0]; 
+
+      vector<int> processor_assignments(nnz, 0);
+      int* assignment_ptr = processor_assignments.data();
+      vector<uint64_t> send_counts(proc_count, 0);
+
+      for(uint64_t i = 0; i < nnz; i++) {
+          int processor = row_order_to_proc.ptr[col_ptr[i] / row_divisor];
+          assignment_ptr[i] = processor; 
+          send_counts[processor]++;
+      }
+
+      tensor_alltoallv(
+          2, 
+          proc_count, 
+          nnz, 
+          coords_wrapped, 
+          values_wrapped, 
+          processor_assignments,
+          send_counts, 
+          recv_idx_py, 
+          recv_values_py, 
+          allocate_recv_buffers 
+          );
+}
+
+
 PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse>(m, "COOSparse") 
     .def("print_contents", &COOSparse::print_contents);
 
   m.def("sample_nonzeros", &sample_nonzeros);
+  m.def("sample_nonzeros_redistribute", &sample_nonzeros_redistribute);
 }
 
 /*

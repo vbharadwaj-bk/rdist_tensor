@@ -3,8 +3,10 @@ import numpy as np
 import numpy.linalg as la
 
 from sampling import *
+from sparse_tensor import allocate_recv_buffers
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
+import cpp_ext.filter_nonzeros as nz_filter 
 
 def initial_setup(ten_to_optimize):
 	# Initial allgather of tensor factors 
@@ -58,8 +60,11 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 	'''
 	samples = []
 	probs = []
+	lhs_buffer = None
 
 	for i in range(len(factors)):
+		# TODO: Need to chain-multiply the
+		# gathered LHS samples here!	
 		if i != mode_to_leave:
 			continue
 
@@ -84,8 +89,10 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 			rng = default_rng(seed=seed)
 			rng.shuffle(shuffle_el)
 
-		print("Made it here!")
-		exit(1)
+		samples.append(all_samples)
+		probs.append(all_probs)
+
+	return samples, probs, lhs_buffer	
 
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
@@ -117,7 +124,29 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	#samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
 	#	for i in range(dim) if i != mode_to_leave]
 
-	sampled_lhs, samples, weights = gather_samples_lhs(factors, s, mode_to_leave, grid)
+	sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
+	recv_idx, recv_values = [], []
+	row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
+
+	grid.comm.Allgather(
+		[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
+		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
+	)
+
+	nz_filter.sample_nonzeros_redistribute(
+		local_ten.tensor_idxs, 
+		local_ten.values, 
+		sample_idxs,
+		weights,
+		mode_to_leave,
+		factors[mode_to_leave].local_rows_padded,
+		row_order_to_proc.astype(int), 
+		recv_idx,
+		recv_values,
+		allocate_recv_buffers 
+		)
+
+	print("Made it here!")
 	exit(1)
 
 	weight_prods = np.zeros(s, dtype=np.double)

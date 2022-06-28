@@ -133,18 +133,19 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 	)
 
-	nz_filter.sample_nonzeros_redistribute(
-		local_ten.tensor_idxs, 
-		local_ten.values, 
-		sample_idxs,
-		weights,
-		mode_to_leave,
-		factors[mode_to_leave].local_rows_padded,
-		row_order_to_proc.astype(int), 
-		recv_idx,
-		recv_values,
-		allocate_recv_buffers 
-		)
+	if False:
+		nz_filter.sample_nonzeros_redistribute(
+			local_ten.tensor_idxs, 
+			local_ten.values, 
+			sample_idxs,
+			weights,
+			mode_to_leave,
+			factors[mode_to_leave].local_rows_padded,
+			row_order_to_proc.astype(int), 
+			recv_idx,
+			recv_values,
+			allocate_recv_buffers 
+			)
 
 	print("Made it here!")
 	exit(1)

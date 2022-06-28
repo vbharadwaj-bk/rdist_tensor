@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <bits/stdc++.h>
 
+#include <mpi.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
@@ -182,7 +183,7 @@ void sample_nonzeros_redistribute(
       uint64_t* col_ptr = gathered.cols.data(); 
 
       NumpyList<uint64_t> coords_wrapped(coords);
-      NumpyArray<double> values_wrapped(coords);
+      NumpyArray<double> values_wrapped(gathered.values.data());
       NumpyArray<int> row_order_to_proc(row_order_to_proc_py);
 
       uint64_t proc_count = row_order_to_proc.info.shape[0]; 

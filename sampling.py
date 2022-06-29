@@ -42,6 +42,11 @@ def get_samples_distributed(world, row_probs, dist_sample_count):
 	world.Allgather([local_weight, MPI.DOUBLE], 
 			[processor_weights, MPI.DOUBLE])	
 
+	# Sum of all local weights should be 1, but we will divide by the sum to
+	# avoid round-off errors 
+	total_weight = np.sum(processor_weights)
+	processor_weights /= total_weight
+
 	sample_counts = rng.multinomial(dist_sample_count, processor_weights)
 	local_sample_count = sample_counts[world.rank]
 

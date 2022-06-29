@@ -153,7 +153,7 @@ void sampled_mttkrp_with_lhs_assembled(
         py::array_t<double> result_py
         ) {
 
-    NumpyArray<double> lhs(sampled_lhs_py);
+    NumpyArray<double> lhs(lhs_py);
     NumpyArray<uint64_t> rhs_rows(rhs_rows_py);
     NumpyArray<uint64_t> rhs_cols(rhs_cols_py);
     NumpyArray<double> rhs_values(rhs_values_py);

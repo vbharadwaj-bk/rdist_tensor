@@ -93,9 +93,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 
 		samples.append(all_samples)
 		weight_prods -= 0.5 * np.log(all_probs) 
-
 		lhs_buffer *= all_rows
-		lhs_buffer = np.einsum('i,')
 
 	return samples, np.exp(weight_prods), lhs_buffer	
 
@@ -124,79 +122,58 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	start = start_clock()
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
-	#s = arg_dict['sample_count'] 
-	s = 200 
+	s = arg_dict['sample_count'] 
+	#s = 200 
 	#samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
 	#	for i in range(dim) if i != mode_to_leave]
 
 	sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
-	recv_idx, recv_values = [], []
-	row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
+	lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
 
 	# Should probably offload this to distmat.py file;
 	# only have to do this once
+	recv_idx, recv_values = [], []
+	row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
+
 	grid.comm.Allgather(
 		[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
 		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 	)
 
-	print("Made it here first!")
+	#print("Made it here first!")
 
-	if True:
-		nz_filter.sample_nonzeros_redistribute(
-			local_ten.tensor_idxs, 
-			local_ten.values, 
-			sample_idxs,
-			weights,
-			mode_to_leave,
-			factors[mode_to_leave].local_rows_padded,
-			row_order_to_proc.astype(int), 
-			recv_idx,
-			recv_values,
-			allocate_recv_buffers 
-			)
+	nz_filter.sample_nonzeros_redistribute(
+		local_ten.tensor_idxs, 
+		local_ten.values, 
+		sample_idxs,
+		weights,
+		mode_to_leave,
+		factors[mode_to_leave].local_rows_padded,
+		row_order_to_proc.astype(int), 
+		recv_idx,
+		recv_values,
+		allocate_recv_buffers 
+		)
 
-		tensor_kernels.sampled_mttkrp_with_lhs_assembled(
-			lhs_buffer,
-			recv_idx[0],
-			recv_idx[1],
-			recv_values,
-			factors[mode_to_leave].data	
-			)
+	tensor_kernels.sampled_mttkrp_with_lhs_assembled(
+		lhs_buffer,
+		recv_idx[0],
+		recv_idx[1],
+		recv_values,
+		factors[mode_to_leave].data	
+		)
 
 	#print(recv_idx)
 	#print(recv_values)
+	#print(factors[mode_to_leave].data)
 
-	print("Made it here second!")
-	exit(1)
-
-	weight_prods = np.zeros(s, dtype=np.double)
-	weight_prods -= 0.5 * np.log(s)
-	for i in range(dim - 1):
-		weight_prods -= 0.5 * np.log(samples_and_weights[i][1]) 
-
-	weight_prods = np.exp(weight_prods)
-	samples = [el[0] for el in samples_and_weights]
-
-	# For debugging purposes, want a buffer for the sampled LHS	
-	sampled_lhs = np.zeros((s, r), dtype=np.double)	
-	sampled_rhs = local_ten.sample_nonzeros(samples, weight_prods, mode_to_leave)
-	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_lhs, sampled_rhs, weight_prods)
-
-	sampled_rhs.print_contents()
+	#print("Made it here second!")
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")
 
 	start = start_clock()
-	mttkrp_reduced = np.zeros_like(factors[mode_to_leave].data)
-	grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
-			[mttkrp_reduced, MPI.DOUBLE])  
-	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
-
-	start = start_clock()
-	lstsq_soln = la.lstsq(gram_prod, mttkrp_reduced.T, rcond=None)
+	lstsq_soln = la.lstsq(gram_prod, factors[mode_to_leave].data.T, rcond=None)
 	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()
 	factors[mode_to_leave].data = res
 	factors[mode_to_leave].normalize_cols()
@@ -208,12 +185,7 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	factors[mode_to_leave].compute_gram_matrix()
 	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
 
-	start = start_clock()  
-	factors[mode_to_leave].allgather_factor()
-	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "Slice All-gather")
-
-	start = start_clock()  
+	start = start_clock() 
 	factors[mode_to_leave].compute_leverage_scores()
 	factors[mode_to_leave].allgather_leverage_scores()
 	stop_clock_and_add(start, timer_dict, "Leverage Score Computation")

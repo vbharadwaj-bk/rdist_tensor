@@ -59,13 +59,15 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 	tensor mode. 
 	'''
 	samples = []
-	probs = []
-	lhs_buffer = None
+	weight_prods = np.zeros(dist_sample_count, dtype=np.double)
+	weight_prods -= 0.5 * np.log(dist_sample_count)
+	r = factors[0].data.shape[1]
+	lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
 
 	for i in range(len(factors)):
 		# TODO: Need to chain-multiply the
 		# gathered LHS samples here!	
-		if i != mode_to_leave:
+		if i == mode_to_leave:
 			continue
 
 		factor = factors[i]
@@ -90,9 +92,12 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 			rng.shuffle(shuffle_el)
 
 		samples.append(all_samples)
-		probs.append(all_probs)
+		weight_prods -= 0.5 * np.log(all_probs) 
 
-	return samples, probs, lhs_buffer	
+		lhs_buffer *= all_rows
+		lhs_buffer = np.einsum('i,')
+
+	return samples, np.exp(weight_prods), lhs_buffer	
 
 # Computes a distributed MTTKRP of all but one of this 
 # class's factors with a given dense tensor. Also performs 
@@ -120,7 +125,7 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
 	#s = arg_dict['sample_count'] 
-	s = 4 
+	s = 200 
 	#samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
 	#	for i in range(dim) if i != mode_to_leave]
 
@@ -128,12 +133,16 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	recv_idx, recv_values = [], []
 	row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
 
+	# Should probably offload this to distmat.py file;
+	# only have to do this once
 	grid.comm.Allgather(
 		[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
 		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 	)
 
-	if False:
+	print("Made it here first!")
+
+	if True:
 		nz_filter.sample_nonzeros_redistribute(
 			local_ten.tensor_idxs, 
 			local_ten.values, 
@@ -147,7 +156,18 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 			allocate_recv_buffers 
 			)
 
-	print("Made it here!")
+		tensor_kernels.sampled_mttkrp_with_lhs_assembled(
+			lhs_buffer,
+			recv_idx[0],
+			recv_idx[1],
+			recv_values,
+			factors[mode_to_leave].data	
+			)
+
+	#print(recv_idx)
+	#print(recv_values)
+
+	print("Made it here second!")
 	exit(1)
 
 	weight_prods = np.zeros(s, dtype=np.double)

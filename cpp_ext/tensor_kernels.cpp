@@ -145,9 +145,38 @@ void sampled_mttkrp(
     sampled_rhs.cpu_spmm(lhs.ptr, result_ptr, r);
 }
 
+void sampled_mttkrp_with_lhs_assembled(
+        py::array_t<double> lhs_py,
+        py::array_t<uint64_t> rhs_rows_py,
+        py::array_t<uint64_t> rhs_cols_py,
+        py::array_t<double> rhs_values_py,
+        py::array_t<double> result_py
+        ) {
+
+    NumpyArray<double> lhs(sampled_lhs_py);
+    NumpyArray<uint64_t> rhs_rows(rhs_rows_py);
+    NumpyArray<uint64_t> rhs_cols(rhs_cols_py);
+    NumpyArray<double> rhs_values(rhs_values_py);
+    NumpyArray<double> result(result_py);
+    int r = result.info.shape[1];
+    uint64_t nnz = rhs_rows.info.shape[0];
+
+    COOSparse sampled_rhs_wrapped;
+
+    // TODO: This next step could be way more efficient...
+    // but I just want to finish this... 
+    sampled_rhs_wrapped.rows.assign(rhs_rows.ptr, rhs_rows.ptr + nnz); 
+    sampled_rhs_wrapped.cols.assign(rhs_cols.ptr, rhs_cols.ptr + nnz); 
+    sampled_rhs_wrapped.values.assign(rhs_values.ptr, rhs_values.ptr + nnz); 
+
+    sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
+}
+
+
 PYBIND11_MODULE(tensor_kernels, m) {
     m.def("sp_mttkrp", &sp_mttkrp);
     m.def("sampled_mttkrp", &sampled_mttkrp);
+    m.def("sampled_mttkrp_with_lhs_assembled", &sampled_mttkrp_with_lhs_assembled);
     m.def("compute_tensor_values", &compute_tensor_values);
 }
 

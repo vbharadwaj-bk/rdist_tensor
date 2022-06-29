@@ -24,8 +24,10 @@ def get_random_seed():
 	return __seed_rng.integers(1000000000)
 
 def get_samples(row_probs, num_samples):
+	# TODO: Need to make this method distributed!
 	row_range = list(range(len(row_probs)))
-	sample_idxs = np.random.choice(row_range, p=row_probs, size=num_samples) 
+	rng = default_rng(seed=get_random_seed())
+	sample_idxs = rng.choice(row_range, p=row_probs, size=num_samples) 
 	sampled_probs = row_probs[sample_idxs]
 
 	return sample_idxs, sampled_probs
@@ -47,8 +49,9 @@ def get_samples_distributed(world, row_probs, dist_sample_count):
 	total_weight = np.sum(processor_weights)
 	processor_weights /= total_weight
 
-	sample_counts = rng.multinomial(dist_sample_count, processor_weights)
-	local_sample_count = sample_counts[world.rank]
+	#sample_counts = rng.multinomial(dist_sample_count, processor_weights)
+	#local_sample_count = sample_counts[world.rank]
+	local_sample_count = dist_sample_count
 
 	# Take local samples at random
 	row_range = list(range(cl(len(row_probs))))

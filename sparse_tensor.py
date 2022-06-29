@@ -13,6 +13,7 @@ import cpp_ext.tensor_kernels as tensor_kernels
 import cpp_ext.bloom_filter as bf
 import cpp_ext.filter_nonzeros as nz_filter
 
+from sampling import broadcast_common_seed
 
 def allocate_recv_buffers(dim, count, lst_idx, lst_values):
     for i in range(dim):
@@ -53,20 +54,13 @@ class DistSparseTensor:
         world_comm.Allreduce([local_norm, MPI.DOUBLE], [result, MPI.DOUBLE]) 
         self.tensor_norm = np.sqrt(result.item())
 
-    def random_permute(self, seed=42):
+    def random_permute(self):
         '''
         Applies a random permutation to the indices of the sparse
         tensor. We could definitely make this more efficient, but meh 
         '''
-        if seed is None:
-            assert False
-            # TODO: Select a random seed here and broadcast it to all other
-            # processes!
-
-            # TODO: Save the permutation so that it can be inverted later! 
-
-            # Fill the seed here after broadcasting, make it consistent on all processors 
-        rng = np.random.default_rng(seed)
+        # TODO: Save the permutation so that it can be inverted later! 
+        rng = np.random.default_rng(seed=broadcast_common_seed(MPI.COMM_WORLD))
         for i in range(self.dim):
             idxs = np.array(list(range(self.max_idxs[i])), dtype=np.ulonglong)
             perm = rng.permutation(idxs)

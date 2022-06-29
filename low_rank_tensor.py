@@ -9,6 +9,7 @@ import accumulator_stationary_opt0
 
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
+from sampling import get_random_seed
 
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
@@ -74,9 +75,10 @@ class DistLowRank:
         denominator. This computation is still valid with a slightly
         different value of alpha, but we should eventually fix this.
         '''
-        if ground_truth.type == "SPARSE_TENSOR": 
+        if ground_truth.type == "SPARSE_TENSOR":
             tg = self.tensor_grid
             nnz_to_sample = ground_truth.nnz
+            rng = np.random.default_rng(seed=get_random_seed()) 
 
             # Compute the loss on the nonzeros 
             lr_values = self.compute_tensor_values(ground_truth.tensor_idxs) 
@@ -104,7 +106,7 @@ class DistLowRank:
                 start = tg.bound_starts[j]
                 end = tg.bound_ends[j]
 
-                idxs = np.random.randint(0, end - start, size=remaining, dtype=np.ulonglong) 
+                idxs = rng.integers(0, end - start, size=remaining, dtype=np.ulonglong) 
                 zero_samples.append(idxs)
 
             collisions = ground_truth.idx_filter.check_idxs(zero_samples)
@@ -156,7 +158,7 @@ class DistLowRank:
             alg = exact_als
             statistics["Algorithm"] = "Exact ALS"
         else:
-            alg = accumulator_stationary_opt0  
+            alg = tensor_stationary_opt0  
             statistics["Algorithm"] = "Leverage-Score Sampled ALS"
             algorithm_arg_dict['sample_count'] = num_samples
 

@@ -86,10 +86,10 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
-		seed = broadcast_common_seed(grid.comm)
-		for shuffle_el in [all_samples, all_probs, all_rows]:
-			rng = default_rng(seed=seed)
-			rng.shuffle(shuffle_el)
+		#seed = broadcast_common_seed(grid.comm)
+		#for shuffle_el in [all_samples, all_probs, all_rows]:
+		#	rng = default_rng(seed=seed)
+		#	rng.shuffle(shuffle_el)
 
 		samples.append(all_samples)
 		weight_prods -= 0.5 * np.log(all_probs) 
@@ -140,6 +140,7 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 	)
 
+	#print(lhs_buffer)
 	#print("Made it here first!")
 
 	nz_filter.sample_nonzeros_redistribute(
@@ -162,12 +163,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		recv_values,
 		factors[mode_to_leave].data	
 		)
-
-	#print(recv_idx)
-	#print(recv_values)
-	#print(factors[mode_to_leave].data)
-
-	#print("Made it here second!")
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")

@@ -74,12 +74,13 @@ public:
 
     void print_contents() {
       /*for(uint64_t i = 0; i < rows.size(); i++) {
-        cout << rows[i] 
-        << " " 
-        << cols[i] 
-        << " "
-        << values[i]
-        << endl;
+        cout 
+          << rows[i] 
+          << " " 
+          << cols[i] 
+          << " "
+          << values[i]
+          << endl;
       }*/
       cout << "NUMBER OF NNZ Sampled " << rows.size() << endl;
     }

@@ -113,9 +113,12 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
+	print(f"MTTKRP Reduced Norm: {la.norm(mttkrp_reduced)}")
+
 	start = start_clock()
 	lstsq_soln = la.lstsq(gram_prod, mttkrp_reduced.T, rcond=None)
 	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()
+
 	factors[mode_to_leave].data = res
 	factors[mode_to_leave].normalize_cols()
 

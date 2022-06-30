@@ -156,20 +156,25 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		allocate_recv_buffers 
 		)
 
+	result_buffer = np.zeros_like(factors[mode_to_leave].data)
+
 	tensor_kernels.sampled_mttkrp_with_lhs_assembled(
 		lhs_buffer,
 		recv_idx[0],
 		recv_idx[1],
 		recv_values,
-		factors[mode_to_leave].data	
+		result_buffer
 		)
+
+	print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")
 
 	start = start_clock()
-	lstsq_soln = la.lstsq(gram_prod, factors[mode_to_leave].data.T, rcond=None)
-	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()
+	lstsq_soln = la.lstsq(gram_prod, result_buffer.T, rcond=None)
+	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()	
+
 	factors[mode_to_leave].data = res
 	factors[mode_to_leave].normalize_cols()
 

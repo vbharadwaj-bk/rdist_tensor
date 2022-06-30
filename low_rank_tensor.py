@@ -7,8 +7,8 @@ import exact_als
 import tensor_stationary_opt0
 import accumulator_stationary_opt0
 
-#method = accumulator_stationary_opt0
-method = tensor_stationary_opt0
+method = accumulator_stationary_opt0
+#method = tensor_stationary_opt0
 
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
@@ -114,7 +114,6 @@ class DistLowRank:
 
             collisions = ground_truth.idx_filter.check_idxs(zero_samples)
             zero_values = self.compute_tensor_values(zero_samples)
-
 
             zero_values[collisions] = 0.0
             zero_loss += la.norm(zero_values) ** 2

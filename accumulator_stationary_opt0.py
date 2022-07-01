@@ -136,7 +136,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	#	for i in range(dim) if i != mode_to_leave]
 
 	sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
-	lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
 
 	# Should probably offload this to distmat.py file;
 	# only have to do this once
@@ -151,35 +150,37 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	#print(lhs_buffer)
 	#print("Made it here first!")
 
-	#nz_filter.sample_nonzeros_redistribute(
-	#	local_ten.tensor_idxs, 
-	#	local_ten.values, 
-	#	sample_idxs,
-	#	weights,
-	#	mode_to_leave,
-	#	factors[mode_to_leave].local_rows_padded,
-	#	row_order_to_proc.astype(int), 
-	#	recv_idx,
-	#	recv_values,
-	#	allocate_recv_buffers 
-	#	)
+	nz_filter.sample_nonzeros_redistribute(
+		local_ten.tensor_idxs, 
+		local_ten.values, 
+		sample_idxs,
+		weights,
+		mode_to_leave,
+		factors[mode_to_leave].local_rows_padded,
+		row_order_to_proc.astype(int), 
+		recv_idx,
+		recv_values,
+		allocate_recv_buffers 
+		)
 
-	#result_buffer = np.zeros_like(factors[mode_to_leave].data)
+	# Perform the weight update after the nonzero
+	# sampling so that repeated rows are combined 
+	lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
+	result_buffer = np.zeros_like(factors[mode_to_leave].data)
+	tensor_kernels.sampled_mttkrp_with_lhs_assembled(
+		lhs_buffer,
+		recv_idx[0],
+		recv_idx[1],
+		recv_values,
+		result_buffer
+		)
 
-	#tensor_kernels.sampled_mttkrp_with_lhs_assembled(
-	#	lhs_buffer,
-	#	recv_idx[0],
-	#	recv_idx[1],
-	#	recv_values,
-	#	result_buffer
-	#	)
-
-	result_buffer = ten_to_optimize.factors[mode_to_leave].data
-	result_buffer *= 0.0
-	temp = [factor.data for factor in ten_to_optimize.factors]
-	lhs_buffer = np.zeros_like(lhs_buffer)
-	sampled_rhs = local_ten.sample_nonzeros(sample_idxs, weights, mode_to_leave)
-	tensor_kernels.sampled_mttkrp(mode_to_leave, temp, sample_idxs, lhs_buffer, sampled_rhs, weights)
+	#result_buffer = ten_to_optimize.factors[mode_to_leave].data
+	#result_buffer *= 0.0
+	#temp = [factor.data for factor in ten_to_optimize.factors]
+	#lhs_buffer = np.zeros_like(lhs_buffer)
+	#sampled_rhs = local_ten.sample_nonzeros(sample_idxs, weights, mode_to_leave)
+	#tensor_kernels.sampled_mttkrp(mode_to_leave, temp, sample_idxs, lhs_buffer, sampled_rhs, weights)
 
 	print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
 	print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")

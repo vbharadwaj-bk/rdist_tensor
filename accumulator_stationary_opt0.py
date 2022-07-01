@@ -78,11 +78,19 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 				factors[i].leverage_scores,
 				dist_sample_count)
 
+		#local_samples, local_probs = get_samples(	
+		#		factors[i].leverage_scores,
+		#		dist_sample_count)
+
 		sampled_rows = factors[i].data[local_samples]	
-		
-		all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
-		all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
-		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+
+		all_samples = local_samples 
+		all_probs = local_probs
+		all_rows = sampled_rows
+
+		#all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
+		#all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
+		#all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
@@ -143,28 +151,35 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	#print(lhs_buffer)
 	#print("Made it here first!")
 
-	nz_filter.sample_nonzeros_redistribute(
-		local_ten.tensor_idxs, 
-		local_ten.values, 
-		sample_idxs,
-		weights,
-		mode_to_leave,
-		factors[mode_to_leave].local_rows_padded,
-		row_order_to_proc.astype(int), 
-		recv_idx,
-		recv_values,
-		allocate_recv_buffers 
-		)
+	#nz_filter.sample_nonzeros_redistribute(
+	#	local_ten.tensor_idxs, 
+	#	local_ten.values, 
+	#	sample_idxs,
+	#	weights,
+	#	mode_to_leave,
+	#	factors[mode_to_leave].local_rows_padded,
+	#	row_order_to_proc.astype(int), 
+	#	recv_idx,
+	#	recv_values,
+	#	allocate_recv_buffers 
+	#	)
 
-	result_buffer = np.zeros_like(factors[mode_to_leave].data)
+	#result_buffer = np.zeros_like(factors[mode_to_leave].data)
 
-	tensor_kernels.sampled_mttkrp_with_lhs_assembled(
-		lhs_buffer,
-		recv_idx[0],
-		recv_idx[1],
-		recv_values,
-		result_buffer
-		)
+	#tensor_kernels.sampled_mttkrp_with_lhs_assembled(
+	#	lhs_buffer,
+	#	recv_idx[0],
+	#	recv_idx[1],
+	#	recv_values,
+	#	result_buffer
+	#	)
+
+	result_buffer = ten_to_optimize.factors[mode_to_leave].data
+	result_buffer *= 0.0
+	temp = [factor.data for factor in ten_to_optimize.factors]
+	lhs_buffer = np.zeros_like(lhs_buffer)
+	sampled_rhs = local_ten.sample_nonzeros(sample_idxs, weights, mode_to_leave)
+	tensor_kernels.sampled_mttkrp(mode_to_leave, temp, sample_idxs, lhs_buffer, sampled_rhs, weights)
 
 	print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
 	print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
@@ -188,7 +203,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 
 	start = start_clock() 
 	factors[mode_to_leave].compute_leverage_scores()
-	factors[mode_to_leave].allgather_leverage_scores()
 	stop_clock_and_add(start, timer_dict, "Leverage Score Computation")
 
 	return timer_dict

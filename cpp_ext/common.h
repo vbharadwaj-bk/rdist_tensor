@@ -73,16 +73,18 @@ public:
     vector<double> values;
 
     void print_contents() {
-      /*for(uint64_t i = 0; i < rows.size(); i++) {
-        cout 
+      double normsq = 0.0;
+      for(uint64_t i = 0; i < rows.size(); i++) {
+        /*cout 
           << rows[i] 
           << " " 
           << cols[i] 
           << " "
           << values[i]
-          << endl;
-      }*/
-      cout << "NUMBER OF NNZ Sampled " << rows.size() << endl;
+          << endl;*/
+        normsq += values[i]; 
+      }
+      cout << "Norm Squared: " << normsq << endl;
     }
 
 	/*

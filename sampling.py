@@ -18,7 +18,7 @@ def get_random_seed():
 		print("Error, need to initialize seed RNG!")
 		exit(1)
 
-	print("Seed generator called!")
+	#print("Seed generator called!")
 	return __seed_rng.integers(1000000000)
 
 def get_samples(row_probs, num_samples):
@@ -29,7 +29,7 @@ def get_samples(row_probs, num_samples):
 	sample_idxs = rng.choice(row_range, p=row_probs, size=num_samples) 
 	sampled_probs = row_probs[sample_idxs]
 
-	print(f'Seed: {seed}, Samples: {sample_idxs}')
+	#print(f'Seed: {seed}, Samples: {sample_idxs}')
 
 	return sample_idxs, sampled_probs
 
@@ -60,6 +60,6 @@ def get_samples_distributed(world, row_probs, dist_sample_count):
 	sample_idxs = rng.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
 	sampled_probs = row_probs[sample_idxs]
 
-	print(f'Seed: {seed}, Samples: {sample_idxs}')
+	#print(f'Seed: {seed}, Samples: {sample_idxs}')
 
 	return sample_idxs, sampled_probs

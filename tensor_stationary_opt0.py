@@ -99,10 +99,7 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	sampled_lhs = np.zeros((s, r), dtype=np.double)	
 	sampled_rhs = local_ten.sample_nonzeros(samples, weight_prods, mode_to_leave)
 	local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_lhs, sampled_rhs, weight_prods)
-
-	#print("Printing RHS contents...")	
-	sampled_rhs.print_contents()
-
+	
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")
 
@@ -113,7 +110,10 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
-	print(f"MTTKRP Reduced Norm: {la.norm(mttkrp_reduced)}")
+	print(f"MTTKRP Unreduced Norm: {la.norm(gathered_matrices[mode_to_leave])}")
+	print(f"LHS Buffer Norm: {la.norm(sampled_lhs)}")
+	sampled_rhs.print_contents()
+
 
 	start = start_clock()
 	lstsq_soln = la.lstsq(gram_prod, mttkrp_reduced.T, rcond=None)

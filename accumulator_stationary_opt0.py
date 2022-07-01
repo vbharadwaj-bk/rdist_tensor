@@ -182,8 +182,8 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	#sampled_rhs = local_ten.sample_nonzeros(sample_idxs, weights, mode_to_leave)
 	#tensor_kernels.sampled_mttkrp(mode_to_leave, temp, sample_idxs, lhs_buffer, sampled_rhs, weights)
 
-	print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
-	print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
+	#print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
+	#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")

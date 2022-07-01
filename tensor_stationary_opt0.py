@@ -110,10 +110,8 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "Slice Reduce-Scatter")
 
-	print(f"MTTKRP Unreduced Norm: {la.norm(gathered_matrices[mode_to_leave])}")
-	print(f"LHS Buffer Norm: {la.norm(sampled_lhs)}")
-	sampled_rhs.print_contents()
-
+	#print(f"MTTKRP Unreduced Norm: {la.norm(gathered_matrices[mode_to_leave])}")
+	#print(f"LHS Buffer Norm: {la.norm(sampled_lhs)}")
 
 	start = start_clock()
 	lstsq_soln = la.lstsq(gram_prod, mttkrp_reduced.T, rcond=None)

@@ -7,8 +7,8 @@ import exact_als
 import tensor_stationary_opt0
 import accumulator_stationary_opt0
 
-#method = tensor_stationary_opt0
-method = accumulator_stationary_opt0
+method = tensor_stationary_opt0
+#method = accumulator_stationary_opt0
 
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
@@ -187,7 +187,7 @@ class DistLowRank:
 
         if self.grid.rank == 0:
             f = open(output_file, 'a')
-            print(statistics)
+            #print(statistics)
             json_obj = json.dumps(statistics, indent=4)
             f.write(json_obj + ",\n")
             f.close()

@@ -168,7 +168,6 @@ void sampled_mttkrp_with_lhs_assembled(
     sampled_rhs_wrapped.rows.assign(rhs_rows.ptr, rhs_rows.ptr + nnz); 
     sampled_rhs_wrapped.cols.assign(rhs_cols.ptr, rhs_cols.ptr + nnz); 
     sampled_rhs_wrapped.values.assign(rhs_values.ptr, rhs_values.ptr + nnz);
-    sampled_rhs_wrapped.print_contents();
     sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
 }
 

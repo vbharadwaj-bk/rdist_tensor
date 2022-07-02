@@ -150,8 +150,11 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		allocate_recv_buffers 
 		)
 
+	print(f"Recv Idxs Rank {grid.rank}, {len(recv_idx[0])}")
 	offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
-	recv_idx[1] -= offset
+	recv_idx[1] -= offset 
+
+	print(f"Offset Rank {grid.rank}: {offset}")	
 
 	# Perform the weight update after the nonzero
 	# sampling so that repeated rows are combined 
@@ -165,8 +168,9 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		result_buffer
 		)
 
-	#print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
+	print(f"MTTKRP Norm: {la.norm(result_buffer)}")
 	#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
+	exit(1)
 
 	MPI.COMM_WORLD.Barrier()
 	stop_clock_and_add(start, timer_dict, "MTTKRP")

@@ -65,8 +65,6 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 	lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
 
 	for i in range(len(factors)):
-		# TODO: Need to chain-multiply the
-		# gathered LHS samples here!	
 		if i == mode_to_leave:
 			continue
 
@@ -78,26 +76,22 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 				factors[i].leverage_scores,
 				dist_sample_count)
 
-		#local_samples, local_probs = get_samples(	
-		#		factors[i].leverage_scores,
-		#		dist_sample_count)
-
 		sampled_rows = factors[i].data[local_samples]	
 
 		all_samples = local_samples 
 		all_probs = local_probs
 		all_rows = sampled_rows
 
-		#all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
-		#all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
-		#all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+		all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
+		all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
+		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
-		#seed = broadcast_common_seed(grid.comm)
-		#for shuffle_el in [all_samples, all_probs, all_rows]:
-		#	rng = default_rng(seed=seed)
-		#	rng.shuffle(shuffle_el)
+		seed = broadcast_common_seed(grid.comm)
+		for shuffle_el in [all_samples, all_probs, all_rows]:
+			rng = default_rng(seed=seed)
+			rng.shuffle(shuffle_el)
 
 		samples.append(all_samples)
 		weight_prods -= 0.5 * np.log(all_probs) 
@@ -131,10 +125,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 	gathered_matrices = [factor.gathered_factor for factor in factors]
 
 	s = arg_dict['sample_count'] 
-	#s = 200 
-	#samples_and_weights = [get_samples(factors[i].gathered_leverage, s) \
-	#	for i in range(dim) if i != mode_to_leave]
-
 	sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
 
 	# Should probably offload this to distmat.py file;
@@ -146,9 +136,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
 		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 	)
-
-	#print(lhs_buffer)
-	#print("Made it here first!")
 
 	nz_filter.sample_nonzeros_redistribute(
 		local_ten.tensor_idxs, 
@@ -163,6 +150,9 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		allocate_recv_buffers 
 		)
 
+	offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
+	recv_idx[1] -= offset
+
 	# Perform the weight update after the nonzero
 	# sampling so that repeated rows are combined 
 	lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
@@ -174,13 +164,6 @@ def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, t
 		recv_values,
 		result_buffer
 		)
-
-	#result_buffer = ten_to_optimize.factors[mode_to_leave].data
-	#result_buffer *= 0.0
-	#temp = [factor.data for factor in ten_to_optimize.factors]
-	#lhs_buffer = np.zeros_like(lhs_buffer)
-	#sampled_rhs = local_ten.sample_nonzeros(sample_idxs, weights, mode_to_leave)
-	#tensor_kernels.sampled_mttkrp(mode_to_leave, temp, sample_idxs, lhs_buffer, sampled_rhs, weights)
 
 	#print(f"MTTKRP Reduced Norm: {la.norm(result_buffer)}")
 	#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")

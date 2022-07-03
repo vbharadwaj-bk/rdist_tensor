@@ -4,16 +4,11 @@ import numpy.linalg as la
 
 from sampling import *
 from sparse_tensor import allocate_recv_buffers
+from alternating_optimizer import *
+
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 import cpp_ext.filter_nonzeros as nz_filter 
-
-def initial_setup(ten_to_optimize):
-	# Initial allgather of tensor factors 
-	for mode in range(ten_to_optimize.dim):
-		ten_to_optimize.factors[mode].allgather_factor()
-		ten_to_optimize.factors[mode].compute_gram_matrix()
-		ten_to_optimize.factors[mode].compute_leverage_scores()
 
 def allgatherv(world, local_buffer, mpi_dtype):
 	'''
@@ -99,98 +94,108 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 
 	return samples, np.exp(weight_prods), lhs_buffer	
 
-# Computes a distributed MTTKRP of all but one of this 
-# class's factors with a given dense tensor. Also performs 
-# gram matrix computation. 
-def optimize_factor(arg_dict, ten_to_optimize, grid, local_ten, mode_to_leave, timer_dict):
-	factors = ten_to_optimize.factors
-	dim = len(factors)
-	r = factors[0].data.shape[1]
-	factors_to_gather = [True] * dim 
-	factors_to_gather[mode_to_leave] = False
 
-	selected_indices = np.array(list(range(dim)))[factors_to_gather]
-	selected_factors = [factors[idx] for idx in selected_indices] 
+class AccumulatorStationaryOpt0(AlternatingOptimizer):
+	def __init__(self, ten_to_optimize, ground_truth, sample_count):
+		super().__init__(ten_to_optimize, ground_truth)
+		self.sample_count = sample_count
 
-	start = start_clock() 
-	col_norms = [factor.col_norms for factor in selected_factors]
-	gram_matrices = [factor.gram for factor in selected_factors]
-	gram_prod = chain_multiply_buffers(gram_matrices) 
-	singular_values = chain_multiply_buffers(col_norms) 
+	def initial_setup(self):
+		# Initial allgather of tensor factors 
+		for mode in range(self.ten_to_optimize.dim):
+			self.ten_to_optimize.factors[mode].allgather_factor()
+			self.ten_to_optimize.factors[mode].compute_gram_matrix()
+			self.ten_to_optimize.factors[mode].compute_leverage_scores()
 
-	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+	# Computes a distributed MTTKRP of all but one of this 
+	# class's factors with a given dense tensor. Also performs 
+	# gram matrix computation. 
+	def optimize_factor(self, mode_to_leave):
+		factors = self.ten_to_optimize.factors
+		grid = self.ten_to_optimize.grid
+		s = self.sample_count 
 
-	start = start_clock()
-	gathered_matrices = [factor.gathered_factor for factor in factors]
+		dim = len(factors)
+		r = factors[0].data.shape[1]
+		factors_to_gather = [True] * dim 
+		factors_to_gather[mode_to_leave] = False
 
-	s = arg_dict['sample_count'] 
-	sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
+		selected_indices = np.array(list(range(dim)))[factors_to_gather]
+		selected_factors = [factors[idx] for idx in selected_indices] 
 
-	# Should probably offload this to distmat.py file;
-	# only have to do this once
-	recv_idx, recv_values = [], []
-	row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
+		start = start_clock() 
+		col_norms = [factor.col_norms for factor in selected_factors]
+		gram_matrices = [factor.gram for factor in selected_factors]
+		gram_prod = chain_multiply_buffers(gram_matrices) 
+		singular_values = chain_multiply_buffers(col_norms) 
 
-	grid.comm.Allgather(
-		[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
-		[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
-	)
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-	nz_filter.sample_nonzeros_redistribute(
-		local_ten.tensor_idxs, 
-		local_ten.values, 
-		sample_idxs,
-		weights,
-		mode_to_leave,
-		factors[mode_to_leave].local_rows_padded,
-		row_order_to_proc.astype(int), 
-		recv_idx,
-		recv_values,
-		allocate_recv_buffers 
+		start = start_clock()
+		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
+
+		# Should probably offload this to distmat.py file;
+		# only have to do this once
+		recv_idx, recv_values = [], []
+		row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
+
+		grid.comm.Allgather(
+			[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
+			[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 		)
 
-	print(f"Recv Idxs Rank {grid.rank}, {len(recv_idx[0])}")
-	offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
-	recv_idx[1] -= offset 
+		nz_filter.sample_nonzeros_redistribute(
+			self.local_ten.tensor_idxs, 
+			self.local_ten.values, 
+			sample_idxs,
+			weights,
+			mode_to_leave,
+			factors[mode_to_leave].local_rows_padded,
+			row_order_to_proc.astype(int), 
+			recv_idx,
+			recv_values,
+			allocate_recv_buffers 
+			)
 
-	print(f"Offset Rank {grid.rank}: {offset}")	
+		print(f"Recv Idxs Rank {grid.rank}, {len(recv_idx[0])}")
+		offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
+		recv_idx[1] -= offset 
 
-	# Perform the weight update after the nonzero
-	# sampling so that repeated rows are combined 
-	lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
-	result_buffer = np.zeros_like(factors[mode_to_leave].data)
-	tensor_kernels.sampled_mttkrp_with_lhs_assembled(
-		lhs_buffer,
-		recv_idx[0],
-		recv_idx[1],
-		recv_values,
-		result_buffer
-		)
+		print(f"Offset Rank {grid.rank}: {offset}")	
 
-	print(f"MTTKRP Norm: {la.norm(result_buffer)}")
-	#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
-	exit(1)
+		# Perform the weight update after the nonzero
+		# sampling so that repeated rows are combined 
+		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
+		result_buffer = np.zeros_like(factors[mode_to_leave].data)
+		tensor_kernels.sampled_mttkrp_with_lhs_assembled(
+			lhs_buffer,
+			recv_idx[0],
+			recv_idx[1],
+			recv_values,
+			result_buffer
+			)
 
-	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "MTTKRP")
+		print(f"MTTKRP Norm: {la.norm(result_buffer)}")
+		#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
 
-	start = start_clock()
-	lstsq_soln = la.lstsq(gram_prod, result_buffer.T, rcond=None)
-	res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()	
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, self.timers, "MTTKRP")
 
-	factors[mode_to_leave].data = res
-	factors[mode_to_leave].normalize_cols()
+		start = start_clock()
+		lstsq_soln = la.lstsq(gram_prod, result_buffer.T, rcond=None)
+		res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()	
 
-	MPI.COMM_WORLD.Barrier()
-	stop_clock_and_add(start, timer_dict, "Gram LSTSQ Solve")
+		factors[mode_to_leave].data = res
+		factors[mode_to_leave].normalize_cols()
 
-	start = start_clock()
-	factors[mode_to_leave].compute_gram_matrix()
-	stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, self.timers, "Gram LSTSQ Solve")
 
-	start = start_clock() 
-	factors[mode_to_leave].compute_leverage_scores()
-	stop_clock_and_add(start, timer_dict, "Leverage Score Computation")
+		start = start_clock()
+		factors[mode_to_leave].compute_gram_matrix()
+		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-	return timer_dict
+		start = start_clock() 
+		factors[mode_to_leave].compute_leverage_scores()
+		stop_clock_and_add(start, self.timers, "Leverage Score Computation")

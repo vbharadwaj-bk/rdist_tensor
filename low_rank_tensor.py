@@ -7,9 +7,6 @@ import exact_als
 import tensor_stationary_opt0
 import accumulator_stationary_opt0
 
-#method = tensor_stationary_opt0
-method = accumulator_stationary_opt0
-
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 from sampling import get_random_seed
@@ -135,59 +132,3 @@ class DistLowRank:
             return estimated_fit
         else:
             assert False 
-
-    def als_fit(self, local_ground_truth, num_iterations, num_samples, output_file, compute_accuracy=False):
-        # Should initialize the singular values more intelligently, but this is fine
-        # for now... 
-        statistics = {
-                        "Gram Matrix Computation": 0.0,
-                        "Leverage Score Computation": 0.0,
-                        "Slice All-gather": 0.0,
-                        "MTTKRP": 0.0,
-                        "Slice Reduce-Scatter": 0.0,
-                        "Gram LSTSQ Solve": 0.0
-                        }
-
-        statistics["Mode Sizes"] = self.mode_sizes.tolist()
-        statistics["Tensor Target Rank"] = self.rank
-        statistics["Processor Count"] = self.grid.world_size
-        statistics["Grid Dimensions"] = self.grid.axesLengths.tolist()
-
-        self.singular_values = np.ones(self.rank)
-        algorithm_arg_dict = {}
-
-        if num_samples is None:
-            alg = exact_als
-            statistics["Algorithm"] = "Exact ALS"
-        else:
-            alg = method 
-            statistics["Algorithm"] = "Leverage-Score Sampled ALS"
-            algorithm_arg_dict['sample_count'] = num_samples
-
-        statistics["Algorithm arguments"] = algorithm_arg_dict 
-
-        alg.initial_setup(self)
-
-        loss_iterations = []
-        loss_values = []
-        for iter in range(num_iterations):
-            if compute_accuracy:
-                loss = self.compute_loss(local_ground_truth)
-                loss_iterations.append(iter)
-                loss_values.append(loss.item())
-
-                if self.grid.rank == 0:
-                    print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
-
-            for mode_to_optimize in range(self.dim):
-                alg.optimize_factor(algorithm_arg_dict, self, self.grid, local_ground_truth, mode_to_optimize, statistics)
-
-        statistics["Loss Iterations"] = loss_iterations 
-        statistics["Loss Values"] = loss_values 
-
-        if self.grid.rank == 0:
-            f = open(output_file, 'a')
-            #print(statistics)
-            json_obj = json.dumps(statistics, indent=4)
-            f.write(json_obj + ",\n")
-            f.close()

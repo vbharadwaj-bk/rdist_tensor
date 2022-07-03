@@ -9,6 +9,11 @@ from grid import *
 from sparse_tensor import *
 from sampling import *
 
+# List of optimizers
+from tensor_stationary_opt0 import TensorStationaryOpt0
+from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
+from exact_als import ExactALS
+
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
     rank = MPI.COMM_WORLD.Get_rank()
@@ -16,11 +21,12 @@ if __name__=='__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--input', type=str, help='HDF5 of Input Tensor', required=True)
     parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int) 
-    parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
     parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
     parser.add_argument("-o", "--output", help="Output file to print benchmark statistics", required=True)
     parser.add_argument('-g','--grid', type=str, help='Grid Shape (Comma separated)', required=True)
+    parser.add_argument('-op','--optimizer', type=str, help='Optimizer to use for tensor decomposition', required=False, default='exact')
+    parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
 
     args = None
     try:
@@ -49,7 +55,23 @@ if __name__=='__main__':
     ten_to_optimize = DistLowRank(tensor_grid, args.trank)
     ten_to_optimize.initialize_factors_deterministic(args.rs) 
 
+    optimizer = None
+    if args.op == 'exact':
+        assert(args.samples is None)
+        optimizer = ExactALS(ten_to_optimize, ground_truth)
+    elif args.op == 'tensor_stationary':
+        assert(args.samples is not None and args.samples >= 0)
+        optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
+    elif args.op == 'accumulator_stationary':
+        assert(args.samples is not None and args.samples >= 0)
+        optimizer = AccumulatorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
+    else:
+        print(f"Error, invalid optimizer specified: '{args.op}'")
+        exit(1) 
+
     if grid.rank == 0:
         print(f"Starting tensor decomposition...")
-
-    ten_to_optimize.als_fit(ground_truth, output_file=args.output, num_iterations=args.iter, num_samples=args.samples, compute_accuracy=True)
+ 
+    optimizer.fit(output_file=args.output, 
+            num_iterations=args.iter, 
+            compute_accuracy_interval=1)

@@ -104,8 +104,8 @@ class TensorStationaryOpt0(AlternatingOptimizer):
 
 		# For debugging purposes, want a buffer for the sampled LHS	
 		sampled_lhs = np.zeros((s, r), dtype=np.double)	
-		sampled_rhs = self.local_ten.sample_nonzeros(samples, weight_prods, mode_to_leave)
-		self.local_ten.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_lhs, sampled_rhs, weight_prods)
+		sampled_rhs = self.ground_truth.sample_nonzeros(samples, weight_prods, mode_to_leave)
+		self.ground_truth.sampled_mttkrp(mode_to_leave, gathered_matrices, samples, sampled_lhs, sampled_rhs, weight_prods)
 		
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "MTTKRP")

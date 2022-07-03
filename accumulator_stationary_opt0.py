@@ -147,8 +147,8 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		)
 
 		nz_filter.sample_nonzeros_redistribute(
-			self.local_ten.tensor_idxs, 
-			self.local_ten.values, 
+			self.ground_truth.tensor_idxs, 
+			self.ground_truth.values, 
 			sample_idxs,
 			weights,
 			mode_to_leave,

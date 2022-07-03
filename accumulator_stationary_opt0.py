@@ -99,6 +99,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 	def __init__(self, ten_to_optimize, ground_truth, sample_count):
 		super().__init__(ten_to_optimize, ground_truth)
 		self.sample_count = sample_count
+		self.info['Sample Count'] = self.sample_count
 
 	def initial_setup(self):
 		# Initial allgather of tensor factors 

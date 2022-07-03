@@ -56,13 +56,13 @@ if __name__=='__main__':
     ten_to_optimize.initialize_factors_deterministic(args.rs) 
 
     optimizer = None
-    if args.op == 'exact':
+    if args.optimizer == 'exact':
         assert(args.samples is None)
         optimizer = ExactALS(ten_to_optimize, ground_truth)
-    elif args.op == 'tensor_stationary':
+    elif args.optimizer == 'tensor_stationary':
         assert(args.samples is not None and args.samples >= 0)
         optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
-    elif args.op == 'accumulator_stationary':
+    elif args.optimizer == 'accumulator_stationary':
         assert(args.samples is not None and args.samples >= 0)
         optimizer = AccumulatorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
     else:

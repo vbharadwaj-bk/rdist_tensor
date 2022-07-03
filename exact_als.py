@@ -69,7 +69,7 @@ class ExactALS(AlternatingOptimizer):
 
 		start = start_clock()
 		factors[mode_to_leave].compute_gram_matrix()
-		stop_clock_and_add(start, timer_dict, "Gram Matrix Computation")
+		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
 		start = start_clock()  
 		factors[mode_to_leave].allgather_factor()

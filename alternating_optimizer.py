@@ -13,6 +13,8 @@ class AlternatingOptimizer:
 	def	__init__(self, ten_to_optimize, ground_truth):
 		self.ten_to_optimize =	ten_to_optimize
 		self.ground_truth =	ground_truth
+		self.dim = self.ten_to_optimize.dim
+		self.grid = self.ten_to_optimize.grid
 
 		# Timers common to the superset of our optimization
 		# methods 
@@ -22,9 +24,10 @@ class AlternatingOptimizer:
 						"Slice All-gather":	0.0,
 						"MTTKRP": 0.0,
 						"Slice Reduce-Scatter":	0.0,
-						"Gram LSTSQ	Solve":	0.0
+						"Gram LSTSQ Solve":	0.0
 						}
 
+		self.info = {}
 		self.info["Mode Sizes"] = self.ten_to_optimize.mode_sizes.tolist()
 		self.info["Tensor Target Rank"] = self.ten_to_optimize.rank
 		self.info["Processor Count"] = self.ten_to_optimize.grid.world_size

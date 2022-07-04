@@ -54,10 +54,14 @@ def get_samples_distributed(world, row_probs, dist_sample_count):
 	sample_counts = rng.multinomial(dist_sample_count, processor_weights)
 	local_sample_count = sample_counts[world.rank]
 
-	# Take local samples at random
-	row_range = list(range(cl(len(row_probs))))
-	sample_idxs = rng.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
-	sampled_probs = row_probs[sample_idxs]
+	if(local_weight > 0.0):
+		# Take local samples at random
+		row_range = list(range(cl(len(row_probs))))
+		sample_idxs = rng.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
+		sampled_probs = row_probs[sample_idxs]
+	else:
+		sample_idxs = np.array([], dtype=np.uint64)
+		sampled_probs = np.array([], dtype=np.double)
 
 	#print(f'Seed: {seed}, Samples: {sample_idxs}')
 

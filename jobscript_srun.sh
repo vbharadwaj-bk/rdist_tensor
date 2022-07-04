@@ -13,7 +13,7 @@
 export OMP_NUM_THREADS=1
 TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -n 4 python decompose_sparse.py -i $TENSOR -g "4,1,1,1" -t 25 -iter 10 -o $OUTPUT -op "accumulator_stationary" -s 131000  
+srun -N 1 -n 27 python decompose_sparse.py -i $TENSOR -g "3,1,3,3" -t 25 -iter 10 -o $OUTPUT -op "accumulator_stationary" -s 131000  
 #srun -N 1 -n 8 python decompose_sparse.py -i $TENSOR -g "2,1,2,2" -t 25 -iter 30 -o $OUTPUT
 #srun -N 1 -n 27 python decompose_sparse.py -i $TENSOR -g "3,1,3,3" -t 25 -iter 20 -o $OUTPUT 
 #srun -N 1 -n 64 python decompose_sparse.py -i $TENSOR -g "4,1,4,4" -t 25 -iter 50 -o $OUTPUT 

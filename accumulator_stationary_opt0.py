@@ -146,8 +146,12 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
 		)
 
+		# This is an expensive operation, but we can optimize it away later
+		offset_idxs = [self.ground_truth.tensor_idxs[j] 
+				+ self.ground_truth.offsets[j] for j in range(self.dim)]
+
 		nz_filter.sample_nonzeros_redistribute(
-			self.ground_truth.tensor_idxs, 
+			offset_idxs, 
 			self.ground_truth.values, 
 			sample_idxs,
 			weights,
@@ -156,8 +160,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			row_order_to_proc.astype(int), 
 			recv_idx,
 			recv_values,
-			allocate_recv_buffers 
-			)
+			allocate_recv_buffers)
 
 		print(f"Recv Idxs Rank {grid.rank}, {len(recv_idx[0])}")
 		offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded

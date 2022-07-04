@@ -106,7 +106,7 @@ class DistLowRank:
                 start = tg.bound_starts[j]
                 end = tg.bound_ends[j]
 
-                idxs = rng.integers(0, end - start, size=remaining, dtype=np.ulonglong) 
+                idxs = rng.integers(0, end - start, size=remaining, dtype=np.uint64) 
                 zero_samples.append(idxs)
 
             collisions = ground_truth.idx_filter.check_idxs(zero_samples)

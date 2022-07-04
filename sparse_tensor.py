@@ -54,6 +54,8 @@ class DistSparseTensor:
         world_comm.Allreduce([local_norm, MPI.DOUBLE], [result, MPI.DOUBLE]) 
         self.tensor_norm = np.sqrt(result.item())
 
+        self.offsets = np.zeros(self.dim, dtype=np.uint64)
+
     def random_permute(self):
         '''
         Applies a random permutation to the indices of the sparse
@@ -70,14 +72,14 @@ class DistSparseTensor:
         '''
         Warning: This function is for debugging purposes only!
         '''
-        pass        
-
+        pass         
 
     def redistribute_nonzeros(self, tensor_grid, debug=False):
         '''
         Redistribute the nonzeros according to the provided tensor grid.
         '''
         assert( tensor_grid.grid.dim == self.dim)
+        self.tensor_grid = tensor_grid
         grid = tensor_grid.grid
         prefix_array = grid.get_prefix_array()
 
@@ -106,7 +108,8 @@ class DistSparseTensor:
                 print("Finished debug test!")
 
         for j in range(self.dim):
-            self.tensor_idxs[j] -= tensor_grid.start_coords[j][grid.coords[j]]
+            self.offsets[j] = self.tensor_grid.start_coords[j][grid.coords[j]]
+            self.tensor_idxs[j] -= self.offsets[j] 
 
         self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.01)
 

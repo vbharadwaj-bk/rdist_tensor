@@ -11,7 +11,7 @@ import cpp_ext.tensor_kernels as tensor_kernels
 class ExactALS(AlternatingOptimizer):
 	def	__init__(self, low_rank_ten, ground_truth):
 		super().__init__(low_rank_ten, ground_truth)
-		self.info["Algorithm Name"] = "Exact ALS"
+		self.info["Algorithm Name"] = "Exact ALS"	
 
 	def initial_setup(self):
 		# Initial allgather of tensor factors 

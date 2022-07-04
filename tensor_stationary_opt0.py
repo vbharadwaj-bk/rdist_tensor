@@ -54,6 +54,8 @@ class TensorStationaryOpt0(AlternatingOptimizer):
 		super().__init__(ten_to_optimize, ground_truth)
 		self.sample_count = sample_count
 		self.info['Sample Count'] = self.sample_count
+		self.info["Algorithm Name"] = "Tensor Stationary Opt0"	
+
 
 	def initial_setup(self):
 		# Initial allgather of tensor factors 

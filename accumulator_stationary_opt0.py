@@ -100,6 +100,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		super().__init__(ten_to_optimize, ground_truth)
 		self.sample_count = sample_count
 		self.info['Sample Count'] = self.sample_count
+		self.info["Algorithm Name"] = "Accumulator Stationary Opt0"	
 
 	def initial_setup(self):
 		# Initial allgather of tensor factors 
@@ -139,12 +140,17 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		# Should probably offload this to distmat.py file;
 		# only have to do this once
 		recv_idx, recv_values = [], []
+		proc_to_row_order = np.empty(grid.world_size, dtype=np.ulonglong)
 		row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
 
 		grid.comm.Allgather(
 			[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
-			[row_order_to_proc, MPI.UNSIGNED_LONG_LONG]	
+			[proc_to_row_order, MPI.UNSIGNED_LONG_LONG]	
 		)
+
+		# Invert the permutation here
+		for i in range(len(proc_to_row_order)):
+			row_order_to_proc[proc_to_row_order[i]] = i 
 
 		# This is an expensive operation, but we can optimize it away later
 		offset_idxs = [self.ground_truth.tensor_idxs[j] 
@@ -162,16 +168,14 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			recv_values,
 			allocate_recv_buffers)
 
-		print(f"Recv Idxs Rank {grid.rank}, {len(recv_idx[0])}")
 		offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
 		recv_idx[1] -= offset 
-
-		print(f"Offset Rank {grid.rank}: {offset}")	
 
 		# Perform the weight update after the nonzero
 		# sampling so that repeated rows are combined 
 		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
 		result_buffer = np.zeros_like(factors[mode_to_leave].data)
+
 		tensor_kernels.sampled_mttkrp_with_lhs_assembled(
 			lhs_buffer,
 			recv_idx[0],
@@ -180,7 +184,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			result_buffer
 			)
 
-		print(f"MTTKRP Norm: {la.norm(result_buffer)}")
+		#print(f"MTTKRP Norm: {la.norm(result_buffer)}")
 		#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
 
 		MPI.COMM_WORLD.Barrier()

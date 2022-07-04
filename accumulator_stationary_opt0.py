@@ -134,7 +134,6 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		start = start_clock()
 		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
 
 		# Should probably offload this to distmat.py file;
@@ -176,6 +175,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
 		result_buffer = np.zeros_like(factors[mode_to_leave].data)
 
+		start = start_clock()
 		tensor_kernels.sampled_mttkrp_with_lhs_assembled(
 			lhs_buffer,
 			recv_idx[0],
@@ -183,9 +183,6 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			recv_values,
 			result_buffer
 			)
-
-		#print(f"MTTKRP Norm: {la.norm(result_buffer)}")
-		#print(f"LHS Buffer Norm: {la.norm(lhs_buffer)}")
 
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "MTTKRP")

@@ -12,6 +12,9 @@ from grid import *
 import cppimport.import_hook
 import cpp_ext.bloom_filter as bf
 
+from mpi4py import MPI
+import h5py
+
 def test_sampling():
     world_comm = MPI.COMM_WORLD
     ground_truth = DistSparseTensor("tensors/test.tns_converted.hdf5")
@@ -140,8 +143,11 @@ def test_bloom_filter():
     print(idx_filter.check_idxs(test_probes))
 
 def test_hdf5():
-    pass
+    rank = MPI.COMM_WORLD.rank  # The process ID (integer 0-3 for a 4-process job)
 
+    with h5py.File('test.h5', 'w', driver='mpio', comm=MPI.COMM_WORLD) as f:
+        dset = f.create_dataset('test', (4,), dtype='i')
+        dset[rank] = rank
 
 if __name__=='__main__':
     #test_allgather()

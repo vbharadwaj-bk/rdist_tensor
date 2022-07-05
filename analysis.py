@@ -1,6 +1,7 @@
 import numpy as np
 import json
 import os
+import h5py
 
 def get_experiments(filename):
     f = open(filename, 'r')
@@ -32,3 +33,14 @@ def make_stacked_barchart(ax, x_positions, width, data, keys, tick_labels, verti
         ax.set_yticklabels(tick_labels)
 
     ax.grid(True)
+
+def load_factors_from_file(filename):
+    factors = {}
+    with h5py.File(filename, 'r') as f:
+        keys = f.keys()
+
+        for key in keys:
+            if 'FACTOR_MODE' in key: 
+                factors[key] = f[key][:]
+
+    return factors

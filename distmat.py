@@ -119,7 +119,7 @@ class DistMat1D:
             self.gathered_leverage = np.zeros(buffer_rowct, dtype=np.double)
 
         self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
-                [self.gathered_leverage, MPI.DOUBLE])a
+                [self.gathered_leverage, MPI.DOUBLE])
 
     def write_factor_to_file(self, hdf5_file, factor_name):
         # TODO: Undo the permutation used for load-balancing here! For now, we will 
@@ -127,6 +127,6 @@ class DistMat1D:
         dset = hdf5_file.create_dataset(factor_name, (self.padded_rows, self.cols), dtype='f8')
 
         start = self.local_rows_padded * self.row_position
-        end = self.local_rows_padded * (self.row_position + 1)
+        end = self.local_rows_padded * (self.row_position + cl(1))
 
         dset[start:end, :] = self.data

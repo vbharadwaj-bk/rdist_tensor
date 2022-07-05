@@ -11,6 +11,9 @@ import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 from sampling import get_random_seed
 
+import mpi4py
+from mpi4py import MPI
+
 # Initializes a distributed tensor of a known low rank
 class DistLowRank:
     def __init__(self, tensor_grid, rank): 
@@ -149,6 +152,6 @@ class DistLowRank:
         '''
         TODO: Need to tag the file with supplied metadata from the experiment 
         '''
-        with h5py.File(filename, 'w') as hdf5_file:
+        with h5py.File(filename, 'w', driver='mpio', comm=MPI.COMM_WORLD) as hdf5_file:
             for i in range(self.dim):
                 self.factors[i].write_factor_to_file(hdf5_file, f'FACTOR_MODE_{i}')

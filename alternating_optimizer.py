@@ -56,7 +56,7 @@ class AlternatingOptimizer:
 		for key in self.timers:
 			self.timers[key] = 0.0
 
-	def	fit(self, num_iterations, output_file, compute_accuracy_interval=0):
+	def	fit(self, num_iterations, output_file, factor_file=None, compute_accuracy_interval=0):
 		assert(compute_accuracy_interval >= 0)
 		self.zero_timers()
 		self.info["Iteration Count"] = num_iterations 
@@ -93,3 +93,6 @@ class AlternatingOptimizer:
 			f.write(json_obj + ",\n")
 			f.close()
 			#print(statistics)
+
+		if factor_file is not None:
+			self.ten_to_optimize.write_to_file(factor_file, metadata=self.info)

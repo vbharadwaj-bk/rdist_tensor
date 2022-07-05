@@ -139,6 +139,9 @@ def test_bloom_filter():
 
     print(idx_filter.check_idxs(test_probes))
 
+def test_hdf5():
+    pass
+
 
 if __name__=='__main__':
     #test_allgather()
@@ -146,4 +149,6 @@ if __name__=='__main__':
     #test_mttkrp()
     #test_bloom_filter()
     #test_sampling()
-    test_sampling_distributed()
+    #test_sampling_distributed()
+    test_hdf5()
+

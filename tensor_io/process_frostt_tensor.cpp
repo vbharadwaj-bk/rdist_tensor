@@ -35,7 +35,6 @@ void convertFromFROSTT(string in_file, uint64_t num_lines) {
         ++count;       
     }
     
-
     firstline_stream.close();
     hsize_t dim = count - 1;
 
@@ -43,10 +42,7 @@ void convertFromFROSTT(string in_file, uint64_t num_lines) {
     hid_t val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
 
     hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
-
-
     hid_t mode_size_dataspace = H5Screate_simple(1, &dim, NULL);
-
 
     string max_mode_set = "MAX_MODE_SET";
     string min_mode_set = "MIN_MODE_SET";
@@ -67,7 +63,6 @@ void convertFromFROSTT(string in_file, uint64_t num_lines) {
 
     cout << "Dimension: " << dim << endl; 
     cout << "NNZ: " << num_lines << endl; 
-
 
     for(int i = 0; i < dim; i++) {
         idx_buffers.emplace_back(new uint64_t[BUFFER_SIZE]);

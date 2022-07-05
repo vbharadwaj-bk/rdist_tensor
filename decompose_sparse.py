@@ -27,6 +27,7 @@ if __name__=='__main__':
     parser.add_argument('-g','--grid', type=str, help='Grid Shape (Comma separated)', required=True)
     parser.add_argument('-op','--optimizer', type=str, help='Optimizer to use for tensor decomposition', required=False, default='exact')
     parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
+    parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
 
     args = None
     try:
@@ -52,7 +53,7 @@ if __name__=='__main__':
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)
 
-    ten_to_optimize = DistLowRank(tensor_grid, args.trank)
+    ten_to_optimize = DistLowRank(tensor_grid, args.trank) 
     ten_to_optimize.initialize_factors_deterministic(args.rs) 
 
     optimizer = None
@@ -72,6 +73,7 @@ if __name__=='__main__':
     if grid.rank == 0:
         print(f"Starting tensor decomposition...")
  
-    optimizer.fit(output_file=args.output, 
+    optimizer.fit(output_file=args.output,
+            factor_file = args.factor_file,
             num_iterations=args.iter, 
             compute_accuracy_interval=1)

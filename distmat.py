@@ -8,6 +8,7 @@ from common import *
 
 import mpi4py
 from mpi4py import MPI
+import h5py
 
 # Matrix is partitioned into block rows across processors
 # This class is designed so that each slice of the processor
@@ -98,8 +99,6 @@ class DistMat1D:
         gram_inv = la.pinv(self.gram)
  
         self.leverage_scores = np.sum((self.data @ gram_inv) * self.data, axis=1)
-        #self.leverage_scores = np.ones(self.data.shape[0], dtype=np.double) 
-
         self.leverage_scores = np.maximum(self.leverage_scores, 0.0)
 
         # Leverage weight is the sum of the leverage scores held by  
@@ -120,4 +119,14 @@ class DistMat1D:
             self.gathered_leverage = np.zeros(buffer_rowct, dtype=np.double)
 
         self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
-                [self.gathered_leverage, MPI.DOUBLE])
+                [self.gathered_leverage, MPI.DOUBLE])a
+
+    def write_factor_to_file(self, hdf5_file, factor_name):
+        # TODO: Undo the permutation used for load-balancing here! For now, we will 
+        # write the padded factor to memory
+        dset = hdf5_file.create_dataset(factor_name, (self.padded_rows, self.cols), dtype='f8')
+
+        start = self.local_rows_padded * self.row_position
+        end = self.local_rows_padded * (self.row_position + 1)
+
+        dset[start:end, :] = self.data

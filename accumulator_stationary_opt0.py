@@ -102,6 +102,8 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		self.info['Sample Count'] = self.sample_count
 		self.info["Algorithm Name"] = "Accumulator Stationary Opt0"	
 
+		self.info["Nonzeros Sampled Per Round"] = []
+
 	def initial_setup(self):
 		# Initial allgather of tensor factors 
 		for mode in range(self.ten_to_optimize.dim):
@@ -166,6 +168,9 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			recv_idx,
 			recv_values,
 			allocate_recv_buffers)
+
+		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
+		self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)
 
 		offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
 		recv_idx[1] -= offset 

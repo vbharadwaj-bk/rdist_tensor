@@ -36,7 +36,19 @@ class DistLowRank:
 
         return gathered_matrices, None
 
+    def initialize_factors_zero(self):
+        self.initialized = True
+        for factor in self.factors:
+            factor.data *= 0.0
+
+            # Avoids division by zero 
+            factor.col_norms = np.ones(self.rank, dtype=np.double)
+
     def initialize_factors_deterministic(self, offset):
+        '''
+        This gives the same factor initialization regardless of the
+        processor count.
+        '''
         self.initialized = True
         for factor in self.factors:
             factor.initialize_deterministic(offset)
@@ -131,4 +143,12 @@ class DistLowRank:
             estimated_fit = 1 - (np.sqrt(nonzero_loss + zero_loss) / ground_truth.tensor_norm) 
             return estimated_fit
         else:
-            assert False 
+            assert False
+
+    def write_to_file(self, filename, metadata=None):
+        '''
+        TODO: Need to tag the file with supplied metadata from the experiment 
+        '''
+        with h5py.File(filename, 'w') as hdf5_file:
+            for i in range(self.dim):
+                self.factors[i].write_factor_to_file(hdf5_file, f'FACTOR_MODE_{i}')

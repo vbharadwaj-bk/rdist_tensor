@@ -172,7 +172,6 @@ void spmm(
 }
 
 
-
 PYBIND11_MODULE(tensor_kernels, m) {
     m.def("sp_mttkrp", &sp_mttkrp);
     m.def("sampled_mttkrp", &sampled_mttkrp);
@@ -184,5 +183,6 @@ PYBIND11_MODULE(tensor_kernels, m) {
 <%
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-fopenmp']
+cfg['extra_link_args'] = ['-openmp']
 %>
 */

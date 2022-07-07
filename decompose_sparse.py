@@ -1,18 +1,6 @@
-import numpy as np
-from numpy.random import Generator, Philox
-
 from mpi4py import MPI
+import numpy as np
 import argparse
-
-from low_rank_tensor import *
-from grid import *
-from sparse_tensor import *
-from sampling import *
-
-# List of optimizers
-from tensor_stationary_opt0 import TensorStationaryOpt0
-from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
-from exact_als import ExactALS
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
@@ -38,6 +26,26 @@ if __name__=='__main__':
 
     if args is None:
         exit(1)
+
+    if rank == 0:
+        import cppimport.import_hook
+        import cpp_ext.bloom_filter 
+        import cpp_ext.filter_nonzeros
+        import cpp_ext.redistribute_tensor
+        import cpp_ext.tensor_kernels
+
+    MPI.COMM_WORLD.Barrier()
+
+    from low_rank_tensor import *
+    from grid import *
+    from sparse_tensor import *
+    from sampling import *
+
+    # List of optimizers
+    from tensor_stationary_opt0 import TensorStationaryOpt0
+    from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
+    from exact_als import ExactALS
+
 
     # Let every process have a different random
     # seed based on its MPI rank; may be a better

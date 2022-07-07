@@ -43,6 +43,22 @@ class DistMat1D:
         self.gathered_leverage = None
         self.col_norms = np.zeros(cols, dtype=np.double)
 
+        # Mapping of processes to row order and vice-versa 
+        self.proc_to_row_order = np.empty(self.grid.world_size, dtype=np.uint64)
+        self.row_order_to_proc = np.empty(self.grid.world_size, dtype=np.uint64)
+
+        self.grid.comm.Allgather(
+			[self.row_position, MPI.UINT64_T],
+			[self.proc_to_row_order, MPI.UINT64_T]	
+		)
+
+		# Invert the permutation here
+        for i in range(len(self.proc_to_row_order)):
+            self.row_order_to_proc[self.proc_to_row_order[i]] = i 
+
+        self.row_order_to_proc = self.row_order_to_proc.astype(int)
+
+
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
         self.data = np.array(range(value_start, value_start + self.local_window_size), dtype=np.double).reshape(self.local_rows_padded, self.cols)

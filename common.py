@@ -52,3 +52,41 @@ def start_clock():
 def stop_clock_and_add(t0, dict, key):
     t1 = time.time()
     dict[key] += t1 - t0 
+
+def allgatherv(world, local_buffer, mpi_dtype):
+	'''
+	If the local buffer is one-dimensional, perform
+	a 1-dimensional all-gather. If two-dimensional,
+	the resulting matrices are stacked on top of
+	each other, e.g. allgather(A1, A2) = [A1 A2].T.
+	Could generalize to handle higher-dimensional
+	tensors, but this is fine for now.
+	'''
+	if local_buffer.ndim != 1 and local_buffer.ndim != 2:
+		print("Input buffer must be 1 or 2-dimensional")
+		exit(1)
+
+	sendcount = np.array([local_buffer.shape[0]], dtype=np.ulonglong)
+	sendcounts = np.empty(world.Get_size(), dtype=np.ulonglong) 
+
+	world.Allgather([sendcount, MPI.UNSIGNED_LONG_LONG], 
+			[sendcounts, MPI.UNSIGNED_LONG_LONG])
+
+	offsets = np.empty(len(sendcounts), dtype=np.ulonglong)
+	offsets[0] = 0
+	offsets[1:] = np.cumsum(sendcounts[:-1])
+
+	if local_buffer.ndim == 1:
+		shape = np.sum(sendcounts)
+	elif local_buffer.ndim == 2:
+		cols = local_buffer.shape[1]
+		shape = (np.sum(sendcounts), cols)
+		sendcounts *= cols
+		offsets *= cols 
+
+	recv_buffer = np.zeros(shape, dtype=local_buffer.dtype)
+	world.Allgatherv([local_buffer, mpi_dtype], 
+		[recv_buffer, sendcounts, offsets, mpi_dtype]	
+		)
+
+	return recv_buffer

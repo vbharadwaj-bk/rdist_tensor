@@ -39,4 +39,4 @@ srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15
 #TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
 #OUTPUT="data/uber.out"
 #FACTOR_FILE="data/uber_factors.hdf5"
-#srun -N 1 -n 2 python decompose_sparse.py -i $TENSOR -g "2,1,1,1" -t 25 -iter 25 -o $OUTPUT -op "accumulator_stationary" -s 131000 -f $FACTOR_FILE
+#srun -N 1 -n 2 python decompose_sparse.py -i $TENSOR -g "2,1,1,1" -t 25 -iter 25 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000

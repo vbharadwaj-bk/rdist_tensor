@@ -8,8 +8,10 @@ import tensor_stationary_opt0
 import accumulator_stationary_opt0
 
 import cppimport.import_hook
+from sparse_tensor import allocate_recv_buffers
 import cpp_ext.tensor_kernels as tensor_kernels 
-from sampling import get_random_seed
+import cpp_ext.filter_nonzeros as nz_filter 
+from sampling import * 
 
 import mpi4py
 from mpi4py import MPI
@@ -57,7 +59,7 @@ class DistLowRank:
             factor.initialize_deterministic(offset)
             factor.normalize_cols()
 
-    def initialize_factors_random(self, random_seed=42):
+    def initialize_factors_gaussian(self, random_seed=42):
         self.initialized = True
         for factor in self.factors:
             factor.initialize_random(random_seed=random_seed)
@@ -155,3 +157,48 @@ class DistLowRank:
         with h5py.File(filename, 'w', driver='mpio', comm=MPI.COMM_WORLD) as hdf5_file:
             for i in range(self.dim):
                 self.factors[i].write_factor_to_file(hdf5_file, f'FACTOR_MODE_{i}')
+
+    def initialize_factors_rrf(self, ground_truth, sample_count):
+        '''
+        Initialize using a randomized range finder; samples
+        i.i.d. uniformly fibers from a supplied tensor 
+        and multiplies them against a random uniform Gaussian matrix. 
+        '''
+        for i in range(self.dim):
+            factor = self.factors[i]
+            local_rowct = self.data.shape[0]
+            base_idx = factor.row_position * factor.local_rows_padded
+            local_samples, _ = get_samples_distributed(self.grid.comm, np.ones(local_rowct, dtype=np.double), sample_count)
+            all_samples = allgatherv(self.grid.comm, base_idx + local_samples, MPI.UINT64_T)
+
+            recv_idx, recv_values = [], []
+
+            offset_idxs = [ground_truth.tensor_idxs[j]
+                + ground_truth.offsets[j] for j in range(self.dim)]
+
+            nz_filter.sample_nonzeros_redistribute(
+                offset_idxs, 
+                ground_truth.values, 
+                all_samples,
+                np.ones(len(all_samples), dtype=np.double),
+                i,
+                factor.local_rows_padded,
+                factor.row_order_to_proc, 
+                recv_idx,
+                recv_values,
+                allocate_recv_buffers)
+
+            offset = factor.row_position * factor.local_rows_padded
+            recv_idx[1] -= offset 
+
+            rng = default_rng(seed=broadcast_common_seed(self.grid.comm))
+            rand_gaussian = rng.normal(size=(sample_count, self.rank))
+            factor.data *= 0.0 
+
+            tensor_kernels.spmm(
+                rand_gaussian,
+                recv_idx[0],
+                recv_idx[1],
+                recv_values,
+                factor.data 
+                )

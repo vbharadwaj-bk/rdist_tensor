@@ -145,7 +145,7 @@ void sampled_mttkrp(
     sampled_rhs.cpu_spmm(lhs.ptr, result_ptr, r);
 }
 
-void sampled_mttkrp_with_lhs_assembled(
+void spmm(
         py::array_t<double> lhs_py,
         py::array_t<uint64_t> rhs_rows_py,
         py::array_t<uint64_t> rhs_cols_py,
@@ -176,7 +176,7 @@ void sampled_mttkrp_with_lhs_assembled(
 PYBIND11_MODULE(tensor_kernels, m) {
     m.def("sp_mttkrp", &sp_mttkrp);
     m.def("sampled_mttkrp", &sampled_mttkrp);
-    m.def("sampled_mttkrp_with_lhs_assembled", &sampled_mttkrp_with_lhs_assembled);
+    m.def("spmm", &spmm);
     m.def("compute_tensor_values", &compute_tensor_values);
 }
 

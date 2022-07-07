@@ -5,50 +5,13 @@ import numpy.linalg as la
 from sampling import *
 from sparse_tensor import allocate_recv_buffers
 from alternating_optimizer import *
+from common import *
 
 import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 import cpp_ext.filter_nonzeros as nz_filter 
 
-def allgatherv(world, local_buffer, mpi_dtype):
-	'''
-	If the local buffer is one-dimensional, perform
-	a 1-dimensional all-gather. If two-dimensional,
-	the resulting matrices are stacked on top of
-	each other, e.g. allgather(A1, A2) = [A1 A2].T.
-	Could generalize to handle higher-dimensional
-	tensors, but this is fine for now.
-	'''
-	if local_buffer.ndim != 1 and local_buffer.ndim != 2:
-		print("Input buffer must be 1 or 2-dimensional")
-		exit(1)
-
-	sendcount = np.array([local_buffer.shape[0]], dtype=np.ulonglong)
-	sendcounts = np.empty(world.Get_size(), dtype=np.ulonglong) 
-
-	world.Allgather([sendcount, MPI.UNSIGNED_LONG_LONG], 
-			[sendcounts, MPI.UNSIGNED_LONG_LONG])
-
-	offsets = np.empty(len(sendcounts), dtype=np.ulonglong)
-	offsets[0] = 0
-	offsets[1:] = np.cumsum(sendcounts[:-1])
-
-	if local_buffer.ndim == 1:
-		shape = np.sum(sendcounts)
-	elif local_buffer.ndim == 2:
-		cols = local_buffer.shape[1]
-		shape = (np.sum(sendcounts), cols)
-		sendcounts *= cols
-		offsets *= cols 
-
-	recv_buffer = np.zeros(shape, dtype=local_buffer.dtype)
-	world.Allgatherv([local_buffer, mpi_dtype], 
-		[recv_buffer, sendcounts, offsets, mpi_dtype]	
-		)
-
-	return recv_buffer
-
-def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
+def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 	'''
 	With this approach, we gather fresh samples for every
 	tensor mode. 
@@ -73,13 +36,22 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid):
 
 		sampled_rows = factors[i].data[local_samples]	
 
-		all_samples = local_samples 
-		all_probs = local_probs
-		all_rows = sampled_rows
+		#all_samples = local_samples 
+		#all_probs = local_probs
+		#all_rows = sampled_rows
 
+		start = start_clock() 
 		all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
 		all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
+
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, timers, "Sample Allgather")
+
+		start = start_clock() 
 		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, timers, "LHS Assembly")
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
@@ -101,7 +73,6 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		self.sample_count = sample_count
 		self.info['Sample Count'] = self.sample_count
 		self.info["Algorithm Name"] = "Accumulator Stationary Opt0"	
-
 		self.info["Nonzeros Sampled Per Round"] = []
 
 	def initial_setup(self):
@@ -136,27 +107,17 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid)
+		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid, self.timers)
 
 		# Should probably offload this to distmat.py file;
 		# only have to do this once
 		recv_idx, recv_values = [], []
-		proc_to_row_order = np.empty(grid.world_size, dtype=np.ulonglong)
-		row_order_to_proc = np.empty(grid.world_size, dtype=np.ulonglong)
-
-		grid.comm.Allgather(
-			[factors[mode_to_leave].row_position, MPI.UNSIGNED_LONG_LONG],
-			[proc_to_row_order, MPI.UNSIGNED_LONG_LONG]	
-		)
-
-		# Invert the permutation here
-		for i in range(len(proc_to_row_order)):
-			row_order_to_proc[proc_to_row_order[i]] = i 
 
 		# This is an expensive operation, but we can optimize it away later
 		offset_idxs = [self.ground_truth.tensor_idxs[j] 
 				+ self.ground_truth.offsets[j] for j in range(self.dim)]
 
+		start = start_clock() 
 		nz_filter.sample_nonzeros_redistribute(
 			offset_idxs, 
 			self.ground_truth.values, 
@@ -164,24 +125,33 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 			weights,
 			mode_to_leave,
 			factors[mode_to_leave].local_rows_padded,
-			row_order_to_proc.astype(int), 
+			factors[mode_to_leave].row_order_to_proc, 
 			recv_idx,
 			recv_values,
 			allocate_recv_buffers)
-
+	
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)
 
 		offset = factors[mode_to_leave].row_position * factors[mode_to_leave].local_rows_padded
 		recv_idx[1] -= offset 
 
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, self.timers, "Nonzero Filtering + Redistribute")
+
 		# Perform the weight update after the nonzero
 		# sampling so that repeated rows are combined 
-		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
-		result_buffer = np.zeros_like(factors[mode_to_leave].data)
 
 		start = start_clock()
-		tensor_kernels.sampled_mttkrp_with_lhs_assembled(
+		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
+
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, self.timers, "LHS Assembly")
+
+		start = start_clock()
+		result_buffer = np.zeros_like(factors[mode_to_leave].data)
+	
+		tensor_kernels.spmm(
 			lhs_buffer,
 			recv_idx[0],
 			recv_idx[1],

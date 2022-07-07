@@ -166,10 +166,15 @@ class DistLowRank:
         '''
         for i in range(self.dim):
             factor = self.factors[i]
-            local_rowct = self.data.shape[0]
             base_idx = factor.row_position * factor.local_rows_padded
-            local_samples, _ = get_samples_distributed(self.grid.comm, np.ones(local_rowct, dtype=np.double), sample_count)
-            all_samples = allgatherv(self.grid.comm, base_idx + local_samples, MPI.UINT64_T)
+
+            all_samples = []
+            for j in range(self.dim):
+                if i != j:
+                    row_range = list(self.factors[j].padded_rows)
+                    rng = default_rng(seed=broadcast_common_seed(self.grid.comm))
+                    samples = rng.choice(row_range, size=sample_count)
+                    all_samples.append(samples)
 
             recv_idx, recv_values = [], []
 

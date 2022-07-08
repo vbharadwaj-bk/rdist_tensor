@@ -62,7 +62,7 @@ if __name__=='__main__':
 
     ten_to_optimize = DistLowRank(tensor_grid, args.trank) 
     #ten_to_optimize.initialize_factors_deterministic(args.rs) 
-    ten_to_optimize.initialize_factors_rrf(ground_truth, 200000) 
+    ten_to_optimize.initialize_factors_rrf(ground_truth, 100000) 
 
 
     optimizer = None

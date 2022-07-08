@@ -61,8 +61,10 @@ class DistLowRank:
 
     def initialize_factors_gaussian(self, random_seed=42):
         self.initialized = True
-        for factor in self.factors:
-            factor.initialize_random(random_seed=random_seed)
+        for i in range(self.dim):
+            factor = self.factors[i]
+            rng = default_rng()
+            factor.data = rng.normal(size=(factor.padded_rows, self.rank))
             factor.normalize_cols()
 
     def get_singular_values(self):
@@ -169,9 +171,10 @@ class DistLowRank:
             base_idx = factor.row_position * factor.local_rows_padded
 
             all_samples = []
+            all_weights = []
             for j in range(self.dim):
                 if i != j:
-                    row_range = list(self.factors[j].padded_rows)
+                    row_range = list(range(self.factors[j].padded_rows))
                     rng = default_rng(seed=broadcast_common_seed(self.grid.comm))
                     samples = rng.choice(row_range, size=sample_count)
                     all_samples.append(samples)
@@ -185,7 +188,7 @@ class DistLowRank:
                 offset_idxs, 
                 ground_truth.values, 
                 all_samples,
-                np.ones(len(all_samples), dtype=np.double),
+                np.ones(sample_count, dtype=np.double),
                 i,
                 factor.local_rows_padded,
                 factor.row_order_to_proc, 
@@ -194,7 +197,7 @@ class DistLowRank:
                 allocate_recv_buffers)
 
             offset = factor.row_position * factor.local_rows_padded
-            recv_idx[1] -= offset 
+            recv_idx[1] -= offset
 
             rng = default_rng(seed=broadcast_common_seed(self.grid.comm))
             rand_gaussian = rng.normal(size=(sample_count, self.rank))
@@ -207,3 +210,5 @@ class DistLowRank:
                 recv_values,
                 factor.data 
                 )
+
+            factor.normalize_cols()

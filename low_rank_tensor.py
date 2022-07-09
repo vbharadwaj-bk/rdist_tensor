@@ -64,7 +64,7 @@ class DistLowRank:
         for i in range(self.dim):
             factor = self.factors[i]
             rng = default_rng()
-            factor.data = rng.normal(size=(factor.padded_rows, self.rank))
+            factor.data = rng.normal(size=(factor.data.shape[0], factor.data.shape[1]))
             factor.normalize_cols()
 
     def get_singular_values(self):
@@ -148,6 +148,10 @@ class DistLowRank:
             dense_entries = np.prod(np.array(self.tensor_grid.tensor_dims, dtype=np.double))
             zero_loss *= (dense_entries - ground_truth.nnz) / np.floor((1 - alpha) * sfit)
             estimated_fit = 1 - (np.sqrt(nonzero_loss + zero_loss) / ground_truth.tensor_norm) 
+
+            if self.grid.rank == 0:
+                print(f"Nonzero Loss: {nonzero_loss}, Zero Loss: {zero_loss}, Tensor Norm: {ground_truth.tensor_norm}, True Zero Count: {true_zero_count}, Dense Entries: {dense_entries}")
+
             return estimated_fit
         else:
             assert False

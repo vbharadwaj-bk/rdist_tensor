@@ -15,7 +15,7 @@ using namespace std;
  * This file assumes that the tensor is 1-indexed. 
  */
 
-void convertFromFROSTT(string in_file, uint64_t num_lines) {
+void convertFromFROSTT(string in_file, hsize_t num_lines) {
     cout << "Starting file conversion!" << endl; 
 
     string converted_filename = in_file + "_converted.hdf5";
@@ -86,11 +86,11 @@ void convertFromFROSTT(string in_file, uint64_t num_lines) {
     hsize_t buffer_size = BUFFER_SIZE;
     hid_t memory_dataspace = H5Screate_simple(1, &buffer_size, NULL); 
 
-    uint64_t pos_in_buffer = 0;
+    hsize_t pos_in_buffer = 0;
 
     for(hsize_t i = 0; i < num_lines; i++) {
         for(int j = 0; j < dim; j++) {
-            uint64_t idx;
+            hsize_t idx;
             iffstream >> idx;
             idx_buffers[j].get()[pos_in_buffer] = idx;
 
@@ -172,9 +172,9 @@ void convertFromFROSTT(string in_file, uint64_t num_lines) {
     status = H5Fclose(file);
 }
 
-int main(int* argc, char** argv) {
+int main(int argc, char** argv) {
     string name(argv[1]);
-    uint64_t num_lines = atol(argv[2]);
+    hsize_t num_lines = atol(argv[2]);
  
     convertFromFROSTT(name, num_lines);
 }

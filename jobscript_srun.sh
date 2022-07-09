@@ -29,10 +29,10 @@ export OMP_NUM_THREADS=1
 #srun -N 1 -n 1 python decompose_sparse.py -i $TENSOR -g "1,1,1,1" -t 25 -iter 20 -o $OUTPUT #-s 131000 
 
 # Large-scale test
-TENSOR=$SCRATCH/tensors/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/amazon.out"
-FACTOR_FILE="data/amazon_factors.hdf5"
-srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
+#TENSOR=$SCRATCH/tensors/amazon-reviews.tns_converted.hdf5
+#OUTPUT="data/amazon.out"
+#FACTOR_FILE="data/amazon_factors.hdf5"
+#srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
 
 # Test writing the factors to an output file
 #TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
@@ -41,9 +41,15 @@ srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15
 #srun -N 1 -n 2 python decompose_sparse.py -i $TENSOR -g "2,1,1,1" -t 25 -iter 25 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
 
 
-
 # Large-scale test
 #TENSOR=$SCRATCH/tensors/reddit-2015.tns_converted.hdf5
 #OUTPUT="data/reddit.out"
 #FACTOR_FILE="data/reddit_factors.hdf5"
 #srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "exact" -f $FACTOR_FILE #-s 131000
+
+# Enron test
+TENSOR=$SCRATCH/tensors/enron.tns_converted.hdf5
+OUTPUT="data/enron.out"
+FACTOR_FILE="data/enron_factors.hdf5"
+srun -N 1 -n 128 python decompose_sparse.py -i $TENSOR -g "2,4,4,4" -t 25 -iter 15 -o $OUTPUT -op "exact" -f $FACTOR_FILE #-s 131000
+

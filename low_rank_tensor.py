@@ -80,7 +80,30 @@ class DistLowRank:
         tensor_kernels.compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, result)
         return result
 
-    def compute_loss(self, ground_truth, alpha=0.5):
+    def norm(self):
+        lam = np.ones(self.rank, dtype=np.double)
+        for i in range(self.dim):
+            self.factors[i].compute_gram_matrix()
+            lam *= self.factors[i].col_norms
+
+        coeffs = np.outer(lam, lam)  
+        for i in range(self.dim):
+            coeffs *= self.factors[i].gram 
+
+        return np.sqrt(np.abs(np.sum(coeffs)))
+
+    def compute_loss(self, ground_truth):
+        return self.compute_exact_fit(ground_truth)
+
+    def compute_exact_fit(self, ground_truth):
+        approx_values = self.compute_tensor_values(ground_truth.tensor_idxs)
+        approx_normsq = la.norm(approx_values) ** 2
+        gt_normsq = ground_truth.tensor_norm ** 2 
+        inner_prod = la.dot(approx_values, ground_truth.values) 
+
+        return np.sqrt(approx_normsq + gt_normsq - 2 * inner_prod)
+
+    def compute_estimated_fit(self, ground_truth, alpha=0.5):
         '''
         Ground truth: an instance of the tensor to decompose
         nonzero_sample_frac: Fraction of nonzeros to sample;

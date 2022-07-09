@@ -10,10 +10,9 @@ export OMP_NUM_THREADS=1
 #export OMP_PROC_BIND=spread
 
 # Exact computation
-#export OMP_NUM_THREADS=1
-#TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
-#OUTPUT="data/uber.out"
-#srun -N 1 -n 1 python decompose_sparse.py -i $TENSOR -g "1,1,1,1" -t 25 -iter 10 -o $OUTPUT -op "accumulator_stationary" -s 131000 
+TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
+OUTPUT="data/uber.out"
+#srun -N 1 -n 8 python decompose_sparse.py -i $TENSOR -g "2,1,2,2" -t 25 -iter 40 -o $OUTPUT -op "exact" # -s 131000 
 #srun -N 1 -n 8 python decompose_sparse.py -i $TENSOR -g "2,1,2,2" -t 25 -iter 30 -o $OUTPUT
 #srun -N 1 -n 27 python decompose_sparse.py -i $TENSOR -g "3,1,3,3" -t 25 -iter 20 -o $OUTPUT 
 #srun -N 1 -n 64 python decompose_sparse.py -i $TENSOR -g "4,1,4,4" -t 25 -iter 50 -o $OUTPUT 
@@ -42,14 +41,16 @@ export OMP_NUM_THREADS=1
 
 
 # Large-scale test
-#TENSOR=$SCRATCH/tensors/reddit-2015.tns_converted.hdf5
-#OUTPUT="data/reddit.out"
-#FACTOR_FILE="data/reddit_factors.hdf5"
-#srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "exact" -f $FACTOR_FILE #-s 131000
+TENSOR=$SCRATCH/tensors/reddit-2015.tns_converted.hdf5
+OUTPUT="data/reddit.out"
+FACTOR_FILE="data/reddit_factors.hdf5"
+srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" \
+	-t 25 -iter 20 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000 \
+	-p "log_count"
 
 # Enron test
-TENSOR=$SCRATCH/tensors/enron.tns_converted.hdf5
-OUTPUT="data/enron.out"
-FACTOR_FILE="data/enron_factors.hdf5"
-srun -N 1 -n 128 python decompose_sparse.py -i $TENSOR -g "2,4,4,4" -t 25 -iter 15 -o $OUTPUT -op "exact" -f $FACTOR_FILE #-s 131000
+#TENSOR=$SCRATCH/tensors/enron.tns_converted.hdf5
+#OUTPUT="data/enron.out"
+#FACTOR_FILE="data/enron_factors.hdf5"
+#srun -N 1 -n 128 python decompose_sparse.py -i $TENSOR -g "2,4,4,4" -t 25 -iter 200 -o $OUTPUT -op "exact" -f $FACTOR_FILE #-s 131000
 

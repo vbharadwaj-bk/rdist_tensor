@@ -16,6 +16,7 @@ if __name__=='__main__':
     parser.add_argument('-op','--optimizer', type=str, help='Optimizer to use for tensor decomposition', required=False, default='exact')
     parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
+    parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)
 
     args = None
     try:
@@ -54,16 +55,16 @@ if __name__=='__main__':
     grid_dimensions = [int(el) for el in args.grid.split(',')]
     # TODO: Should assert that the grid has the proper dimensions here!
 
-    ground_truth = DistSparseTensor(args.input)
+    ground_truth = DistSparseTensor(args.input, preprocessing=args.preprocessing)
     grid = Grid(grid_dimensions)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.random_permute()
-    ground_truth.redistribute_nonzeros(tensor_grid)
+    ground_truth.redistribute_nonzeros(tensor_grid) 
 
     ten_to_optimize = DistLowRank(tensor_grid, args.trank) 
     ten_to_optimize.initialize_factors_deterministic(args.rs) 
     #ten_to_optimize.initialize_factors_gaussian() 
-    #ten_to_optimize.initialize_factors_rrf(ground_truth, 100000) 
+    #ten_to_optimize.initialize_factors_rrf(ground_truth, 200000) 
 
 
     optimizer = None
@@ -86,4 +87,4 @@ if __name__=='__main__':
     optimizer.fit(output_file=args.output,
             factor_file = args.factor_file,
             num_iterations=args.iter, 
-            compute_accuracy_interval=1)
+            compute_accuracy_interval=0)

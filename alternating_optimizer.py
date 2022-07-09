@@ -9,6 +9,8 @@ import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels	
 from sampling import get_random_seed
 
+from datetime import datetime
+
 class AlternatingOptimizer:
 	def	__init__(self, ten_to_optimize, ground_truth):
 		self.ten_to_optimize =	ten_to_optimize
@@ -61,8 +63,12 @@ class AlternatingOptimizer:
 
 	def	fit(self, num_iterations, output_file, factor_file=None, compute_accuracy_interval=0):
 		assert(compute_accuracy_interval >= 0)
+
 		self.zero_timers()
 		self.info["Iteration Count"] = num_iterations 
+
+		now = datetime.now()
+		self.info["Experiment Time"] = now.strftime("%d/%m/%Y %H:%M:%S")
 
 		low_rank_ten = self.ten_to_optimize
 		ground_truth = self.ground_truth

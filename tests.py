@@ -149,6 +149,8 @@ def test_hdf5():
         dset = f.create_dataset('test', (4,), dtype='i')
         dset[rank] = rank
 
+def test_tensor_norm():
+
 if __name__=='__main__':
     #test_allgather()
 	#test_tensor_evaluation()

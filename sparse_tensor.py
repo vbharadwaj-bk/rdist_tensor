@@ -22,7 +22,7 @@ def allocate_recv_buffers(dim, count, lst_idx, lst_values):
     lst_values.append(np.zeros(count, dtype=np.double))
 
 class DistSparseTensor:
-    def __init__(self, tensor_file):
+    def __init__(self, tensor_file, preprocessing=None):
         self.type = "SPARSE_TENSOR"
 
         f = h5py.File(tensor_file, 'r')
@@ -48,6 +48,14 @@ class DistSparseTensor:
             self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
 
         self.values = f['VALUES'][start_nnz:end_nnz]
+
+        if preprocessing is not None:
+            if preprocessing == "log_count":
+                self.values = np.log(self.values + 1.0)
+            else:
+                print(f"Unknown preprocessing option '{preprocessing}' specified!")
+                exit(1)
+
 
         local_norm = la.norm(self.values) ** 2
         result = np.zeros(1, dtype=np.double)

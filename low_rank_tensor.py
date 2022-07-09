@@ -81,10 +81,9 @@ class DistLowRank:
         return result
 
     def norm(self):
-        lam = np.ones(self.rank, dtype=np.double)
+        lam = self.get_singular_values() 
         for i in range(self.dim):
             self.factors[i].compute_gram_matrix()
-            lam *= self.factors[i].col_norms
 
         coeffs = np.outer(lam, lam)  
         for i in range(self.dim):
@@ -97,11 +96,12 @@ class DistLowRank:
 
     def compute_exact_fit(self, ground_truth):
         approx_values = self.compute_tensor_values(ground_truth.tensor_idxs)
-        approx_normsq = la.norm(approx_values) ** 2
+        approx_normsq = self.norm() ** 2
         gt_normsq = ground_truth.tensor_norm ** 2 
-        inner_prod = la.dot(approx_values, ground_truth.values) 
+        inner_prod = np.dot(approx_values, ground_truth.values) 
+        inner_prod = self.grid.comm.allreduce(inner_prod)
 
-        return np.sqrt(approx_normsq + gt_normsq - 2 * inner_prod)
+        return 1 - (np.sqrt(approx_normsq + gt_normsq - 2 * inner_prod) / ground_truth.tensor_norm)
 
     def compute_estimated_fit(self, ground_truth, alpha=0.5):
         '''

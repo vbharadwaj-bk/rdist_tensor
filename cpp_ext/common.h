@@ -182,3 +182,23 @@ double stop_clock_get_elapsed(my_timer_t &start) {
     std::chrono::duration<double> diff = end - start;
     return diff.count();
 }
+
+/*
+ * This is a bad prefix sum function.
+ */
+void prefix_sum(vector<uint64_t> &values, vector<uint64_t> &offsets) {
+    uint64_t sum = 0;
+    for(uint64_t i = 0; i < values.size(); i++) {
+        offsets.push_back(sum);
+        sum += values[i];
+    }
+}
+
+template<typename T>
+void prefix_sum_ptr(T * values, T * offsets, uint64_t size) {
+    T sum = 0;
+    for(uint64_t i = 0; i < size; i++) {
+        sum += values[i];
+        offsets[i] = sum;
+    }
+}

@@ -14,17 +14,6 @@ using namespace std;
 namespace py = pybind11;
 
 /*
- * This is a bad prefix sum function.
- */
-void prefix_sum(vector<uint64_t> &values, vector<uint64_t> &offsets) {
-    uint64_t sum = 0;
-    for(uint64_t i = 0; i < values.size(); i++) {
-        offsets.push_back(sum);
-        sum += values[i];
-    }
-}
-
-/*
  * Note: sendcounts could be computed from 
  * processor_assignments, but we require precomputation
  * for efficiency. 

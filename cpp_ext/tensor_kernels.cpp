@@ -5,6 +5,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <cmath>
 #include "common.h"
 
 using namespace std;
@@ -171,12 +172,63 @@ void spmm(
     sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
 }
 
+void inflate_samples_multiply(
+    py::array_t<uint64_t> samples_py,
+    py::array_t<uint64_t> counts_py,
+    py::array_t<double> probs_py,
+    py::array_t<double> rows_py,
+    py::array_t<uint64_t> inflated_samples_py,
+    py::array_t<double> weight_prods_py,
+    py::array_t<double> lhs_buffer_py,
+    py::array_t<int64_t> permutation_py
+) {
+    NumpyArray<uint64_t> samples(samples_py);
+    NumpyArray<uint64_t> counts(counts_py);
+    NumpyArray<double> probs(probs_py);
+    NumpyArray<double> rows(rows_py);
+    NumpyArray<uint64_t> inflated_samples(inflated_samples_py);
+    NumpyArray<double> weight_prods(weight_prods_py);
+    NumpyArray<double> lhs_buffer(lhs_buffer_py);
+    NumpyArray<int64_t> permutation(permutation_py);
+
+    uint64_t num_unique_samples = samples.info.shape[0];
+    vector<uint64_t> sample_offets(0, num_unique_samples + 1); 
+    prefix_sum_ptr(counts.ptr, sample_offsets.data(), num_unique_samples);
+
+    uint64_t inflated_sample_count = inflated_samples.info.shape[0];
+    uint64_t r = lhs_buffer.info.shape[1];
+
+    sample_offsets[num_unique_samples] =  
+        sample_offsets[num_unique_samples - 1]
+        + counts.ptr[num_unique_samples - 1];
+
+    assert(inflated_sample_count == sample_offsets[num_unique_samples]);
+
+    vector<uint64_t> sample_ids(0, inflated_sample_count); 
+
+    for(uint64_t i = 0; i < num_unique_samples; i++) {
+        for(uint64_t j = sample_offsets[i]; j < sample_offsets[i+1]; j++) {
+            sample_ids[permutation.ptr[j]] = i;
+            inflated_samples[permutation.ptr[j]] = samples.ptr[i];
+            weight_prods[permutation.ptr[j]] -= 0.5 * log(probs.ptr[i]);
+        }
+    }
+
+    for(uint64_t i = 0; i < inflated_sample_count; i++) {
+        double* base_ptr = lhs_buffer.ptr + i * r;
+        double* row_ptr = rows.ptr[sample_ids[i] * r];
+        for(int j = 0; j < r; j++) {
+            base_ptr[j] *= row_ptr[j];
+        }
+    }
+}
 
 PYBIND11_MODULE(tensor_kernels, m) {
     m.def("sp_mttkrp", &sp_mttkrp);
     m.def("sampled_mttkrp", &sampled_mttkrp);
     m.def("spmm", &spmm);
     m.def("compute_tensor_values", &compute_tensor_values);
+    m.def("inflate_samples_multiply", &inflate_samples_multiply);
 }
 
 /*

@@ -45,6 +45,7 @@ if __name__=='__main__':
     # List of optimizers
     from tensor_stationary_opt0 import TensorStationaryOpt0
     from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
+    from accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exact_als import ExactALS
 
     # Let every process have a different random
@@ -76,7 +77,7 @@ if __name__=='__main__':
         optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
     elif args.optimizer == 'accumulator_stationary':
         assert(args.samples is not None and args.samples >= 0)
-        optimizer = AccumulatorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
+        optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, args.samples)
     else:
         print(f"Error, invalid optimizer specified: '{args.op}'")
         exit(1) 

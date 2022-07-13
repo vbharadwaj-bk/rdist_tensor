@@ -6,6 +6,7 @@
 #include <vector>
 #include <chrono>
 #include <cmath>
+#include <cassert>
 #include "common.h"
 
 using namespace std;
@@ -173,8 +174,8 @@ void spmm(
 }
 
 void inflate_samples_multiply(
-    py::array_t<uint64_t> samples_py,
-    py::array_t<uint64_t> counts_py,
+    py::array_t<int64_t> samples_py,
+    py::array_t<int64_t> counts_py,
     py::array_t<double> probs_py,
     py::array_t<double> rows_py,
     py::array_t<uint64_t> inflated_samples_py,
@@ -182,8 +183,8 @@ void inflate_samples_multiply(
     py::array_t<double> lhs_buffer_py,
     py::array_t<int64_t> permutation_py
 ) {
-    NumpyArray<uint64_t> samples(samples_py);
-    NumpyArray<uint64_t> counts(counts_py);
+    NumpyArray<int64_t> samples(samples_py);
+    NumpyArray<int64_t> counts(counts_py);
     NumpyArray<double> probs(probs_py);
     NumpyArray<double> rows(rows_py);
     NumpyArray<uint64_t> inflated_samples(inflated_samples_py);
@@ -192,8 +193,8 @@ void inflate_samples_multiply(
     NumpyArray<int64_t> permutation(permutation_py);
 
     uint64_t num_unique_samples = samples.info.shape[0];
-    vector<uint64_t> sample_offets(0, num_unique_samples + 1); 
-    prefix_sum_ptr(counts.ptr, sample_offsets.data(), num_unique_samples);
+    vector<int64_t> sample_offsets(num_unique_samples + 1, 0); 
+    prefix_sum_ptr(counts.ptr, sample_offsets.data(), num_unique_samples); 
 
     uint64_t inflated_sample_count = inflated_samples.info.shape[0];
     uint64_t r = lhs_buffer.info.shape[1];
@@ -202,22 +203,24 @@ void inflate_samples_multiply(
         sample_offsets[num_unique_samples - 1]
         + counts.ptr[num_unique_samples - 1];
 
+
     assert(inflated_sample_count == sample_offsets[num_unique_samples]);
 
-    vector<uint64_t> sample_ids(0, inflated_sample_count); 
-
+    vector<uint64_t> sample_ids(inflated_sample_count, 0); 
+    int64_t* ptr = sample_offsets.data();
+    //cout << ptr << endl;
     for(uint64_t i = 0; i < num_unique_samples; i++) {
-        for(uint64_t j = sample_offsets[i]; j < sample_offsets[i+1]; j++) {
-            sample_ids[permutation.ptr[j]] = i;
-            inflated_samples[permutation.ptr[j]] = samples.ptr[i];
-            weight_prods[permutation.ptr[j]] -= 0.5 * log(probs.ptr[i]);
+        for(int64_t j = ptr[i]; j < ptr[i+1]; j++) {
+            int64_t perm_loc = permutation.ptr[j];
+            sample_ids[perm_loc] = i;
+            inflated_samples.ptr[perm_loc] = samples.ptr[i];
+            weight_prods.ptr[perm_loc] -= 0.5 * log(probs.ptr[i]);
         }
     }
-
     for(uint64_t i = 0; i < inflated_sample_count; i++) {
         double* base_ptr = lhs_buffer.ptr + i * r;
-        double* row_ptr = rows.ptr[sample_ids[i] * r];
-        for(int j = 0; j < r; j++) {
+        double* row_ptr = rows.ptr + sample_ids[i] * r;
+        for(uint64_t j = 0; j < r; j++) {
             base_ptr[j] *= row_ptr[j];
         }
     }
@@ -234,7 +237,7 @@ PYBIND11_MODULE(tensor_kernels, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-fopenmp']
-cfg['extra_link_args'] = ['-openmp']
+cfg['extra_compile_args'] = ['-fopenmp', '-g']
+cfg['extra_link_args'] = ['-openmp', '-g']
 %>
 */

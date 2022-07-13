@@ -91,7 +91,7 @@ def get_samples_distributed_compressed(world, row_probs, dist_sample_count):
 		#sample_idxs = rng.choice(row_range, p=row_probs / local_weight, size=local_sample_count) 
 		#sample_probs = row_probs[sample_idxs]
 		sample_multinomial_draw = rng.multinomial(local_sample_count, row_probs)
-		sample_idxs = np.nonzero(sample_multinomial_draw)
+		sample_idxs = np.nonzero(sample_multinomial_draw)[0]
 		sample_counts = sample_multinomial_draw[sample_idxs]
 		sample_probs = row_probs[sample_idxs]
 

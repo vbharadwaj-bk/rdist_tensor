@@ -198,7 +198,8 @@ template<typename T>
 void prefix_sum_ptr(T * values, T * offsets, uint64_t size) {
     T sum = 0;
     for(uint64_t i = 0; i < size; i++) {
-        sum += values[i];
+        T val = values[i];
         offsets[i] = sum;
+        sum += val; 
     }
 }

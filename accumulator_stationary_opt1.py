@@ -23,18 +23,19 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 	lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
 
 	for i in range(len(factors)):
+		#print(f"Starting... {i}")
 		if i == mode_to_leave:
 			continue
 
 		factor = factors[i]
 		base_idx = factor.row_position * factor.local_rows_padded
 
-		local_samples, local_counts, local_probs = get_samples_distributed(
+		local_samples, local_counts, local_probs = get_samples_distributed_compressed(
 				grid.comm,
 				factors[i].leverage_scores,
 				dist_sample_count)
 
-		sampled_rows = factors[i].data[local_samples]	
+		sampled_rows = factors[i].data[local_samples]
 
 		start = start_clock() 
 		all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UINT64_T)
@@ -52,17 +53,17 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
-		seed = broadcast_common_seed(grid.comm)
-		rng = default_rng(seed=seed)
+		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
 
-		inflated_samples = np.zeros(dist_sample_count, dtype=np.double)
+		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint64)
+
 		tensor_kernels.inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
 				inflated_samples, weight_prods, lhs_buffer,
 				perm
 				)
-
+	
 		samples.append(inflated_samples)
 		#weight_prods -= 0.5 * np.log(all_probs) 
 		#lhs_buffer *= all_rows

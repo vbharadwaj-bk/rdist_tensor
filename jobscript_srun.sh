@@ -9,9 +9,9 @@ export OMP_NUM_THREADS=1
 
 TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -n 64 python decompose_sparse.py -i $TENSOR  \
-	-g "4,1,4,4" -t 25 -iter 10 \
-	-o $OUTPUT -op "exact" # -s 131000 
+srun -N 1 -n 2 python decompose_sparse.py -i $TENSOR  \
+	-g "2,1,1,1" -t 25 -iter 20 \
+	-o $OUTPUT -op "accumulator_stationary" -s 131000 
 
 #TENSOR=$SCRATCH/tensors/nell-1.tns_converted.hdf5
 #OUTPUT="data/nell-1.out"

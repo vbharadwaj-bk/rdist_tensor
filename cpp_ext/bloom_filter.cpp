@@ -260,7 +260,7 @@ PYBIND11_MODULE(bloom_filter, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-fopenmp']
-cfg['extra_link_args'] = ['-openmp']
+cfg['extra_compile_args'] = ['-fopenmp', '-O3']
+cfg['extra_link_args'] = ['-openmp', '-O3']
 %>
 */

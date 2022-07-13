@@ -35,6 +35,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 				factors[i].leverage_scores,
 				dist_sample_count)
 
+		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint64)
 		sampled_rows = factors[i].data[local_samples]
 
 		start = start_clock() 
@@ -48,25 +49,21 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 		start = start_clock() 
 		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
 
-		MPI.COMM_WORLD.Barrier()
-		stop_clock_and_add(start, timers, "LHS Assembly")
-
 		# All processors apply a consistent random
 		# permutation to everything they receive 
 		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
-
-		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint64)
 
 		tensor_kernels.inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
 				inflated_samples, weight_prods, lhs_buffer,
 				perm
 				)
-	
+
 		samples.append(inflated_samples)
-		#weight_prods -= 0.5 * np.log(all_probs) 
-		#lhs_buffer *= all_rows
+
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, timers, "LHS Assembly")
 
 	return samples, np.exp(weight_prods), lhs_buffer	
 

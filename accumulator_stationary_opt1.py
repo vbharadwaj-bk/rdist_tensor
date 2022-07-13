@@ -23,7 +23,6 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 	lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
 
 	for i in range(len(factors)):
-		#print(f"Starting... {i}")
 		if i == mode_to_leave:
 			continue
 

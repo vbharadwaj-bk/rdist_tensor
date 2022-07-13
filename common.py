@@ -84,7 +84,7 @@ def allgatherv(world, local_buffer, mpi_dtype):
 		sendcounts *= cols
 		offsets *= cols 
 
-	recv_buffer = np.zeros(shape, dtype=local_buffer.dtype)
+	recv_buffer = np.empty(shape, dtype=local_buffer.dtype)
 	world.Allgatherv([local_buffer, mpi_dtype], 
 		[recv_buffer, sendcounts, offsets, mpi_dtype]	
 		)

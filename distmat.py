@@ -5,6 +5,7 @@ import numpy.linalg as la
 from grid import Grid
 from local_kernels import *
 from common import *
+from sampling import *
 
 import mpi4py
 from mpi4py import MPI
@@ -107,6 +108,16 @@ class DistMat1D:
         #    buffer_data = buffer_data[:truncated_rowct] 
         #self.gathered_factor = buffer_data
 
+    def write_factor_to_file(self, hdf5_file, factor_name):
+        # TODO: Undo the permutation used for load-balancing here! For now, we will 
+        # write the padded factor to memory
+        dset = hdf5_file.create_dataset(factor_name, (self.padded_rows, self.cols), dtype='f8')
+
+        start = self.local_rows_padded * self.row_position
+        end = self.local_rows_padded * (self.row_position + cl(1))
+
+        dset[start:end, :] = self.data
+
     #=================================================================
     # METHODS RELATED TO SKETCHING 
     #=================================================================
@@ -137,12 +148,29 @@ class DistMat1D:
         self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
                 [self.gathered_leverage, MPI.DOUBLE])
 
-    def write_factor_to_file(self, hdf5_file, factor_name):
-        # TODO: Undo the permutation used for load-balancing here! For now, we will 
-        # write the padded factor to memory
-        dset = hdf5_file.create_dataset(factor_name, (self.padded_rows, self.cols), dtype='f8')
+    def sample_and_gather_rows(self, local_probs, world, num_modes, mode_to_leave):
+        assert(num_modes >= 1)
+        self.gathered_samples = []
+        base_idx = self.row_position * self.local_rows_padded       
 
-        start = self.local_rows_padded * self.row_position
-        end = self.local_rows_padded * (self.row_position + cl(1))
+        # TODO: Should probably reuse these buffers!
+        self.gathered_samples = []
 
-        dset[start:end, :] = self.data
+        for i in range(num_modes):
+            if (mode_to_leave is not None) and i == mode_to_leave:
+                self.gathered_samples.append(None)
+
+            else:
+				local_samples, local_counts, local_probs = get_samples_distributed_compressed(
+						self.grid.comm,
+						factor.leverage_scores,
+						self.sample_count)
+
+				sampled_rows = factor.data[local_samples]
+
+				all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UINT64_T)
+				all_counts = allgatherv(grid.comm, local_counts, MPI.UINT64_T)
+				all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
+
+                all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+                self.gathered_samples.append((all_samples, all_counts, all_porbs, all_rows))

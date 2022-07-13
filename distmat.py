@@ -148,10 +148,26 @@ class DistMat1D:
         self.grid.slices[slice_dim].Allgather([self.leverage_scores, MPI.DOUBLE], 
                 [self.gathered_leverage, MPI.DOUBLE])
 
-    def sample_and_gather_rows(self, local_probs, world, num_modes, mode_to_leave):
+    def sample_and_gather_singlemode(self, local_probs, world, sample_count):
+        grid = self.grid
+        base_idx = self.row_position * self.local_rows_padded 
+        local_samples, local_counts, local_probs = get_samples_distributed_compressed(
+                self.grid.comm,
+                local_probs,
+                sample_count)
+
+        # TODO: We can potentially eliminate duplicates here!
+        sampled_rows = self.data[local_samples]
+
+        all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UINT64_T)
+        all_counts = allgatherv(grid.comm, local_counts, MPI.UINT64_T)
+        all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
+        all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+
+        return all_samples, all_counts, all_probs, all_rows 
+
+    def sample_and_gather_rows(self, local_probs, world, num_modes, mode_to_leave, sample_count):
         assert(num_modes >= 1)
-        self.gathered_samples = []
-        base_idx = self.row_position * self.local_rows_padded       
 
         # TODO: Should probably reuse these buffers!
         self.gathered_samples = []
@@ -159,18 +175,5 @@ class DistMat1D:
         for i in range(num_modes):
             if (mode_to_leave is not None) and i == mode_to_leave:
                 self.gathered_samples.append(None)
-
             else:
-				local_samples, local_counts, local_probs = get_samples_distributed_compressed(
-						self.grid.comm,
-						factor.leverage_scores,
-						self.sample_count)
-
-				sampled_rows = factor.data[local_samples]
-
-				all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UINT64_T)
-				all_counts = allgatherv(grid.comm, local_counts, MPI.UINT64_T)
-				all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
-
-                all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
-                self.gathered_samples.append((all_samples, all_counts, all_porbs, all_rows))
+                self.gathered_samples.append(self.sample_and_gather_singlemode(local_probs, world, sample_count))

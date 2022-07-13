@@ -11,7 +11,7 @@ import cppimport.import_hook
 import cpp_ext.tensor_kernels as tensor_kernels 
 import cpp_ext.filter_nonzeros as nz_filter 
 
-def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
+def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, reuse_samples):
 	'''
 	With this approach, we gather fresh samples for every
 	tensor mode. 
@@ -27,30 +27,13 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 			continue
 
 		factor = factors[i]
-		#base_idx = factor.row_position * factor.local_rows_padded
-
-		#local_samples, local_counts, local_probs = get_samples_distributed_compressed(
-		#		grid.comm,
-		#		factors[i].leverage_scores,
-		#		dist_sample_count)
-
-		#sampled_rows = factors[i].data[local_samples]
-
 		
-
-		#start = start_clock() 
-		#all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UINT64_T)
-		#all_counts = allgatherv(grid.comm, local_counts, MPI.UINT64_T)
-		#all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
-
-		all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
-
-		#MPI.COMM_WORLD.Barrier()
-		#stop_clock_and_add(start, timers, "Sample Allgather")
+		if reuse_samples:
+			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[0]
+		else:
+			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
 
 		start = start_clock() 
-		#all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
-
 		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint64)
 
 		# All processors apply a consistent random
@@ -72,22 +55,31 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 	return samples, np.exp(weight_prods), lhs_buffer	
 
 class AccumulatorStationaryOpt1(AlternatingOptimizer):
-	def __init__(self, ten_to_optimize, ground_truth, sample_count):
+	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=True):
 		super().__init__(ten_to_optimize, ground_truth)
 		self.sample_count = sample_count
+		self.reuse_samples = reuse_samples
 		self.info['Sample Count'] = self.sample_count
 		self.info["Algorithm Name"] = "Accumulator Stationary Opt1"	
 		self.info["Nonzeros Sampled Per Round"] = []
+		self.info["Samples Reused Between Rounds"] = self.reuse_samples 
 
 	def initial_setup(self):
-		# Initial allgather of tensor factors
+		'''
+		TODO: Need to time these functions.
+		'''
 		ten = self.ten_to_optimize
 		for mode in range(ten.dim):
 			factor = ten.factors[mode]	
 			factor.compute_gram_matrix()
 			factor.compute_leverage_scores()
-			factor.sample_and_gather_rows(factor.leverage_scores, None, self.dim, mode)
 
+			if self.reuse_samples:
+				factor.sample_and_gather_rows(factor.leverage_scores, None, 
+						1, None, self.sample_count)
+			else:
+				factor.sample_and_gather_rows(factor.leverage_scores, None, 
+						self.dim, mode, self.sample_count)
 
 	# Computes a distributed MTTKRP of all but one of this 
 	# class's factors with a given dense tensor. Also performs 
@@ -115,10 +107,9 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, mode_to_leave, grid, self.timers)
+		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, 
+				mode_to_leave, grid, self.timers, self.reuse_samples)
 
-		# Should probably offload this to distmat.py file;
-		# only have to do this once
 		recv_idx, recv_values = [], []
 
 		# This is an expensive operation, but we can optimize it away later
@@ -192,6 +183,12 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		factor.gathered_samples = []
 
 		start = start_clock() 
-		factor.sample_and_gather_rows(factor.leverage_scores, None, self.dim, mode_to_leave)
+		if self.reuse_samples:
+			factor.sample_and_gather_rows(factor.leverage_scores, None, 1, 
+				None, self.sample_count)
+		else:
+			factor.sample_and_gather_rows(factor.leverage_scores, None, self.dim, 
+				mode_to_leave, self.sample_count)
+	
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Sample Allgather")

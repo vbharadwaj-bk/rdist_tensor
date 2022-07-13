@@ -36,23 +36,15 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 
 		sampled_rows = factors[i].data[local_samples]	
 
-		#all_samples = local_samples 
-		#all_probs = local_probs
-		#all_rows = sampled_rows
-
 		start = start_clock() 
 		all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UNSIGNED_LONG_LONG)
 		all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
-
+		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
 		MPI.COMM_WORLD.Barrier()
+
 		stop_clock_and_add(start, timers, "Sample Allgather")
 
 		start = start_clock() 
-		all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
-
-		MPI.COMM_WORLD.Barrier()
-		stop_clock_and_add(start, timers, "LHS Assembly")
-
 		# All processors apply a consistent random
 		# permutation to everything they receive 
 		seed = broadcast_common_seed(grid.comm)
@@ -63,6 +55,8 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 		samples.append(all_samples)
 		weight_prods -= 0.5 * np.log(all_probs) 
 		lhs_buffer *= all_rows
+
+		stop_clock_and_add(start, timers, "LHS Assembly")
 
 	return samples, np.exp(weight_prods), lhs_buffer	
 

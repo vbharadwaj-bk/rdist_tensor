@@ -67,7 +67,6 @@ if __name__=='__main__':
     #ten_to_optimize.initialize_factors_gaussian() 
     #ten_to_optimize.initialize_factors_rrf(ground_truth, 200000) 
 
-
     optimizer = None
     if args.optimizer == 'exact':
         assert(args.samples is None)
@@ -77,7 +76,7 @@ if __name__=='__main__':
         optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
     elif args.optimizer == 'accumulator_stationary':
         assert(args.samples is not None and args.samples >= 0)
-        optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, args.samples)
+        optimizer = AccumulatorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
     else:
         print(f"Error, invalid optimizer specified: '{args.op}'")
         exit(1) 

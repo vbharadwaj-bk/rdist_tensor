@@ -121,6 +121,10 @@ class DistSparseTensor:
 
         self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.01)
 
+        # TODO: This takes up a lot of extra space! Should amortize away 
+        self.offset_idxs = [self.tensor_idxs[j] 
+            + self.offsets[j] for j in range(self.dim)]
+
     def mttkrp(self, factors, mode):
         '''
         For convenience, factors is sized equal to the dimension of the

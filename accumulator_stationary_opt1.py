@@ -33,11 +33,12 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		else:
 			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
 
-		start = start_clock() 
 		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint64)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
+		start = start_clock() 
+
 		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
 
@@ -112,13 +113,9 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		recv_idx, recv_values = [], []
 
-		# This is an expensive operation, but we can optimize it away later
-		offset_idxs = [self.ground_truth.tensor_idxs[j] 
-				+ self.ground_truth.offsets[j] for j in range(self.dim)]
-
 		start = start_clock() 
 		nz_filter.sample_nonzeros_redistribute(
-			offset_idxs, 
+			self.ground_truth.offset_idxs, 
 			self.ground_truth.values, 
 			sample_idxs,
 			weights,

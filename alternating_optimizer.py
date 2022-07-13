@@ -22,7 +22,6 @@ class AlternatingOptimizer:
 		# methods 
 		self.timers = {
 						"Gram Matrix Computation": 0.0,
-						"Leverage Score	Computation": 0.0,
 						"Slice All-gather":	0.0,
 						"MTTKRP": 0.0,
 						"Slice Reduce-Scatter":	0.0,

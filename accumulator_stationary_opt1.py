@@ -53,8 +53,6 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 				perm
 				)
 
-		print(inflated_samples.dtype)
-
 		samples.append(inflated_samples)
 
 		MPI.COMM_WORLD.Barrier()

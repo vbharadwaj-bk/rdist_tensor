@@ -220,6 +220,7 @@ void sample_nonzeros_redistribute(
       }
 }
 
+
 PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse>(m, "COOSparse") 
     .def("print_contents", &COOSparse::print_contents);
@@ -227,6 +228,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   m.def("sample_nonzeros", &sample_nonzeros);
   m.def("sample_nonzeros_redistribute", &sample_nonzeros_redistribute);
 }
+
 
 /*
 <%

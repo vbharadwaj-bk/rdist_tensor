@@ -16,10 +16,11 @@ namespace py = pybind11;
 /*
  * Count up the nonzeros in preparation to allocate receive buffers.  
  */
+template<typename IDX_T, typename VAL_T>
 void redistribute_nonzeros(
         py::array_t<uint64_t> intervals_py, 
         py::list coords_py,
-        py::array_t<double> values_py,
+        py::array_t<VAL_T> values_py,
         uint64_t proc_count, 
         py::array_t<int> prefix_mult_py,
         py::list recv_idx_py,
@@ -29,8 +30,8 @@ void redistribute_nonzeros(
 
     // Unpack the parameters 
     NumpyArray<uint64_t> intervals(intervals_py); 
-    NumpyList<uint64_t> coords(coords_py); 
-    NumpyArray<double> values(values_py); 
+    NumpyList<IDX_T> coords(coords_py); 
+    NumpyArray<VAL_T> values(values_py); 
     NumpyArray<int> prefix_mult(prefix_mult_py);
 
     uint64_t nnz = coords.infos[0].shape[0];
@@ -64,9 +65,9 @@ void redistribute_nonzeros(
     );
 }
 
-
 PYBIND11_MODULE(redistribute_tensor, m) {
-    m.def("redistribute_nonzeros", &redistribute_nonzeros);
+    m.def("redistribute_nonzeros_u32_double", &redistribute_nonzeros<uint32_t, double>);
+    m.def("redistribute_nonzeros_u64_double", &redistribute_nonzeros<uint64_t, double>);
 }
 
 /*

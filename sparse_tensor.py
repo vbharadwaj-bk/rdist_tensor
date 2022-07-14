@@ -25,6 +25,10 @@ class DistSparseTensor:
     def __init__(self, tensor_file, preprocessing=None):
         self.type = "SPARSE_TENSOR"
 
+        # TODO: These should be readable from the tensor! 
+        self.idx_dtype=np.uint64
+        self.val_dtype=np.double
+
         f = h5py.File(tensor_file, 'r')
         world_comm = MPI.COMM_WORLD
         self.world_size = world_comm.Get_size()
@@ -47,6 +51,10 @@ class DistSparseTensor:
         for i in range(self.dim):
             self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
 
+        # TODO: Need to remove this downcast!  
+        #for i in range(self.dim):
+        #    self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
+
         self.values = f['VALUES'][start_nnz:end_nnz]
 
         if preprocessing is not None:
@@ -55,7 +63,6 @@ class DistSparseTensor:
             else:
                 print(f"Unknown preprocessing option '{preprocessing}' specified!")
                 exit(1)
-
 
         local_norm = la.norm(self.values) ** 2
         result = np.zeros(1, dtype=np.double)
@@ -94,7 +101,9 @@ class DistSparseTensor:
         recv_buffers = []
         recv_values = []
 
-        rd.redistribute_nonzeros(tensor_grid.intervals, \
+        redistribute_nonzeros = get_templated_function(rd, "redistribute_nonzeros", 
+                [self.idx_dtype, self.val_dtype])
+        redistribute_nonzeros(tensor_grid.intervals, \
             self.tensor_idxs, \
             self.values, \
             grid.world_size, \

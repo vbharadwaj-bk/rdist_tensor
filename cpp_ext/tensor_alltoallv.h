@@ -33,14 +33,7 @@ void tensor_alltoallv(
         ) {
 
     MPI_Datatype MPI_IDX_T, MPI_VAL_T;
-    if(std::is_same<IDX_T, uint32_t>::value)
-        MPI_IDX_T = MPI_UINT32_T;
-    else 
-        MPI_IDX_T = MPI_UINT64_T;
-    if(std::is_same<IDX_T, float>::value) 
-        MPI_VAL_T = MPI_FLOAT;
-    else 
-        MPI_VAL_T = MPI_DOUBLE;
+    DEFINE_MPI_DATATYPES();
 
     vector<uint64_t> recv_counts(proc_count, 0);
 

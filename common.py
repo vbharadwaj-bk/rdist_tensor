@@ -90,3 +90,15 @@ def allgatherv(world, local_buffer, mpi_dtype):
 		)
 
 	return recv_buffer
+
+type_map = {
+	np.uint32: "u32",
+	np.uint64: "u64",
+	np.float: "float",
+	np.double: "double"
+} 
+
+def get_templated_function(mod, basename, dtypes):
+	dtypes_joined = '_'.join([type_map[el] for el in dtypes])
+	fname = f'{basename}_{dtypes_joined}'
+	return getattr(mod, fname) 

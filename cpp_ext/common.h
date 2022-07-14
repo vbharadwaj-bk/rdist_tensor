@@ -24,6 +24,17 @@
 using namespace std;
 namespace py = pybind11;
 
+#define DEFINE_MPI_DATATYPES() ({\
+    if(std::is_same<IDX_T, uint32_t>::value)\
+        MPI_IDX_T = MPI_UINT32_T;\
+    else\
+        MPI_IDX_T = MPI_UINT64_T;\
+    if(std::is_same<IDX_T, float>::value)\
+        MPI_VAL_T = MPI_FLOAT;\
+    else\
+        MPI_VAL_T = MPI_DOUBLE;\
+})
+
 #pragma GCC visibility push(hidden)
 template<typename T>
 class NumpyArray {
@@ -169,7 +180,6 @@ uint64_t murmurhash2( const void * key, int len, uint64_t seed )
 
   return h;
 } 
-
 
 typedef chrono::time_point<std::chrono::steady_clock> my_timer_t; 
 

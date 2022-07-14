@@ -27,13 +27,16 @@ namespace py = pybind11;
 /*
  * Assumptions that this function makes:
  * 
- * This function builds and returns a sparse matrix 
+ * This function builds and returns a sparse matrix.
+ * 
+ * Warning: This function is currently not OpenMP compatible! 
  */
 COOSparse sample_nonzeros(py::list &idxs_py, 
       py::array_t<double> &values_py, 
       py::list &sample_idxs_py,
       py::array_t<double> &weights_py,
       int mode_to_leave) {
+
     COOSparse gathered;
     NumpyList<uint64_t> idxs(idxs_py); 
     NumpyArray<double> values(values_py); 
@@ -142,12 +145,9 @@ COOSparse sample_nonzeros(py::list &idxs_py,
         hash = (hash + 1) % hashtbl_size;
       }
       if(val != -1) {
-        #pragma omp critical
-        {
           gathered.rows.push_back(val);
           gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
           gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
-        }
       }
     }
     } 
@@ -166,7 +166,6 @@ void sample_nonzeros_redistribute(
       py::list recv_values_py,
       py::function allocate_recv_buffers 
       ) {
-
       COOSparse gathered = 
         sample_nonzeros(
           idxs_py, 
@@ -198,6 +197,7 @@ void sample_nonzeros_redistribute(
           send_counts[processor]++;
       }
 
+      auto start = start_clock();
       tensor_alltoallv(
           2, 
           proc_count, 
@@ -210,6 +210,14 @@ void sample_nonzeros_redistribute(
           recv_values_py, 
           allocate_recv_buffers 
           );
+      double elapsed = stop_clock_get_elapsed(start);
+
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+      if(rank == 0) {
+        cout << elapsed << endl;
+      }
 }
 
 PYBIND11_MODULE(filter_nonzeros, m) {

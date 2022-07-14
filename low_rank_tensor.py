@@ -77,7 +77,11 @@ class DistLowRank:
         '''
         result = np.zeros(len(idxs[0]), dtype=np.double)
         gathered_matrices, _ = self.allgather_factors([True] * self.dim)
-        tensor_kernels.compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, result)
+
+        compute_tensor_values = get_templated_function(tensor_kernels, 
+                "compute_tensor_values", 
+                [np.uint32])
+        compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, result)
         return result
 
     def norm(self):

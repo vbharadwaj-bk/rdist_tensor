@@ -42,7 +42,12 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
 
-		tensor_kernels.inflate_samples_multiply(
+
+		inflate_samples_multiply = get_templated_function(tensor_kernels, 
+                "inflate_samples_multiply", 
+                [np.uint32])
+
+		inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
 				inflated_samples, weight_prods, lhs_buffer,
 				perm
@@ -113,6 +118,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		recv_idx, recv_values = [], []
 
+		spmm = get_templated_function(nz_filter, 
+                "sample_nonzeros_redistribute", 
+                [np.uint32, np.double])
+
 		start = start_clock() 
 		nz_filter.sample_nonzeros_redistribute(
 			self.ground_truth.offset_idxs, 
@@ -146,8 +155,13 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock()
 		result_buffer = np.zeros_like(factor.data)
-	
-		tensor_kernels.spmm(
+
+
+		spmm = get_templated_function(tensor_kernels, 
+                "spmm", 
+                [np.uint32, np.double])
+
+		spmm(
 			lhs_buffer,
 			recv_idx[0],
 			recv_idx[1],

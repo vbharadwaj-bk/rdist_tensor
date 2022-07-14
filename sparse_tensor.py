@@ -25,10 +25,6 @@ class DistSparseTensor:
     def __init__(self, tensor_file, preprocessing=None):
         self.type = "SPARSE_TENSOR"
 
-        # TODO: These should be readable from the tensor! 
-        self.idx_dtype=np.uint64
-        self.val_dtype=np.double
-
         f = h5py.File(tensor_file, 'r')
         world_comm = MPI.COMM_WORLD
         self.world_size = world_comm.Get_size()
@@ -51,9 +47,11 @@ class DistSparseTensor:
         for i in range(self.dim):
             self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
 
-        # TODO: Need to remove this downcast!  
-        #for i in range(self.dim):
-        #    self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
+        # TODO: Need to remove this downcast! 
+        # ============================================================== 
+        for i in range(self.dim):
+            self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
+        # ============================================================== 
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 
@@ -70,6 +68,10 @@ class DistSparseTensor:
         self.tensor_norm = np.sqrt(result.item())
 
         self.offsets = np.zeros(self.dim, dtype=np.uint64)
+
+        # TODO: THESE ARE FORCED, REMOVE THEM!
+        self.idx_dtype=np.uint32
+        self.val_dtype=np.double
 
     def random_permute(self):
         '''

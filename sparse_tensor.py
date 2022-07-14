@@ -130,7 +130,8 @@ class DistSparseTensor:
             self.offsets[j] = self.tensor_grid.start_coords[j][grid.coords[j]]
             self.tensor_idxs[j] -= self.offsets[j] 
 
-        self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.01)
+        # TODO: Need to add the index filter back in!
+        #self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.01)
 
         # TODO: This takes up a lot of extra space! Should amortize away 
         self.offset_idxs = [self.tensor_idxs[j] 

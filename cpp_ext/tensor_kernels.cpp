@@ -68,6 +68,7 @@ void sp_mttkrp(
     } 
 }
 
+template<typename IDX_T>
 void compute_tensor_values(
         py::list factors_py,
         py::array_t<double> singular_values_py,
@@ -75,7 +76,7 @@ void compute_tensor_values(
         py::array_t<double> result_py) {
     NumpyList<double> factors(factors_py);
     NumpyArray<double> singular_values(singular_values_py);
-    NumpyList<uint64_t> idxs(idxs_py);
+    NumpyList<IDX_T> idxs(idxs_py);
     NumpyArray<double> result(result_py);
 
     uint64_t nnz = idxs.infos[0].shape[0];
@@ -147,23 +148,24 @@ void sampled_mttkrp(
     sampled_rhs.cpu_spmm(lhs.ptr, result_ptr, r);
 }
 
+template<typename IDX_T, typename VAL_T>
 void spmm(
         py::array_t<double> lhs_py,
-        py::array_t<uint64_t> rhs_rows_py,
-        py::array_t<uint64_t> rhs_cols_py,
-        py::array_t<double> rhs_values_py,
+        py::array_t<IDX_T> rhs_rows_py,
+        py::array_t<IDX_T> rhs_cols_py,
+        py::array_t<VAL_T> rhs_values_py,
         py::array_t<double> result_py
         ) {
 
     NumpyArray<double> lhs(lhs_py);
-    NumpyArray<uint64_t> rhs_rows(rhs_rows_py);
-    NumpyArray<uint64_t> rhs_cols(rhs_cols_py);
-    NumpyArray<double> rhs_values(rhs_values_py);
+    NumpyArray<IDX_T> rhs_rows(rhs_rows_py);
+    NumpyArray<IDX_T> rhs_cols(rhs_cols_py);
+    NumpyArray<VAL_T> rhs_values(rhs_values_py);
     NumpyArray<double> result(result_py);
     int r = result.info.shape[1];
     uint64_t nnz = rhs_rows.info.shape[0];
 
-    COOSparse sampled_rhs_wrapped;
+    COOSparse<IDX_T, VAL_T> sampled_rhs_wrapped;
 
     // TODO: This next step could be way more efficient...
     // but I just want to finish this... 
@@ -173,21 +175,22 @@ void spmm(
     sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
 }
 
+template<typename IDX_T>
 void inflate_samples_multiply(
-    py::array_t<int64_t> samples_py,
+    py::array_t<IDX_T> samples_py,
     py::array_t<int64_t> counts_py,
     py::array_t<double> probs_py,
     py::array_t<double> rows_py,
-    py::array_t<uint64_t> inflated_samples_py,
+    py::array_t<IDX_T> inflated_samples_py,
     py::array_t<double> weight_prods_py,
     py::array_t<double> lhs_buffer_py,
     py::array_t<int64_t> permutation_py
 ) {
-    NumpyArray<int64_t> samples(samples_py);
+    NumpyArray<IDX_T> samples(samples_py);
     NumpyArray<int64_t> counts(counts_py);
     NumpyArray<double> probs(probs_py);
     NumpyArray<double> rows(rows_py);
-    NumpyArray<uint64_t> inflated_samples(inflated_samples_py);
+    NumpyArray<IDX_T> inflated_samples(inflated_samples_py);
     NumpyArray<double> weight_prods(weight_prods_py);
     NumpyArray<double> lhs_buffer(lhs_buffer_py);
     NumpyArray<int64_t> permutation(permutation_py);
@@ -202,7 +205,6 @@ void inflate_samples_multiply(
     sample_offsets[num_unique_samples] =  
         sample_offsets[num_unique_samples - 1]
         + counts.ptr[num_unique_samples - 1];
-
 
     assert(inflated_sample_count == sample_offsets[num_unique_samples]);
 
@@ -227,11 +229,16 @@ void inflate_samples_multiply(
 }
 
 PYBIND11_MODULE(tensor_kernels, m) {
-    m.def("sp_mttkrp", &sp_mttkrp);
-    m.def("sampled_mttkrp", &sampled_mttkrp);
-    m.def("spmm", &spmm);
-    m.def("compute_tensor_values", &compute_tensor_values);
-    m.def("inflate_samples_multiply", &inflate_samples_multiply);
+    //m.def("sp_mttkrp", &sp_mttkrp);
+    //m.def("sampled_mttkrp", &sampled_mttkrp);
+    m.def("spmm_u32_double", &spmm<uint32_t, double>);
+    m.def("spmm_u64_double", &spmm<uint64_t, double>);
+
+    m.def("compute_tensor_values_u32", &compute_tensor_values<uint32_t>);
+    m.def("compute_tensor_values_u64", &compute_tensor_values<uint64_t>);
+
+    m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
+    m.def("inflate_samples_multiply_u64", &inflate_samples_multiply<uint64_t>);
 }
 
 /*

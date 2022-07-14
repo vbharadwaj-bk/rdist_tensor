@@ -25,22 +25,22 @@ using namespace std;
 namespace py = pybind11;
 
 /*
- * Assumptions that this function makes:
  * 
  * This function builds and returns a sparse matrix.
  * 
- * Warning: This function is currently not OpenMP compatible! 
  */
-COOSparse sample_nonzeros(py::list &idxs_py, 
-      py::array_t<double> &values_py, 
+
+template<typename IDX_T, typename VAL_T>
+COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py, 
+      py::array_t<VAL_T> &values_py, 
       py::list &sample_idxs_py,
       py::array_t<double> &weights_py,
       int mode_to_leave) {
 
     COOSparse gathered;
-    NumpyList<uint64_t> idxs(idxs_py); 
-    NumpyArray<double> values(values_py); 
-    NumpyList<uint64_t> sample_idxs(sample_idxs_py);
+    NumpyList<IDX_T> idxs(idxs_py); 
+    NumpyArray<VAL_T> values(values_py); 
+    NumpyList<IDX_T> sample_idxs(sample_idxs_py);
     NumpyArray<double> weights(weights_py); 
 
     uint64_t nnz = idxs.infos[0].shape[0];
@@ -63,9 +63,9 @@ COOSparse sample_nonzeros(py::list &idxs_py,
     vector<int64_t> hashtbl(hashtbl_size, -1);
     int64_t* hashtbl_ptr = hashtbl.data();
 
-    vector<uint64_t> hbuf(dim - 1, 0);
-    uint64_t* hbuf_ptr = hbuf.data();
-    int hbuf_len = 8 * (dim - 1);
+    vector<IDX_T> hbuf(dim - 1, 0);
+    IDX_T* hbuf_ptr = hbuf.data();
+    int hbuf_len = sizeof(IDX_T) * (dim - 1);
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
@@ -80,7 +80,7 @@ COOSparse sample_nonzeros(py::list &idxs_py,
 
       // Should replace with atomics to make thread-safe 
       while(hashtbl_ptr[hash] != -1l) {
-        uint64_t val = hashtbl[hash];
+        int64_t val = hashtbl[hash];
         found = true;
         for(int j = 0; j < dim - 1; j++) {
           if(hbuf_ptr[j] != sample_idxs.ptrs[j][val]) {
@@ -106,9 +106,9 @@ COOSparse sample_nonzeros(py::list &idxs_py,
 
     #pragma omp parallel
     {
-    vector<uint64_t> hbuf(dim - 1, 0);
-    uint64_t* hbuf_ptr = hbuf.data();
-    int hbuf_len = 8 * (dim - 1);
+    vector<IDX_T> hbuf(dim - 1, 0);
+    IDX_T* hbuf_ptr = hbuf.data();
+    int hbuf_len = sizeof(IDX_T) * (dim - 1);
     
     #pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
@@ -154,9 +154,10 @@ COOSparse sample_nonzeros(py::list &idxs_py,
     return gathered;
 }
 
+template<typename IDX_T, typename VAL_T>
 void sample_nonzeros_redistribute(
       py::list idxs_py, 
-      py::array_t<double> values_py, 
+      py::array_t<VAL_T> values_py, 
       py::list sample_idxs_py,
       py::array_t<double> weights_py,
       int mode_to_leave,
@@ -166,7 +167,7 @@ void sample_nonzeros_redistribute(
       py::list recv_values_py,
       py::function allocate_recv_buffers 
       ) {
-      COOSparse gathered = 
+      COOSparse<IDX_T, VAL_T> gathered = 
         sample_nonzeros(
           idxs_py, 
           values_py, 
@@ -176,13 +177,13 @@ void sample_nonzeros_redistribute(
 
       uint64_t nnz = gathered.rows.size(); 
 
-      vector<uint64_t*> coords;
+      vector<IDX_T*> coords;
       coords.push_back(gathered.rows.data());
       coords.push_back(gathered.cols.data());
-      uint64_t* col_ptr = gathered.cols.data(); 
+      IDX_T* col_ptr = gathered.cols.data(); 
 
-      NumpyList<uint64_t> coords_wrapped(coords);
-      NumpyArray<double> values_wrapped(gathered.values.data());
+      NumpyList<IDX_T> coords_wrapped(coords);
+      NumpyArray<VAL_T> values_wrapped(gathered.values.data());
       NumpyArray<int> row_order_to_proc(row_order_to_proc_py);
 
       uint64_t proc_count = row_order_to_proc.info.shape[0]; 
@@ -225,8 +226,10 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse>(m, "COOSparse") 
     .def("print_contents", &COOSparse::print_contents);
 
-  m.def("sample_nonzeros", &sample_nonzeros);
-  m.def("sample_nonzeros_redistribute", &sample_nonzeros_redistribute);
+  //m.def("sample_nonzeros", &sample_nonzeros);
+
+  m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute);
+  m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute);
 }
 
 

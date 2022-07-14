@@ -77,11 +77,12 @@ public:
     }
 };
 
+template<typename IDX_T, typename VAL_T>
 class COOSparse {
 public:
-    vector<uint64_t> rows;
-    vector<uint64_t> cols;
-    vector<double> values;
+    vector<IDX_T> rows;
+    vector<IDX_T> cols;
+    vector<VAL_T> values;
 
     void print_contents() {
       double normsq = 0.0;
@@ -106,18 +107,16 @@ public:
 	 * version of the code. 
 	 */
 	void cpu_spmm(double* X, double* Y, int r) {
-		uint64_t* row_ptr = rows.data();
-		uint64_t* col_ptr = cols.data();
-		double* val_ptr = values.data();
+		IDX_T* row_ptr = rows.data();
+		IDX_T* col_ptr = cols.data();
+		VAL_T* val_ptr = values.data();
 
-    #pragma omp parallel for
 		for(uint64_t i = 0; i < rows.size(); i++) {
 			// We perform a transpose here
-			uint64_t row = col_ptr[i];
-			uint64_t col = row_ptr[i];
-			double value = val_ptr[i];
+		    IDX_T row = col_ptr[i];
+			IDX_T col = row_ptr[i];
+			VAL_T value = val_ptr[i];
 			for(int j = 0; j < r; j++) {
-        #pragma omp atomic update
 				Y[row * r + j] += X[col * r + j] * value;
 			}
 		}

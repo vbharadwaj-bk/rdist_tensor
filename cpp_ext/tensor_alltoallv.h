@@ -18,36 +18,48 @@ namespace py = pybind11;
  * processor_assignments, but we require precomputation
  * for efficiency. 
  */
+template<typename IDX_T, typename VAL_T>
 void tensor_alltoallv(
 		int dim,
 		uint64_t proc_count,
 		uint64_t nnz,
-        NumpyList<uint64_t> &coords,
-        NumpyArray<double> &values,
+        NumpyList<IDX_T> &coords,
+        NumpyArray<VAL_T> &values,
 		vector<int> &processor_assignments,
 		vector<uint64_t> &send_counts,
         py::list &recv_idx_py,
         py::list &recv_values_py,
         py::function &allocate_recv_buffers 
         ) {
+
+    MPI_Datatype MPI_IDX_T, MPI_VAL_T;
+    if(std::is_same<IDX_T, uint32_t>::value)
+        MPI_IDX_T = MPI_UINT32_T;
+    else 
+        MPI_IDX_T = MPI_UINT64_T;
+    if(std::is_same<IDX_T, float>::value) 
+        MPI_VAL_T = MPI_FLOAT;
+    else 
+        MPI_VAL_T = MPI_DOUBLE;
+
     vector<uint64_t> recv_counts(proc_count, 0);
 
     vector<uint64_t> send_offsets;
     vector<uint64_t> recv_offsets;
     vector<uint64_t> running_offsets;
 
-    vector<vector<uint64_t>> send_idx;
+    vector<vector<IDX_T>> send_idx;
 
     for(int i = 0; i < dim; i++) {
         send_idx.emplace_back(nnz, 0);
     }
 
-    vector<double> send_values(nnz, 0.0);
+    vector<VAL_T> send_values(nnz, 0.0);
 
     MPI_Alltoall(send_counts.data(), 
-                1, MPI_UNSIGNED_LONG_LONG, 
+                1, MPI_UINT64_T, 
                 recv_counts.data(), 
-                1, MPI_UNSIGNED_LONG_LONG, 
+                1, MPI_UINT64_T, 
                 MPI_COMM_WORLD);
 
     uint64_t total_received_coords = 
@@ -56,8 +68,8 @@ void tensor_alltoallv(
     prefix_sum(recv_counts, recv_offsets);
 
     allocate_recv_buffers(dim, total_received_coords, recv_idx_py, recv_values_py);
-    NumpyList<uint64_t> recv_idx(recv_idx_py);
-    NumpyList<double> recv_values(recv_values_py);
+    NumpyList<IDX_T> recv_idx(recv_idx_py);
+    NumpyList<VAL_T> recv_values(recv_values_py);
 
     // Pack the send buffers
     prefix_sum(send_counts, send_offsets);
@@ -111,22 +123,23 @@ void tensor_alltoallv(
         MPI_Alltoallv(send_idx[j].data(), 
                         send_counts_dcast.data(), 
                         send_offsets_dcast.data(), 
-                        MPI_UNSIGNED_LONG_LONG, 
+                        MPI_IDX_T, 
                         recv_idx.ptrs[j], 
                         recv_counts_dcast.data(), 
                         recv_offsets_dcast.data(), 
-                        MPI_UNSIGNED_LONG_LONG, MPI_COMM_WORLD 
+                        MPI_IDX_T, 
+                        MPI_COMM_WORLD 
                         );
     }
     
     MPI_Alltoallv(send_values.data(), 
                     send_counts_dcast.data(), 
                     send_offsets_dcast.data(), 
-                    MPI_DOUBLE, 
+                    MPI_VAL_T, 
                     recv_values.ptrs[0], 
                     recv_counts_dcast.data(), 
                     recv_offsets_dcast.data(), 
-                    MPI_DOUBLE, MPI_COMM_WORLD 
+                    MPI_VAL_T, MPI_COMM_WORLD 
                     );
 
 }

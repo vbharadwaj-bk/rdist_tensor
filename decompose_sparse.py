@@ -62,9 +62,6 @@ if __name__=='__main__':
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid) 
 
-    print("Got here!")
-    exit(1)
-
     ten_to_optimize = DistLowRank(tensor_grid, args.trank) 
     ten_to_optimize.initialize_factors_deterministic(args.rs) 
     #ten_to_optimize.initialize_factors_gaussian() 
@@ -79,7 +76,7 @@ if __name__=='__main__':
         optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
     elif args.optimizer == 'accumulator_stationary':
         assert(args.samples is not None and args.samples >= 0)
-        optimizer = AccumulatorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
+        optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, args.samples)
     else:
         print(f"Error, invalid optimizer specified: '{args.op}'")
         exit(1) 

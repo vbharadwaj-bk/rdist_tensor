@@ -49,8 +49,8 @@ class DistSparseTensor:
 
         # TODO: Need to remove this downcast! 
         # ============================================================== 
-        for i in range(self.dim):
-            self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
+        #for i in range(self.dim):
+        #    self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
         # ============================================================== 
 
         self.values = f['VALUES'][start_nnz:end_nnz]
@@ -70,7 +70,7 @@ class DistSparseTensor:
         self.offsets = np.zeros(self.dim, dtype=np.uint64)
 
         # TODO: THESE ARE FORCED, REMOVE THEM!
-        self.idx_dtype=np.uint32
+        self.idx_dtype=np.uint64
         self.val_dtype=np.double
 
     def random_permute(self):

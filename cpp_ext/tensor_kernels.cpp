@@ -107,6 +107,7 @@ void compute_tensor_values(
     }
 }
 
+/*
 void sampled_mttkrp(
         int mode,
         py::list factors_py,
@@ -147,6 +148,7 @@ void sampled_mttkrp(
     }
     sampled_rhs.cpu_spmm(lhs.ptr, result_ptr, r);
 }
+*/
 
 template<typename IDX_T, typename VAL_T>
 void spmm(

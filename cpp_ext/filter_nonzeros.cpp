@@ -37,7 +37,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
       py::array_t<double> &weights_py,
       int mode_to_leave) {
 
-    COOSparse gathered;
+    COOSparse<IDX_T, VAL_T> gathered;
     NumpyList<IDX_T> idxs(idxs_py); 
     NumpyArray<VAL_T> values(values_py); 
     NumpyList<IDX_T> sample_idxs(sample_idxs_py);
@@ -168,7 +168,7 @@ void sample_nonzeros_redistribute(
       py::function allocate_recv_buffers 
       ) {
       COOSparse<IDX_T, VAL_T> gathered = 
-        sample_nonzeros(
+        sample_nonzeros<IDX_T, VAL_T>(
           idxs_py, 
           values_py, 
           sample_idxs_py,
@@ -223,13 +223,13 @@ void sample_nonzeros_redistribute(
 
 
 PYBIND11_MODULE(filter_nonzeros, m) {
-  py::class_<COOSparse>(m, "COOSparse") 
-    .def("print_contents", &COOSparse::print_contents);
+  py::class_<COOSparse<uint32_t, double>>(m, "COOSparse"); 
+  //  .def("print_contents", &COOSparse::print_contents);
 
   //m.def("sample_nonzeros", &sample_nonzeros);
 
-  m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute);
-  m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute);
+  m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
+  m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }
 
 

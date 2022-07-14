@@ -80,7 +80,7 @@ class DistLowRank:
 
         compute_tensor_values = get_templated_function(tensor_kernels, 
                 "compute_tensor_values", 
-                [np.uint32])
+                [np.uint64])
         compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, result)
         return result
 

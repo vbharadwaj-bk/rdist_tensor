@@ -33,7 +33,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		else:
 			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
 
-		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint64)
+		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
@@ -45,13 +45,15 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 		inflate_samples_multiply = get_templated_function(tensor_kernels, 
                 "inflate_samples_multiply", 
-                [np.uint64])
+                [np.uint32])
 
 		inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
 				inflated_samples, weight_prods, lhs_buffer,
 				perm
 				)
+
+		print(inflated_samples.dtype)
 
 		samples.append(inflated_samples)
 
@@ -120,9 +122,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		sample_nonzeros_redistribute = get_templated_function(nz_filter, 
                 "sample_nonzeros_redistribute", 
-                [np.uint64, np.double])
+                [np.uint32, np.double])
 
 		start = start_clock() 
+
 		sample_nonzeros_redistribute(
 			self.ground_truth.offset_idxs, 
 			self.ground_truth.values, 
@@ -136,7 +139,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			allocate_recv_buffers)
 	
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
-		self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)
+		self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
 		offset = factor.row_position * factor.local_rows_padded
 		recv_idx[1] -= offset 
@@ -159,7 +162,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		spmm = get_templated_function(tensor_kernels, 
                 "spmm", 
-                [np.uint64, np.double])
+                [np.uint32, np.double])
 
 		spmm(
 			lhs_buffer,

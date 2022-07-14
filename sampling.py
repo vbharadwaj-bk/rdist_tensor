@@ -88,11 +88,11 @@ def get_samples_distributed_compressed(world, row_probs, dist_sample_count):
 	if(local_weight > 0.0):
 		rng = default_rng(seed=get_random_seed())
 		sample_multinomial_draw = rng.multinomial(local_sample_count, row_probs / local_weight)
-		sample_idxs = np.nonzero(sample_multinomial_draw)[0]
+		sample_idxs = np.nonzero(sample_multinomial_draw)[0].astype(np.uint32, copy=False)
 		sample_counts = sample_multinomial_draw[sample_idxs]
 		sample_probs = row_probs[sample_idxs]
 	else:
-		sample_idxs = np.array([], dtype=np.uint64)
+		sample_idxs = np.array([], dtype=np.uint32)
 		sample_counts = np.array([], dtype=np.uint64)
 		sample_probs = np.array([], dtype=np.double)	
 

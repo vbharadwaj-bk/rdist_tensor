@@ -15,11 +15,11 @@ import cpp_ext.filter_nonzeros as nz_filter
 
 from sampling import broadcast_common_seed
 
-def allocate_recv_buffers(dim, count, lst_idx, lst_values):
+def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
     for i in range(dim):
-        lst_idx.append(np.zeros(count, dtype=np.ulonglong))
+        lst_idx.append(np.zeros(count, dtype=str_to_type[idx_t]))
 
-    lst_values.append(np.zeros(count, dtype=np.double))
+    lst_values.append(np.zeros(count, dtype=str_to_type[val_t]))
 
 class DistSparseTensor:
     def __init__(self, tensor_file, preprocessing=None):
@@ -49,8 +49,8 @@ class DistSparseTensor:
 
         # TODO: Need to remove this downcast! 
         # ============================================================== 
-        #for i in range(self.dim):
-        #    self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
+        for i in range(self.dim):
+            self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
         # ============================================================== 
 
         self.values = f['VALUES'][start_nnz:end_nnz]
@@ -70,7 +70,7 @@ class DistSparseTensor:
         self.offsets = np.zeros(self.dim, dtype=np.uint64)
 
         # TODO: THESE ARE FORCED, REMOVE THEM!
-        self.idx_dtype=np.uint64
+        self.idx_dtype=np.uint32
         self.val_dtype=np.double
 
     def random_permute(self):
@@ -135,7 +135,7 @@ class DistSparseTensor:
 
         # TODO: This takes up a lot of extra space! Should amortize away 
         self.offset_idxs = [self.tensor_idxs[j] 
-            + self.offsets[j] for j in range(self.dim)]
+            + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
 
     def mttkrp(self, factors, mode):
         '''

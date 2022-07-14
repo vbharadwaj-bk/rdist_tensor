@@ -232,11 +232,11 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }
 
-
 /*
 <%
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-fopenmp', '-O3']
 cfg['extra_link_args'] = ['-openmp', '-O3']
+cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h']
 %>
 */

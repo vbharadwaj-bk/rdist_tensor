@@ -248,6 +248,7 @@ PYBIND11_MODULE(tensor_kernels, m) {
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-fopenmp', '-O3']
 cfg['extra_link_args'] = ['-openmp', '-O3']
+cfg['dependencies'] = ['common.h']
 %>
 */
 

@@ -66,13 +66,13 @@ def allgatherv(world, local_buffer, mpi_dtype):
 		print("Input buffer must be 1 or 2-dimensional")
 		exit(1)
 
-	sendcount = np.array([local_buffer.shape[0]], dtype=np.ulonglong)
-	sendcounts = np.empty(world.Get_size(), dtype=np.ulonglong) 
+	sendcount = np.array([local_buffer.shape[0]], dtype=np.uint64)
+	sendcounts = np.empty(world.Get_size(), dtype=np.uint64) 
 
-	world.Allgather([sendcount, MPI.UNSIGNED_LONG_LONG], 
-			[sendcounts, MPI.UNSIGNED_LONG_LONG])
+	world.Allgather([sendcount, MPI.UINT64_T], 
+			[sendcounts, MPI.UINT64_T])
 
-	offsets = np.empty(len(sendcounts), dtype=np.ulonglong)
+	offsets = np.empty(len(sendcounts), dtype=np.uint64)
 	offsets[0] = 0
 	offsets[1:] = np.cumsum(sendcounts[:-1])
 
@@ -91,14 +91,21 @@ def allgatherv(world, local_buffer, mpi_dtype):
 
 	return recv_buffer
 
-type_map = {
+type_to_str = {
 	np.uint32: "u32",
 	np.uint64: "u64",
 	np.float: "float",
 	np.double: "double"
 } 
 
+str_to_type = {
+	"u32": np.uint32,
+	"u64": np.uint64,
+	"float": np.float,
+	"double": np.double 
+} 
+
 def get_templated_function(mod, basename, dtypes):
-	dtypes_joined = '_'.join([type_map[el] for el in dtypes])
+	dtypes_joined = '_'.join([type_to_str[el] for el in dtypes])
 	fname = f'{basename}_{dtypes_joined}'
 	return getattr(mod, fname) 

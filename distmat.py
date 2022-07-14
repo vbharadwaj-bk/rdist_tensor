@@ -156,10 +156,11 @@ class DistMat1D:
                 local_probs,
                 sample_count)
 
-        # TODO: We can potentially eliminate duplicates here!
+
         sampled_rows = self.data[local_samples]
 
-        all_samples = allgatherv(grid.comm, base_idx + local_samples, MPI.UINT64_T)
+        # TODO: Need to eliminate the explicit typecasting! 
+        all_samples = allgatherv(grid.comm, base_idx.astype(np.uint32) + local_samples, MPI.UINT32_T)
         all_counts = allgatherv(grid.comm, local_counts, MPI.UINT64_T)
         all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
         all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)

@@ -7,6 +7,7 @@
 #include <vector>
 #include <chrono>
 #include <mpi.h>
+#include <string>
 
 #include "common.h"
 
@@ -35,6 +36,17 @@ void tensor_alltoallv(
     MPI_Datatype MPI_IDX_T, MPI_VAL_T;
     DEFINE_MPI_DATATYPES();
 
+    string idx_t_str, val_t_str;
+    if(MPI_IDX_T == MPI_UINT64_T) 
+        idx_t_str = "u64";
+    else 
+        idx_t_str = "u32"; 
+
+    if(MPI_VAL_T == MPI_DOUBLE) 
+        val_t_str = "double";
+    else 
+        val_t_str = "float"; 
+
     vector<uint64_t> recv_counts(proc_count, 0);
 
     vector<uint64_t> send_offsets;
@@ -60,7 +72,13 @@ void tensor_alltoallv(
 
     prefix_sum(recv_counts, recv_offsets);
 
-    allocate_recv_buffers(dim, total_received_coords, recv_idx_py, recv_values_py);
+    allocate_recv_buffers(dim, 
+            total_received_coords, 
+            recv_idx_py, 
+            recv_values_py,
+            idx_t_str,
+            val_t_str 
+            );
     NumpyList<IDX_T> recv_idx(recv_idx_py);
     NumpyList<VAL_T> recv_values(recv_values_py);
 

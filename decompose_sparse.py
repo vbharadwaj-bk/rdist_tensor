@@ -30,7 +30,7 @@ if __name__=='__main__':
 
     if rank == 0:
         import cppimport.import_hook
-        import cpp_ext.bloom_filter 
+        #import cpp_ext.bloom_filter 
         import cpp_ext.filter_nonzeros
         import cpp_ext.redistribute_tensor
         import cpp_ext.tensor_kernels

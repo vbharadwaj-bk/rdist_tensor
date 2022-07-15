@@ -17,9 +17,9 @@ from sampling import broadcast_common_seed
 
 def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
     for i in range(dim):
-        lst_idx.append(np.zeros(count, dtype=str_to_type[idx_t]))
+        lst_idx.append(np.empty(count, dtype=str_to_type[idx_t]))
 
-    lst_values.append(np.zeros(count, dtype=str_to_type[val_t]))
+    lst_values.append(np.empty(count, dtype=str_to_type[val_t]))
 
 class DistSparseTensor:
     def __init__(self, tensor_file, preprocessing=None):

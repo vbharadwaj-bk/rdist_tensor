@@ -32,7 +32,6 @@ void tensor_alltoallv(
         py::list &recv_values_py,
         py::function &allocate_recv_buffers 
         ) {
-
     MPI_Datatype MPI_IDX_T, MPI_VAL_T;
     DEFINE_MPI_DATATYPES();
 
@@ -127,7 +126,6 @@ void tensor_alltoallv(
             recv_offsets_dcast.push_back((int) recv_offsets[i]);
         } 
     }
-
     // ===================================================
 
     for(int j = 0; j < dim; j++) {
@@ -152,5 +150,4 @@ void tensor_alltoallv(
                     recv_offsets_dcast.data(), 
                     MPI_VAL_T, MPI_COMM_WORLD 
                     );
-
 }

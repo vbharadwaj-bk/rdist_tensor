@@ -63,18 +63,14 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
     vector<int64_t> hashtbl(hashtbl_size, -1);
     int64_t* hashtbl_ptr = hashtbl.data();
 
-    vector<IDX_T> hbuf(dim - 1, 0);
-    IDX_T* hbuf_ptr = hbuf.data();
-    int hbuf_len = sizeof(IDX_T) * (dim - 1);
-
     // Insert all items into our hashtable; we will use simple linear probing 
 
     for(int64_t i = 0; i < num_samples; i++) {
+      uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
-        hbuf_ptr[j] = sample_idxs.ptrs[j][i];
+        hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + j);
       }
-
-      uint64_t hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
+      hash %= hashtbl_size;
 
       bool found = false;
 
@@ -83,7 +79,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
         int64_t val = hashtbl[hash];
         found = true;
         for(int j = 0; j < dim - 1; j++) {
-          if(hbuf_ptr[j] != sample_idxs.ptrs[j][val]) {
+          if(sample_idxs.ptrs[j][i] != sample_idxs.ptrs[j][val]) {
             found = false;
           }
         }
@@ -97,32 +93,32 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
       }
       counts[hashtbl[hash]]++;
     }
-
+ 
     for(int64_t i = 0; i < num_samples; i++) {
       weights.ptr[i] *= sqrt(counts[i]);
     }
 
     // Check all items in the larger set against the hash table
 
-    #pragma omp parallel
+    auto start = start_clock();
+    //#pragma omp parallel
     {
-    vector<IDX_T> hbuf(dim - 1, 0);
-    IDX_T* hbuf_ptr = hbuf.data();
-    int hbuf_len = sizeof(IDX_T) * (dim - 1);
-    
-    #pragma omp for
+    //vector<uint64_t> found_i(nnz, 0);
+    //vector<uint32_t> found_val(nnz, 0);
+    //uint64_t ctr = 0;
+
+    //#pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
       // If we knew the dimension ahead of time, this loop could be compiled down. 
+      uint64_t hash = 0;
       for(int j = 0; j < dim; j++) {
-        if(j < mode_to_leave) {
-          hbuf_ptr[j] = idxs.ptrs[j][i];
-        }
-        if(j > mode_to_leave) {
-          hbuf_ptr[j - 1] = idxs.ptrs[j][i];
-        }
+        if(j < mode_to_leave)
+          hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
+        if(j > mode_to_leave)
+          hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j-1);
       }
+      hash %= hashtbl_size;
 
-      uint64_t hash = murmurhash2(hbuf_ptr, hbuf_len, 0x9747b28c) % hashtbl_size;
       int64_t val;
 
       // TODO: This loop is unsafe, need to fix it! 
@@ -133,8 +129,11 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
         }
         else {
           bool eq = true;
-          for(int j = 0; j < dim - 1; j++) {
-            if(hbuf_ptr[j] != sample_idxs.ptrs[j][val]) {
+          for(int j = 0; j < dim; j++) {
+            if((j < mode_to_leave && idxs.ptrs[j][i] != sample_idxs.ptrs[j][val])
+              || 
+              (j > mode_to_leave && idxs.ptrs[j][i] != sample_idxs.ptrs[j-1][val]) 
+            ) {
               eq = false;
             } 
           }
@@ -144,13 +143,44 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
         }
         hash = (hash + 1) % hashtbl_size;
       }
+
       if(val != -1) {
+          //found_val[ctr] = (uint32_t) val;
+          //found_i[ctr] = i;
+          //ctr++;
           gathered.rows.push_back(val);
           gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
           gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
     }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    double elapsed = stop_clock_get_elapsed(start);
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    if(rank == 0) {
+        cout << elapsed << endl;
+    }
+
+    /*
+    gathered.rows.resize(ctr);
+    gathered.cols.resize(ctr);
+    gathered.values.resize(ctr);
+    */
+
+    /*for(int i = 0; i < ctr; i++) {
+      uint64_t i_found = found_i[i];
+      uint32_t val_found = found_val[i];
+
+      gathered.rows[i] = val_found; 
+      gathered.cols[i] = idxs.ptrs[mode_to_leave][i_found];
+      gathered.values[i] = values.ptr[i_found] * weights.ptr[val_found]; 
+    }*/
+
     } 
+
     return gathered;
 }
 
@@ -167,6 +197,7 @@ void sample_nonzeros_redistribute(
       py::list recv_values_py,
       py::function allocate_recv_buffers 
       ) {
+
       COOSparse<IDX_T, VAL_T> gathered = 
         sample_nonzeros<IDX_T, VAL_T>(
           idxs_py, 
@@ -198,7 +229,6 @@ void sample_nonzeros_redistribute(
           send_counts[processor]++;
       }
 
-      auto start = start_clock();
       tensor_alltoallv(
           2, 
           proc_count, 
@@ -211,14 +241,6 @@ void sample_nonzeros_redistribute(
           recv_values_py, 
           allocate_recv_buffers 
           );
-      double elapsed = stop_clock_get_elapsed(start);
-
-      int rank;
-      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-      if(rank == 0) {
-        cout << elapsed << endl;
-      }
 }
 
 

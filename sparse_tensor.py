@@ -137,6 +137,12 @@ class DistSparseTensor:
         self.offset_idxs = [self.tensor_idxs[j] 
             + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
 
+        self.mode_hashes = [np.zeros(interval, dtype=np.uint64) for interval in tensor_grid.intervals]
+
+        # Compute hashes of the indices that this processor will reference 
+        compute_mode_hashes = get_templated_function(nz_filter, "compute_mode_hashes", [np.uint32])
+        compute_mode_hashes(tensor_grid.intervals.astype(np.uint32), self.mode_hashes)
+
     def mttkrp(self, factors, mode):
         '''
         For convenience, factors is sized equal to the dimension of the

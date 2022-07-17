@@ -212,7 +212,7 @@ void inflate_samples_multiply(
 
     vector<uint64_t> sample_ids(inflated_sample_count, 0); 
     int64_t* ptr = sample_offsets.data();
-    //cout << ptr << endl;
+
     for(uint64_t i = 0; i < num_unique_samples; i++) {
         for(int64_t j = ptr[i]; j < ptr[i+1]; j++) {
             int64_t perm_loc = permutation.ptr[j];
@@ -240,6 +240,8 @@ PYBIND11_MODULE(tensor_kernels, m) {
     m.def("compute_tensor_values_u64", &compute_tensor_values<uint64_t>);
 
     m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
+    m.def("inflate_samples_multiply_u64", &inflate_samples_multiply<uint64_t>);
+
     m.def("inflate_samples_multiply_u64", &inflate_samples_multiply<uint64_t>);
 }
 

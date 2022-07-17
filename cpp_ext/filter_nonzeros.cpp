@@ -24,12 +24,28 @@
 using namespace std;
 namespace py = pybind11;
 
+
+template<typename IDX_T>
+void compute_mode_hashes(
+  py::array_t<IDX_T> &ranges_py,
+  py::list &hashes_py) {
+
+  NumpyArray<IDX_T> ranges(ranges_py);
+  NumpyList<uint64_t> hashes(hashes_py);
+
+  for(int j = 0; j < ranges.length; j++) {
+    // TODO: Need to template this out!
+    for(uint32_t i = 0; i < ranges.ptr[j]; i++) {
+      hashes.ptrs[j][i] = murmurhash2(i, 0x9747b28c + j);
+    } 
+  }
+}
+
 /*
  * 
  * This function builds and returns a sparse matrix.
  * 
  */
-
 template<typename IDX_T, typename VAL_T>
 COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py, 
       py::array_t<VAL_T> &values_py, 
@@ -100,12 +116,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
 
     // Check all items in the larger set against the hash table
 
-    auto start = start_clock();
     //#pragma omp parallel
     {
-    //vector<uint64_t> found_i(nnz, 0);
-    //vector<uint32_t> found_val(nnz, 0);
-    //uint64_t ctr = 0;
 
     //#pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
@@ -153,31 +165,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
           gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
     }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    double elapsed = stop_clock_get_elapsed(start);
-
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    if(rank == 0) {
-        cout << elapsed << endl;
-    }
-
-    /*
-    gathered.rows.resize(ctr);
-    gathered.cols.resize(ctr);
-    gathered.values.resize(ctr);
-    */
-
-    /*for(int i = 0; i < ctr; i++) {
-      uint64_t i_found = found_i[i];
-      uint32_t val_found = found_val[i];
-
-      gathered.rows[i] = val_found; 
-      gathered.cols[i] = idxs.ptrs[mode_to_leave][i_found];
-      gathered.values[i] = values.ptr[i_found] * weights.ptr[val_found]; 
-    }*/
 
     } 
 
@@ -241,8 +228,7 @@ void sample_nonzeros_redistribute(
           recv_values_py, 
           allocate_recv_buffers 
           );
-}
-
+} 
 
 PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse<uint32_t, double>>(m, "COOSparse"); 
@@ -251,7 +237,9 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   //m.def("sample_nonzeros", &sample_nonzeros);
 
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
-  m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
+  //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
+
+  m.def("compute_mode_hashes_u32", &compute_mode_hashes<uint32_t>);
 }
 
 /*

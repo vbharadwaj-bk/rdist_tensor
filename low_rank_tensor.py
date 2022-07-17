@@ -63,7 +63,7 @@ class DistLowRank:
         self.initialized = True
         for i in range(self.dim):
             factor = self.factors[i]
-            rng = default_rng()
+            rng = default_rng(seed=get_random_seed())
             factor.data = rng.normal(size=(factor.data.shape[0], factor.data.shape[1]))
             factor.normalize_cols()
 

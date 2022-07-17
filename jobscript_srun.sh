@@ -7,11 +7,11 @@
 . modules.sh
 export OMP_NUM_THREADS=1
 
-#TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
-#OUTPUT="data/uber.out"
-#python decompose_sparse.py -i $TENSOR  \
-#	-g "1,1,1,1" -t 25 -iter 20 \
-#	-o $OUTPUT -op "accumulator_stationary" -s 131000 
+TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
+OUTPUT="data/uber.out"
+python decompose_sparse.py -i $TENSOR  \
+	-g "1,1,1,1" -t 25 -iter 20 \
+	-o $OUTPUT -op "accumulator_stationary" -s 131000 
 
 #TENSOR=$SCRATCH/tensors/nell-1.tns_converted.hdf5
 #OUTPUT="data/nell-1.out"
@@ -30,10 +30,10 @@ export OMP_NUM_THREADS=1
 #	-t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000 \
 #	-p "log_count"
 
-TENSOR=$SCRATCH/tensors/enron.tns_converted.hdf5
-OUTPUT="data/enron.out"
-FACTOR_FILE="data/enron_factors.hdf5"
-srun -N 1 -n 128 python decompose_sparse.py -i $TENSOR -g "2,4,4,4" \
-	-t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000 \
-	-p "log_count"
+#TENSOR=$SCRATCH/tensors/enron.tns_converted.hdf5
+#OUTPUT="data/enron.out"
+#FACTOR_FILE="data/enron_factors.hdf5"
+#srun -N 1 -n 128 python decompose_sparse.py -i $TENSOR -g "2,4,4,4" \
+#	-t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000 \
+#	-p "log_count"
 

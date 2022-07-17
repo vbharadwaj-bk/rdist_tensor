@@ -33,7 +33,8 @@ void compute_mode_hashes(
   NumpyArray<IDX_T> ranges(ranges_py);
   NumpyList<uint64_t> hashes(hashes_py);
 
-  for(int j = 0; j < ranges.length; j++) {
+  int dim = ranges.info.shape[0];
+  for(int j = 0; j < dim; j++) {
     // TODO: Need to template this out!
     for(uint32_t i = 0; i < ranges.ptr[j]; i++) {
       hashes.ptrs[j][i] = murmurhash2(i, 0x9747b28c + j);

@@ -141,7 +141,7 @@ class DistSparseTensor:
 
         # Compute hashes of the indices that this processor will reference 
         compute_mode_hashes = get_templated_function(nz_filter, "compute_mode_hashes", [np.uint32])
-        compute_mode_hashes(tensor_grid.intervals.astype(np.uint32), self.mode_hashes)
+        compute_mode_hashes(np.array(tensor_grid.intervals, dtype=np.uint32), self.mode_hashes)
 
     def mttkrp(self, factors, mode):
         '''

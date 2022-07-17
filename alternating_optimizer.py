@@ -78,6 +78,8 @@ class AlternatingOptimizer:
 
 		self.initial_setup()
 		for	iter in	range(num_iterations):
+			if grid.rank == 0:
+				print(f"Starting iteration {iter}...")
 			if (compute_accuracy_interval != 0 and iter % compute_accuracy_interval == 0) \
 					or iter == 0 \
 					or iter == num_iterations - 1:

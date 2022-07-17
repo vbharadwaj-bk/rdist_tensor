@@ -44,7 +44,7 @@ if __name__=='__main__':
 
     # List of optimizers
     from tensor_stationary_opt0 import TensorStationaryOpt0
-    from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
+    #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
     from accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exact_als import ExactALS
 

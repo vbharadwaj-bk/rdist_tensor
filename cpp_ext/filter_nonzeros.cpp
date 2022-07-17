@@ -48,7 +48,9 @@ void compute_mode_hashes(
  * 
  */
 template<typename IDX_T, typename VAL_T>
-COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py, 
+COOSparse<IDX_T, VAL_T> sample_nonzeros(
+      py::list &idxs_py, 
+      py::list &mode_hashes_py,
       py::array_t<VAL_T> &values_py, 
       py::list &sample_idxs_py,
       py::array_t<double> &weights_py,
@@ -56,6 +58,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
 
     COOSparse<IDX_T, VAL_T> gathered;
     NumpyList<IDX_T> idxs(idxs_py); 
+    NumpyList<uint64_t> mode_hashes(mode_hashes_py); 
     NumpyArray<VAL_T> values(values_py); 
     NumpyList<IDX_T> sample_idxs(sample_idxs_py);
     NumpyArray<double> weights(weights_py); 
@@ -85,7 +88,9 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
     for(int64_t i = 0; i < num_samples; i++) {
       uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
-        hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + j);
+        int offset = j < mode_to_leave ? j : j + 1; 
+        hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset);
+        //hash += mode_hashes.ptrs[offset][sample_idxs.ptrs[j][i]];
       }
       hash %= hashtbl_size;
 
@@ -125,10 +130,9 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(py::list &idxs_py,
       // If we knew the dimension ahead of time, this loop could be compiled down. 
       uint64_t hash = 0;
       for(int j = 0; j < dim; j++) {
-        if(j < mode_to_leave)
-          hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
-        if(j > mode_to_leave)
-          hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j-1);
+          if(j != mode_to_leave)
+            hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
+            //hash += mode_hashes.ptrs[j][idxs.ptrs[j][i]];
       }
       hash %= hashtbl_size;
 
@@ -177,6 +181,7 @@ void sample_nonzeros_redistribute(
       py::list idxs_py, 
       py::array_t<VAL_T> values_py, 
       py::list sample_idxs_py,
+      py::list mode_hashes_py,
       py::array_t<double> weights_py,
       int mode_to_leave,
       uint64_t row_divisor,
@@ -188,7 +193,8 @@ void sample_nonzeros_redistribute(
 
       COOSparse<IDX_T, VAL_T> gathered = 
         sample_nonzeros<IDX_T, VAL_T>(
-          idxs_py, 
+          idxs_py,
+          mode_hashes_py,
           values_py, 
           sample_idxs_py,
           weights_py,

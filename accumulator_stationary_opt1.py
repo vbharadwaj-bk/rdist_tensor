@@ -123,19 +123,19 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
                 [np.uint32, np.double])
 
 		start = start_clock() 
-
 		sample_nonzeros_redistribute(
 			self.ground_truth.offset_idxs, 
 			self.ground_truth.values, 
 			sample_idxs,
+			self.ground_truth.mode_hashes,
 			weights,
-			mode_to_leave,
+			mode_to_leave,	
 			factor.local_rows_padded,
 			factor.row_order_to_proc, 
 			recv_idx,
 			recv_values,
 			allocate_recv_buffers)
-	
+
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 

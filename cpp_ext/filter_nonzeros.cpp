@@ -88,9 +88,19 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     for(int64_t i = 0; i < num_samples; i++) {
       uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
-        int offset = j < mode_to_leave ? j : j + 1; 
-        hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset);
-        //hash += mode_hashes.ptrs[offset][sample_idxs.ptrs[j][i]];
+        uint64_t offset = j < mode_to_leave ? j : j + 1;
+        
+        uint64_t val = murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset);
+
+        if(mode_hashes.ptrs[offset][sample_idxs.ptrs[j][i]] != val) {
+            cout << "Error!" << endl;
+            exit(1);
+        }
+
+
+        //hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset);
+        hash += mode_hashes.ptrs[offset][sample_idxs.ptrs[j][i]];
+        
       }
       hash %= hashtbl_size;
 

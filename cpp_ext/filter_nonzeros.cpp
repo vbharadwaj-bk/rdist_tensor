@@ -6,6 +6,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string.h>
+#include <memory>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -40,8 +41,8 @@ void compute_mode_hashes(
     // TODO: Need to template this out!
     uint32_t offset = offsets.ptr[j];
     for(uint32_t i = 0; i < ranges.ptr[j]; i++) {
-      //hashes.ptrs[j][i] = murmurhash2(offset + i, 0x9747b28c + j);
-      hashes.ptrs[j][i] = offset + i; 
+      hashes.ptrs[j][i] = murmurhash2(offset + i, 0x9747b28c + j);
+      //hashes.ptrs[j][i] = offset + i; 
     } 
   }
 }
@@ -54,6 +55,7 @@ void compute_mode_hashes(
 template<typename IDX_T, typename VAL_T>
 COOSparse<IDX_T, VAL_T> sample_nonzeros(
       py::list &idxs_py, 
+      py::array_t<IDX_T> &offsets_py, 
       py::list &mode_hashes_py,
       py::array_t<VAL_T> &values_py, 
       py::list &sample_idxs_py,
@@ -62,6 +64,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     COOSparse<IDX_T, VAL_T> gathered;
     NumpyList<IDX_T> idxs(idxs_py); 
+    NumpyArray<IDX_T> offsets(offsets_py); 
     NumpyList<uint64_t> mode_hashes(mode_hashes_py); 
     NumpyArray<VAL_T> values(values_py); 
     NumpyList<IDX_T> sample_idxs(sample_idxs_py);
@@ -89,6 +92,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
+    auto start = start_clock();
+
     for(int64_t i = 0; i < num_samples; i++) {
       uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
@@ -98,8 +103,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       hash %= hashtbl_size;
 
       bool found = false;
-
-      // Should replace with atomics to make thread-safe 
       while(hashtbl_ptr[hash] != -1l) {
         int64_t val = hashtbl[hash];
         found = true;
@@ -123,76 +126,68 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       weights.ptr[i] *= sqrt(counts[i]);
     }
 
+    uint64_t count = 0;
+
+    unique_ptr<IDX_T*[]> idx_dptrs(new IDX_T*[dim-1]);
+    for(int j = 0; j < dim; j++) {
+      if(j < mode_to_leave)
+        idx_dptrs[j] = idxs.ptrs[j];
+      if(j > mode_to_leave) 
+        idx_dptrs[j-1] = idxs.ptrs[j];
+    }
+
     // Check all items in the larger set against the hash table
-
-    //#pragma omp parallel
-    {
-
-    //#pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
       // If we knew the dimension ahead of time, this loop could be compiled down. 
       uint64_t hash = 0;
-      for(int j = 0; j < dim; j++) {
-          if(j != mode_to_leave) {
-              uint64_t val = murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
-
-              //uint64_t val = idxs.ptrs[j][i];
-
-              /*if(val != mode_hashes.ptrs[j][idxs.ptrs[j][i]]) {
-                cout << "Error: " << mode_hashes.ptrs[j][idxs.ptrs[j][i]] << " " << val << endl;
-                exit(1);
-              }*/
-
-              hash += val;
-              //hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
-              //hash += mode_hashes.ptrs[j][idxs.ptrs[j][i]];
-          }
+      for(int j = 0; j < dim - 1; j++) {
+          uint64_t offset = j < mode_to_leave ? j : j + 1;
+          uint64_t val = murmurhash2(idx_dptrs[j][i], 0x9747b28c + offset); 
+          //uint64_t val = mode_hashes.ptrs[j][idxs.ptrs[j][i] - offsets.ptr[j]]; 
+          hash += val;
       }
       hash %= hashtbl_size;
 
       int64_t val;
 
+      val = hash;
       // TODO: This loop is unsafe, need to fix it! 
+      
       while(true) {
         val = hashtbl[hash];
         if(val == -1) {
           break;
         }
         else {
-          bool eq = true;
-          for(int j = 0; j < dim; j++) {
-            if((j < mode_to_leave && idxs.ptrs[j][i] != sample_idxs.ptrs[j][val])
-              || 
-              (j > mode_to_leave && idxs.ptrs[j][i] != sample_idxs.ptrs[j-1][val]) 
-            ) {
-              eq = false;
-            } 
+          int eq = 1;
+          for(int j = 0; j < dim-1; j++) {
+            eq *= (idx_dptrs[j][i] == sample_idxs.ptrs[j][val]);
           }
-          if(eq) {
+          if(eq) 
             break;
-          }
         }
         hash = (hash + 1) % hashtbl_size;
       }
 
       if(val != -1) {
-          //found_val[ctr] = (uint32_t) val;
-          //found_i[ctr] = i;
-          //ctr++;
-          gathered.rows.push_back(val);
-          gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
-          gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
+        count++;
+        gathered.rows.push_back(val);
+        gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
+        gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
     }
 
-    } 
+    //double elapsed = stop_clock_get_elapsed(start); 
+    //cout << elapsed << endl;
+    //exit(1);
 
     return gathered;
 }
 
 template<typename IDX_T, typename VAL_T>
 void sample_nonzeros_redistribute(
-      py::list idxs_py, 
+      py::list idxs_py,
+      py::array_t<IDX_T> offsets_py,
       py::array_t<VAL_T> values_py, 
       py::list sample_idxs_py,
       py::list mode_hashes_py,
@@ -202,12 +197,13 @@ void sample_nonzeros_redistribute(
       py::array_t<int> row_order_to_proc_py,  
       py::list recv_idx_py,
       py::list recv_values_py,
-      py::function allocate_recv_buffers 
+      py::function allocate_recv_buffers
       ) {
 
       COOSparse<IDX_T, VAL_T> gathered = 
         sample_nonzeros<IDX_T, VAL_T>(
           idxs_py,
+          offsets_py,
           mode_hashes_py,
           values_py, 
           sample_idxs_py,

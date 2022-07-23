@@ -122,12 +122,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
                 "sample_nonzeros_redistribute", 
                 [np.uint32, np.double])
 
-		if grid.rank == 0:
-			print(self.ground_truth.mode_hashes[0].dtype)
-
 		start = start_clock() 
 		sample_nonzeros_redistribute(
 			self.ground_truth.offset_idxs, 
+			self.ground_truth.offsets, 
 			self.ground_truth.values, 
 			sample_idxs,
 			self.ground_truth.mode_hashes,

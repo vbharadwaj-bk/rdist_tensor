@@ -27,17 +27,21 @@ namespace py = pybind11;
 
 template<typename IDX_T>
 void compute_mode_hashes(
+  py::array_t<IDX_T> &offsets_py,
   py::array_t<IDX_T> &ranges_py,
   py::list &hashes_py) {
 
+  NumpyArray<IDX_T> offsets(offsets_py);
   NumpyArray<IDX_T> ranges(ranges_py);
   NumpyList<uint64_t> hashes(hashes_py);
 
   int dim = ranges.info.shape[0];
   for(int j = 0; j < dim; j++) {
     // TODO: Need to template this out!
+    uint32_t offset = offsets.ptr[j];
     for(uint32_t i = 0; i < ranges.ptr[j]; i++) {
-      hashes.ptrs[j][i] = murmurhash2(i, 0x9747b28c + j);
+      //hashes.ptrs[j][i] = murmurhash2(offset + i, 0x9747b28c + j);
+      hashes.ptrs[j][i] = offset + i; 
     } 
   }
 }
@@ -89,18 +93,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
         uint64_t offset = j < mode_to_leave ? j : j + 1;
-        
-        uint64_t val = murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset);
-
-        if(mode_hashes.ptrs[offset][sample_idxs.ptrs[j][i]] != val) {
-            cout << "Error!" << endl;
-            exit(1);
-        }
-
-
-        //hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset);
-        hash += mode_hashes.ptrs[offset][sample_idxs.ptrs[j][i]];
-        
+        hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset); 
       }
       hash %= hashtbl_size;
 
@@ -140,9 +133,20 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       // If we knew the dimension ahead of time, this loop could be compiled down. 
       uint64_t hash = 0;
       for(int j = 0; j < dim; j++) {
-          if(j != mode_to_leave)
-            hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
-            //hash += mode_hashes.ptrs[j][idxs.ptrs[j][i]];
+          if(j != mode_to_leave) {
+              uint64_t val = murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
+
+              //uint64_t val = idxs.ptrs[j][i];
+
+              /*if(val != mode_hashes.ptrs[j][idxs.ptrs[j][i]]) {
+                cout << "Error: " << mode_hashes.ptrs[j][idxs.ptrs[j][i]] << " " << val << endl;
+                exit(1);
+              }*/
+
+              hash += val;
+              //hash += murmurhash2(idxs.ptrs[j][i], 0x9747b28c + j); 
+              //hash += mode_hashes.ptrs[j][idxs.ptrs[j][i]];
+          }
       }
       hash %= hashtbl_size;
 

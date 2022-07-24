@@ -25,7 +25,6 @@
 using namespace std;
 namespace py = pybind11;
 
-
 template<typename IDX_T>
 void compute_mode_hashes(
   py::array_t<IDX_T> &offsets_py,
@@ -48,13 +47,11 @@ void compute_mode_hashes(
 }
 
 /*
- * 
  * This function builds and returns a sparse matrix.
- * 
  */
 template<typename IDX_T, typename VAL_T>
 COOSparse<IDX_T, VAL_T> sample_nonzeros(
-      py::list &idxs_py, 
+      py::array_t<IDX_T> &idxs_mat_py, 
       py::array_t<IDX_T> &offsets_py, 
       py::list &mode_hashes_py,
       py::array_t<VAL_T> &values_py, 
@@ -63,18 +60,18 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       int mode_to_leave) {
 
     COOSparse<IDX_T, VAL_T> gathered;
-    NumpyList<IDX_T> idxs(idxs_py); 
+    NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
     NumpyArray<IDX_T> offsets(offsets_py); 
     NumpyList<uint64_t> mode_hashes(mode_hashes_py); 
     NumpyArray<VAL_T> values(values_py); 
     NumpyList<IDX_T> sample_idxs(sample_idxs_py);
     NumpyArray<double> weights(weights_py); 
 
-    uint64_t nnz = idxs.infos[0].shape[0];
+    uint64_t nnz = values.info.shape[0];
 
     // TODO: Add an assertion downcasting this!
     int64_t num_samples = (int64_t) sample_idxs.infos[0].shape[0];
-    int dim = idxs.length;
+    int dim = idxs_mat.info.shape[1];
 
     vector<int> counts(num_samples, 0);
 
@@ -93,6 +90,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     // Insert all items into our hashtable; we will use simple linear probing 
 
     auto start = start_clock();
+    double elapsed = 0.0;
 
     for(int64_t i = 0; i < num_samples; i++) {
       uint64_t hash = 0;
@@ -128,6 +126,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     uint64_t count = 0;
 
+    /*
     unique_ptr<IDX_T*[]> idx_dptrs(new IDX_T*[dim-1]);
     for(int j = 0; j < dim; j++) {
       if(j < mode_to_leave)
@@ -135,15 +134,17 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       if(j > mode_to_leave) 
         idx_dptrs[j-1] = idxs.ptrs[j];
     }
+    */
 
     // Check all items in the larger set against the hash table
     for(uint64_t i = 0; i < nnz; i++) {
+      IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
+
       // If we knew the dimension ahead of time, this loop could be compiled down. 
       uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
           uint64_t offset = j < mode_to_leave ? j : j + 1;
-          uint64_t val = murmurhash2(idx_dptrs[j][i], 0x9747b28c + offset); 
-          //uint64_t val = mode_hashes.ptrs[j][idxs.ptrs[j][i] - offsets.ptr[j]]; 
+          uint64_t val = murmurhash2(nz_ptr[offset], 0x9747b28c + offset); 
           hash += val;
       }
       hash %= hashtbl_size;
@@ -152,7 +153,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
       val = hash;
       // TODO: This loop is unsafe, need to fix it! 
-      
       while(true) {
         val = hashtbl[hash];
         if(val == -1) {
@@ -161,32 +161,34 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
         else {
           int eq = 1;
           for(int j = 0; j < dim-1; j++) {
-            eq *= (idx_dptrs[j][i] == sample_idxs.ptrs[j][val]);
-          }
+            uint64_t offset = j < mode_to_leave ? j : j + 1;
+            eq *= (nz_ptr[offset] == sample_idxs.ptrs[j][val]);
+          } 
           if(eq) 
             break;
         }
         hash = (hash + 1) % hashtbl_size;
+        count++;
       }
 
       if(val != -1) {
-        count++;
         gathered.rows.push_back(val);
         gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
         gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
     }
 
-    //double elapsed = stop_clock_get_elapsed(start); 
-    //cout << elapsed << endl;
-    //exit(1);
+    elapsed += stop_clock_get_elapsed(start);
+
+    cout << elapsed << endl;
+    exit(1);
 
     return gathered;
 }
 
 template<typename IDX_T, typename VAL_T>
 void sample_nonzeros_redistribute(
-      py::list idxs_py,
+      py::array_t<IDX_T> idxs_mat_py,
       py::array_t<IDX_T> offsets_py,
       py::array_t<VAL_T> values_py, 
       py::list sample_idxs_py,
@@ -202,7 +204,7 @@ void sample_nonzeros_redistribute(
 
       COOSparse<IDX_T, VAL_T> gathered = 
         sample_nonzeros<IDX_T, VAL_T>(
-          idxs_py,
+          idxs_mat_py,
           offsets_py,
           mode_hashes_py,
           values_py, 
@@ -262,8 +264,8 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-fopenmp', '-O3']
-cfg['extra_link_args'] = ['-openmp', '-O3']
+cfg['extra_compile_args'] = ['-O3']
+cfg['extra_link_args'] = ['-O3']
 cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h']
 %>
 */

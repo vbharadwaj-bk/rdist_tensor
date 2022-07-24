@@ -42,7 +42,6 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
 
-
 		inflate_samples_multiply = get_templated_function(tensor_kernels, 
                 "inflate_samples_multiply", 
                 [np.uint32])
@@ -138,7 +137,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			allocate_recv_buffers)
 
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
-		self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
+		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
 		offset = factor.row_position * factor.local_rows_padded
 		recv_idx[1] -= offset 

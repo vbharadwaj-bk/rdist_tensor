@@ -147,6 +147,16 @@ class DistSparseTensor:
             np.array(tensor_grid.intervals, dtype=np.uint32), 
             self.mode_hashes)
 
+        self.mat_idxs = np.zeros((
+            len(self.tensor_idxs[0]),
+            self.dim
+            ),
+            dtype=self.tensor_idxs[0].dtype
+        )
+
+        for i in range(self.dim):
+            self.mat_idxs[:, i] = self.offset_idxs[i] 
+
 
     def mttkrp(self, factors, mode):
         '''

@@ -140,6 +140,10 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }
     */
 
+
+    int pre_bytes = sizeof(IDX_T) * mode_to_leave;
+    int post_bytes = sizeof(IDX_T) * (dim - 1) - pre_bytes;
+
     // Check all items in the larger set against the hash table
     for(uint64_t i = 0; i < nnz; i++) {
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
@@ -156,6 +160,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       int64_t val;
 
       val = hash;
+
       // TODO: This loop is unsafe, need to fix it! 
       while(true) {
         val = hashtbl[hash];
@@ -164,11 +169,19 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
         }
         else {
           IDX_T* ref_ptr = sample_mat.ptr + val * dim;
+          /*
           int eq = 1;
           for(int j = 0; j < dim-1; j++) {
             uint64_t offset = j < mode_to_leave ? j : j + 1;
             eq = eq && (nz_ptr[offset] == ref_ptr[offset]);
-          } 
+          }
+          */
+          int eq = (! memcmp(nz_ptr, ref_ptr, pre_bytes))
+                      && (! memcmp(
+                      nz_ptr + mode_to_leave + 1, 
+                      ref_ptr + mode_to_leave + 1, 
+                      post_bytes)); 
+
           if(eq) 
             break;
         }

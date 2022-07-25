@@ -114,7 +114,9 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
         if(found) {
           break;
         }
-        hash = (hash + 1) % hashtbl_size;
+        hash++;
+        if(hash > hashtbl_size)
+          hash -= hashtbl_size;
       }
       if(! found) {
         hashtbl[hash] = i;
@@ -170,7 +172,10 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
           if(eq) 
             break;
         }
-        hash = (hash + 1) % hashtbl_size;
+        hash++;
+        if(hash > hashtbl_size)
+          hash -= hashtbl_size;
+        
         count++;
       }
 

@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <bits/stdc++.h>
+#include <unordered_set>
 
 #include <mpi.h>
 #include <pybind11/pybind11.h>
@@ -74,18 +75,41 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     int dim = idxs_mat.info.shape[1];
 
     vector<int> counts(num_samples, 0);
-
-    /*if(sample_idxs.length != dim - 1) {
-      cout << "Error, incorrect sample dimensions" << endl;
-      exit(1);
-    }*/
-
     double load_factor = 0.33;
 
     // lightweight hashtable that we can easily port to a GPU 
     uint64_t hashtbl_size = (uint64_t) (num_samples / load_factor);
     vector<int64_t> hashtbl(hashtbl_size, -1);
     int64_t* hashtbl_ptr = hashtbl.data();
+
+    auto hash_fcn = [dim, mode_to_leave](const IDX_T* &ptr) { 
+      uint64_t hash;
+      for(int j = 0; j < dim - 1; j++) {
+        uint64_t offset = j < mode_to_leave ? j : j + 1;
+        hash += murmurhash2(ptr[offset], 0x9747b28c + offset); 
+      }
+      return hash;
+    }; 
+
+    auto cmp_fcn = [dim, mode_to_leave](
+      const IDX_T* &ptr1, 
+      const IDX_T* &ptr2) {
+      int eq = 1;
+      for(int j = 0; j < dim - 1; j++) { 
+        uint64_t offset = j < mode_to_leave ? j : j + 1;
+        if(ptr1[offset] != ptr2[offset]) {
+          eq = 0;
+        }
+      }
+      return eq;
+    }; 
+
+    std::allocator<IDX_T*> alloc;
+    unordered_set<IDX_T*, 
+        decltype(hash_fcn),
+        decltype(cmp_fcn),
+        decltype(alloc)>
+        test(num_samples * 3, hash_fcn, cmp_fcn, alloc); 
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
@@ -129,17 +153,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }
 
     uint64_t count = 0;
-
-    /*
-    unique_ptr<IDX_T*[]> idx_dptrs(new IDX_T*[dim-1]);
-    for(int j = 0; j < dim; j++) {
-      if(j < mode_to_leave)
-        idx_dptrs[j] = idxs.ptrs[j];
-      if(j > mode_to_leave) 
-        idx_dptrs[j-1] = idxs.ptrs[j];
-    }
-    */
-
 
     int pre_bytes = sizeof(IDX_T) * mode_to_leave;
     int post_bytes = sizeof(IDX_T) * (dim - 1) - pre_bytes;

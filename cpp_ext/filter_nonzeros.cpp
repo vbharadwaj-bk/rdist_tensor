@@ -80,7 +80,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       exit(1);
     }
 
-    double load_factor = 0.10;
+    double load_factor = 0.33;
 
     // lightweight hashtable that we can easily port to a GPU 
     uint64_t hashtbl_size = (uint64_t) (num_samples / load_factor);
@@ -89,8 +89,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
-    auto start = start_clock();
-    double elapsed = 0.0;
+    //auto start = start_clock();
+    //double elapsed = 0.0;
 
     for(int64_t i = 0; i < num_samples; i++) {
       uint64_t hash = 0;
@@ -173,15 +173,13 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
       if(val != -1) {
         gathered.rows.push_back(val);
-        gathered.cols.push_back(idxs.ptrs[mode_to_leave][i]);
+        gathered.cols.push_back(nz_ptr[mode_to_leave]);
         gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
       }
     }
 
-    elapsed += stop_clock_get_elapsed(start);
-
-    cout << elapsed << endl;
-    exit(1);
+    //elapsed += stop_clock_get_elapsed(start);
+    //cout << elapsed << endl;
 
     return gathered;
 }

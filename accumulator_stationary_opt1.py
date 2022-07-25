@@ -123,7 +123,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock() 
 		sample_nonzeros_redistribute(
-			self.ground_truth.offset_idxs, 
+			self.ground_truth.mat_idxs, 
 			self.ground_truth.offsets, 
 			self.ground_truth.values, 
 			sample_idxs,

@@ -55,7 +55,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       py::array_t<IDX_T> &offsets_py, 
       py::list &mode_hashes_py,
       py::array_t<VAL_T> &values_py, 
-      py::list &sample_idxs_py,
+      py::array_t<IDX_T> &sample_mat_py,
       py::array_t<double> &weights_py,
       int mode_to_leave) {
 
@@ -64,21 +64,21 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     NumpyArray<IDX_T> offsets(offsets_py); 
     NumpyList<uint64_t> mode_hashes(mode_hashes_py); 
     NumpyArray<VAL_T> values(values_py); 
-    NumpyList<IDX_T> sample_idxs(sample_idxs_py);
+    NumpyArray<IDX_T> sample_mat(sample_mat_py);
     NumpyArray<double> weights(weights_py); 
 
     uint64_t nnz = values.info.shape[0];
 
     // TODO: Add an assertion downcasting this!
-    int64_t num_samples = (int64_t) sample_idxs.infos[0].shape[0];
+    int64_t num_samples = (int64_t) sample_mat.info.shape[0];
     int dim = idxs_mat.info.shape[1];
 
     vector<int> counts(num_samples, 0);
 
-    if(sample_idxs.length != dim - 1) {
+    /*if(sample_idxs.length != dim - 1) {
       cout << "Error, incorrect sample dimensions" << endl;
       exit(1);
-    }
+    }*/
 
     double load_factor = 0.33;
 
@@ -94,18 +94,20 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     for(int64_t i = 0; i < num_samples; i++) {
       uint64_t hash = 0;
+      IDX_T* nz_ptr = sample_mat.ptr + i * dim;
       for(int j = 0; j < dim - 1; j++) {
         uint64_t offset = j < mode_to_leave ? j : j + 1;
-        hash += murmurhash2(sample_idxs.ptrs[j][i], 0x9747b28c + offset); 
+        hash += murmurhash2(nz_ptr[offset], 0x9747b28c + offset); 
       }
       hash %= hashtbl_size;
 
       bool found = false;
       while(hashtbl_ptr[hash] != -1l) {
         int64_t val = hashtbl[hash];
+        IDX_T* ref_ptr = sample_mat.ptr + val * dim;
         found = true;
-        for(int j = 0; j < dim - 1; j++) {
-          if(sample_idxs.ptrs[j][i] != sample_idxs.ptrs[j][val]) {
+        for(int j = 0; j < dim; j++) {
+          if(nz_ptr[j] != ref_ptr[j]) {
             found = false;
           }
         }
@@ -159,10 +161,11 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
           break;
         }
         else {
+          IDX_T* ref_ptr = sample_mat.ptr + val * dim;
           int eq = 1;
           for(int j = 0; j < dim-1; j++) {
             uint64_t offset = j < mode_to_leave ? j : j + 1;
-            eq *= (nz_ptr[offset] == sample_idxs.ptrs[j][val]);
+            eq = eq && (nz_ptr[offset] == ref_ptr[offset]);
           } 
           if(eq) 
             break;
@@ -189,7 +192,7 @@ void sample_nonzeros_redistribute(
       py::array_t<IDX_T> idxs_mat_py,
       py::array_t<IDX_T> offsets_py,
       py::array_t<VAL_T> values_py, 
-      py::list sample_idxs_py,
+      py::array_t<IDX_T> sample_mat_py,
       py::list mode_hashes_py,
       py::array_t<double> weights_py,
       int mode_to_leave,
@@ -206,7 +209,7 @@ void sample_nonzeros_redistribute(
           offsets_py,
           mode_hashes_py,
           values_py, 
-          sample_idxs_py,
+          sample_mat_py,
           weights_py,
           mode_to_leave);
 

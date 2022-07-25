@@ -121,12 +121,23 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
                 "sample_nonzeros_redistribute", 
                 [np.uint32, np.double])
 
+		# We will convert the sample indices to a matrix
+		# list for potentially faster hashing 
+
+		sample_mat = np.zeros((len(sample_idxs[0]), self.dim), dtype=np.uint32)
+
+		for i in range(self.dim):
+			if i < mode_to_leave:
+				sample_mat[:, i] = sample_idxs[i]
+			elif i > mode_to_leave:
+				sample_mat[:, i] = sample_idxs[i-1]		
+
 		start = start_clock() 
 		sample_nonzeros_redistribute(
 			self.ground_truth.mat_idxs, 
 			self.ground_truth.offsets, 
 			self.ground_truth.values, 
-			sample_idxs,
+			sample_mat,
 			self.ground_truth.mode_hashes,
 			weights,
 			mode_to_leave,	
@@ -156,7 +167,6 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock()
 		result_buffer = np.zeros_like(factor.data)
-
 
 		spmm = get_templated_function(tensor_kernels, 
                 "spmm", 

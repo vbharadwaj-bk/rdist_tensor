@@ -11,7 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <bits/stdc++.h>
-#include <unordered_set>
+#include <unordered_map>
 
 #include <mpi.h>
 #include <pybind11/pybind11.h>
@@ -71,19 +71,13 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     uint64_t nnz = values.info.shape[0];
 
     // TODO: Add an assertion downcasting this!
-    int64_t num_samples = (int64_t) sample_mat.info.shape[0];
+    uint32_t num_samples = (uint32_t) sample_mat.info.shape[0];
     int dim = idxs_mat.info.shape[1];
 
     vector<int> counts(num_samples, 0);
-    double load_factor = 0.33;
 
-    // lightweight hashtable that we can easily port to a GPU 
-    uint64_t hashtbl_size = (uint64_t) (num_samples / load_factor);
-    vector<int64_t> hashtbl(hashtbl_size, -1);
-    int64_t* hashtbl_ptr = hashtbl.data();
-
-    auto hash_fcn = [dim, mode_to_leave](const IDX_T* &ptr) { 
-      uint64_t hash;
+    auto hash_fcn = [dim, mode_to_leave](IDX_T* const &ptr) { 
+      uint64_t hash = 0;
       for(int j = 0; j < dim - 1; j++) {
         uint64_t offset = j < mode_to_leave ? j : j + 1;
         hash += murmurhash2(ptr[offset], 0x9747b28c + offset); 
@@ -92,8 +86,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }; 
 
     auto cmp_fcn = [dim, mode_to_leave](
-      const IDX_T* &ptr1, 
-      const IDX_T* &ptr2) {
+      IDX_T* const &ptr1, 
+      IDX_T* const &ptr2) {
       int eq = 1;
       for(int j = 0; j < dim - 1; j++) { 
         uint64_t offset = j < mode_to_leave ? j : j + 1;
@@ -105,115 +99,53 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }; 
 
     std::allocator<IDX_T*> alloc;
-    unordered_set<IDX_T*, 
+    unordered_map<IDX_T*, 
+        uint32_t, 
         decltype(hash_fcn),
         decltype(cmp_fcn),
         decltype(alloc)>
-        test(num_samples * 3, hash_fcn, cmp_fcn, alloc); 
+        sample_map(num_samples, hash_fcn, cmp_fcn, alloc); 
 
     // Insert all items into our hashtable; we will use simple linear probing 
 
-    //auto start = start_clock();
-    //double elapsed = 0.0;
+    auto start = start_clock();
+    double elapsed = 0.0;
+    int64_t count;
 
-    for(int64_t i = 0; i < num_samples; i++) {
-      uint64_t hash = 0;
+    for(uint32_t i = 0; i < num_samples; i++) {
       IDX_T* nz_ptr = sample_mat.ptr + i * dim;
-      for(int j = 0; j < dim - 1; j++) {
-        uint64_t offset = j < mode_to_leave ? j : j + 1;
-        hash += murmurhash2(nz_ptr[offset], 0x9747b28c + offset); 
-      }
-      hash %= hashtbl_size;
 
-      bool found = false;
-      while(hashtbl_ptr[hash] != -1l) {
-        int64_t val = hashtbl[hash];
-        IDX_T* ref_ptr = sample_mat.ptr + val * dim;
-        found = true;
-        for(int j = 0; j < dim; j++) {
-          if(nz_ptr[j] != ref_ptr[j]) {
-            found = false;
-          }
-        }
-        if(found) {
-          break;
-        }
-        hash++;
-        if(hash > hashtbl_size)
-          hash -= hashtbl_size;
+      auto res = sample_map.find(nz_ptr);
+      if(res == sample_map.end()) {
+        sample_map.insert(std::make_pair(nz_ptr, i));
+        counts[i] = 1;
       }
-      if(! found) {
-        hashtbl[hash] = i;
+      else {
+        counts[res->second]++;
       }
-      counts[hashtbl[hash]]++;
     }
- 
+
     for(int64_t i = 0; i < num_samples; i++) {
       weights.ptr[i] *= sqrt(counts[i]);
     }
 
-    uint64_t count = 0;
-
-    int pre_bytes = sizeof(IDX_T) * mode_to_leave;
-    int post_bytes = sizeof(IDX_T) * (dim - 1) - pre_bytes;
-
     // Check all items in the larger set against the hash table
+
     for(uint64_t i = 0; i < nnz; i++) {
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
-
-      // If we knew the dimension ahead of time, this loop could be compiled down. 
-      uint64_t hash = 0;
-      for(int j = 0; j < dim - 1; j++) {
-          uint64_t offset = j < mode_to_leave ? j : j + 1;
-          uint64_t val = murmurhash2(nz_ptr[offset], 0x9747b28c + offset); 
-          hash += val;
-      }
-      hash %= hashtbl_size;
-
-      int64_t val;
-
-      val = hash;
-
-      // TODO: This loop is unsafe, need to fix it! 
-      while(true) {
-        val = hashtbl[hash];
-        if(val == -1) {
-          break;
-        }
-        else {
-          IDX_T* ref_ptr = sample_mat.ptr + val * dim;
-          /*
-          int eq = 1;
-          for(int j = 0; j < dim-1; j++) {
-            uint64_t offset = j < mode_to_leave ? j : j + 1;
-            eq = eq && (nz_ptr[offset] == ref_ptr[offset]);
-          }
-          */
-          int eq = (! memcmp(nz_ptr, ref_ptr, pre_bytes))
-                      && (! memcmp(
-                      nz_ptr + mode_to_leave + 1, 
-                      ref_ptr + mode_to_leave + 1, 
-                      post_bytes)); 
-
-          if(eq) 
-            break;
-        }
-        hash++;
-        if(hash > hashtbl_size)
-          hash -= hashtbl_size;
-        
-        count++;
-      }
-
-      if(val != -1) {
+      auto res = sample_map.find(nz_ptr);
+      if(res != sample_map.end()) {
+        uint32_t val = res->second;
         gathered.rows.push_back(val);
         gathered.cols.push_back(nz_ptr[mode_to_leave]);
-        gathered.values.push_back(values.ptr[i] * weights.ptr[val]);
+        gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 
+        count += val;
       }
     }
 
-    //elapsed += stop_clock_get_elapsed(start);
-    //cout << elapsed << endl;
+    elapsed += stop_clock_get_elapsed(start);
+    cout << elapsed << endl;
+    exit(1);
 
     return gathered;
 }

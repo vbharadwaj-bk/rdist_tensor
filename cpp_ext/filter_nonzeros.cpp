@@ -115,14 +115,11 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     for(uint32_t i = 0; i < num_samples; i++) {
       IDX_T* nz_ptr = sample_mat.ptr + i * dim;
 
-      auto res = sample_map.find(nz_ptr);
-      if(res == sample_map.end()) {
-        sample_map.insert(std::make_pair(nz_ptr, i));
-        counts[i] = 1;
-      }
-      else {
-        counts[res->second]++;
-      }
+      auto res = sample_map.insert(std::make_pair(nz_ptr, i));
+      if(res.second) 
+        counts[i] = 1; 
+      else
+        counts[res.first->second]++; 
     }
 
     for(int64_t i = 0; i < num_samples; i++) {

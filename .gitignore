@@ -13,3 +13,4 @@ cpp_ext/build
 conversion_receipt.out
 .vscode/*
 tommyds
+sparsehash

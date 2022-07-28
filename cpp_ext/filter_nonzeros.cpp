@@ -78,11 +78,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     vector<int> counts(num_samples, 0);
 
     uint32_t num_bytes = dim * sizeof(IDX_T);
-    auto hash_fcn = [dim, num_bytes](IDX_T* const &ptr) { 
-      uint32_t hash;
-      MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c, &hash);
-
-      return hash;
+    auto hash_fcn = [dim, num_bytes](IDX_T* const &ptr) {  
+      return MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c);
     }; 
 
     auto cmp_fcn = [dim, num_bytes](
@@ -209,7 +206,6 @@ void sample_nonzeros_redistribute(
 PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse<uint32_t, double>>(m, "COOSparse"); 
   //  .def("print_contents", &COOSparse::print_contents);
-
   //m.def("sample_nonzeros", &sample_nonzeros);
 
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);

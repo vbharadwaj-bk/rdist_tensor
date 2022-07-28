@@ -17,6 +17,7 @@ namespace py = pybind11;
  * We are also assuming that the factor matrices are stored in
  * row-major order. 
  */
+template<typename IDX_T, typename VAL_T>
 void sp_mttkrp(
         int mode,
         py::list factors_py,
@@ -25,8 +26,8 @@ void sp_mttkrp(
         ) {
 
     NumpyList<double> factors(factors_py);
-    NumpyList<uint64_t> idxs(idxs_py);
-    NumpyArray<double> values(values_py);
+    NumpyList<IDX_T> idxs(idxs_py);
+    NumpyArray<VAL_T> values(values_py);
 
     int dim = factors.length;
     uint64_t nnz = idxs.infos[0].shape[0];
@@ -37,35 +38,30 @@ void sp_mttkrp(
     // The code below actually implements the MTTKRP! 
     // =======================================================
     
-    #pragma omp parallel
-    {
-        vector<double> accum_buffer(col_count, 1.0);
-        double* accum_ptr = accum_buffer.data();
+    vector<double> accum_buffer(col_count, 1.0);
+    double* accum_ptr = accum_buffer.data();
 
-        #pragma omp for
-        for(uint64_t i = 0; i < nnz; i++) {
-            for(int k = 0; k < col_count; k++) {
-                accum_ptr[k] = values.ptr[i];
-            }
+    for(uint64_t i = 0; i < nnz; i++) {
+        for(int k = 0; k < col_count; k++) {
+            accum_ptr[k] = values.ptr[i];
+        }
 
-            for(int j = 0; j < dim; j++) {
-                if(j != mode) {
-                    double* row_ptr = factors.ptrs[j] + (idxs.ptrs[j][i] * col_count);
-                    for(int k = 0; k < col_count; k++) {
-                        accum_ptr[k] *= row_ptr[k]; 
-                    }
+        for(int j = 0; j < dim; j++) {
+            if(j != mode) {
+                double* row_ptr = factors.ptrs[j] + (idxs.ptrs[j][i] * col_count);
+                for(int k = 0; k < col_count; k++) {
+                    accum_ptr[k] *= row_ptr[k]; 
                 }
             }
-
-            uint64_t out_row_idx = idxs.ptrs[mode][i];
-            double* out_row_ptr = result_ptr + (out_row_idx * col_count);
-
-            for(int k = 0; k < col_count; k++) {
-                #pragma omp atomic update
-                out_row_ptr[k] += accum_ptr[k]; 
-            }
         }
-    } 
+
+        IDX_T out_row_idx = idxs.ptrs[mode][i];
+        double* out_row_ptr = result_ptr + (out_row_idx * col_count);
+
+        for(int k = 0; k < col_count; k++) { 
+            out_row_ptr[k] += accum_ptr[k]; 
+        }
+    }
 }
 
 template<typename IDX_T>
@@ -231,8 +227,9 @@ void inflate_samples_multiply(
 }
 
 PYBIND11_MODULE(tensor_kernels, m) {
-    //m.def("sp_mttkrp", &sp_mttkrp);
     //m.def("sampled_mttkrp", &sampled_mttkrp);
+    m.def("sp_mttkrp_u32_double", &sp_mttkrp<uint32_t, double>); 
+
     m.def("spmm_u32_double", &spmm<uint32_t, double>);
     m.def("spmm_u64_double", &spmm<uint64_t, double>);
 

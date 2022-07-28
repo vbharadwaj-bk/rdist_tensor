@@ -44,8 +44,16 @@ class ExactALS(AlternatingOptimizer):
 		start = start_clock()
 		gathered_matrices = [factor.gathered_factor for factor in factors]
 
-		# The gathered factor to optimize is overwritten 
-		self.ground_truth.mttkrp(gathered_matrices, mode_to_leave)
+		sp_mttkrp = get_templated_function(tensor_kernels, 
+				"sp_mttkrp", 
+				[np.uint32, np.double])
+
+		gathered_matrices[mode_to_leave] *= 0.0
+		sp_mttkrp(mode_to_leave, 
+			gathered_matrices, 
+			self.ground_truth.tensor_idxs, 
+			self.ground_truth.values)
+
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "MTTKRP")
 

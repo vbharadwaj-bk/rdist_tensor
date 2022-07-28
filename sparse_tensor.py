@@ -157,19 +157,6 @@ class DistSparseTensor:
         for i in range(self.dim):
             self.mat_idxs[:, i] = self.offset_idxs[i] 
 
-
-    def mttkrp(self, factors, mode):
-        '''
-        For convenience, factors is sized equal to the dimension of the
-        tensor, so we replace the factor at the mode to replace with the
-        output buffer.
-
-        Mode is the index of the mode to isolate along the column axis
-        when matricizing the tensor
-        ''' 
-        factors[mode] *= 0.0
-        tensor_kernels.sp_mttkrp(mode, factors, self.tensor_idxs, self.values)
-
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 
         tensor_kernels.sampled_mttkrp(mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights)

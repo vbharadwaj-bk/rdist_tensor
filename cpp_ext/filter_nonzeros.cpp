@@ -21,6 +21,7 @@
 #include <vector>
 
 #include "common.h"
+#include "hashing.h"
 #include "tensor_alltoallv.h"
 
 using namespace std;
@@ -76,26 +77,18 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     vector<int> counts(num_samples, 0);
 
-    auto hash_fcn = [dim, mode_to_leave](IDX_T* const &ptr) { 
-      uint64_t hash = 0;
-      for(int j = 0; j < dim - 1; j++) {
-        uint64_t offset = j < mode_to_leave ? j : j + 1;
-        hash += murmurhash2(ptr[offset], 0x9747b28c + offset); 
-      }
+    uint32_t num_bytes = dim * sizeof(IDX_T);
+    auto hash_fcn = [dim, num_bytes](IDX_T* const &ptr) { 
+      uint32_t hash;
+      MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c, &hash);
+
       return hash;
     }; 
 
-    auto cmp_fcn = [dim, mode_to_leave](
+    auto cmp_fcn = [dim, num_bytes](
       IDX_T* const &ptr1, 
       IDX_T* const &ptr2) {
-      int eq = 1;
-      for(int j = 0; j < dim - 1; j++) { 
-        uint64_t offset = j < mode_to_leave ? j : j + 1;
-        if(ptr1[offset] != ptr2[offset]) {
-          eq = 0;
-        }
-      }
-      return eq;
+      return ! memcmp(ptr1, ptr2, num_bytes);
     }; 
 
     std::allocator<IDX_T*> alloc;
@@ -130,7 +123,10 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     for(uint64_t i = 0; i < nnz; i++) {
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
+      IDX_T temp = nz_ptr[mode_to_leave];
+      nz_ptr[mode_to_leave] = 0;
       auto res = sample_map.find(nz_ptr);
+      nz_ptr[mode_to_leave] = temp;
       if(res != sample_map.end()) {
         uint32_t val = res->second;
         gathered.rows.push_back(val);
@@ -141,8 +137,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }
 
     elapsed += stop_clock_get_elapsed(start);
-    cout << elapsed << endl;
-    exit(1);
+    //cout << elapsed << endl;
+    //exit(1);
 
     return gathered;
 }

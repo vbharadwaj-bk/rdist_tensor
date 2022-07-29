@@ -77,7 +77,7 @@ public:
   int num_bytes; 
   CuckooHash() {
     //this->num_bytes = num_bytes;
-    this->num_bytes = 16;
+    this->num_bytes = 12;
   }
 
   uint64_t operator()(IDX_T* const &ptr) const

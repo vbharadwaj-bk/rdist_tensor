@@ -14,3 +14,5 @@ conversion_receipt.out
 .vscode/*
 tommyds
 sparsehash
+cuckoofilter
+sparsehash-c11

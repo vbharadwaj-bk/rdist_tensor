@@ -126,7 +126,8 @@ FORCE_INLINE uint32_t MurmurHash3_x86_32 ( const void * key, int len,
 
   h1 ^= len;
 
-  h1 = fmix32(h1);
+  h1 = fmix32(h1); 
+
   return h1;
 } 
 

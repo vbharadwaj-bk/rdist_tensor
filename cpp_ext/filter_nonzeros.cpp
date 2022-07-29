@@ -22,6 +22,7 @@
 
 #include "common.h"
 #include "hashing.h"
+#include "sparsehash/dense_hash_map"
 #include "tensor_alltoallv.h"
 
 using namespace std;
@@ -47,6 +48,45 @@ void compute_mode_hashes(
     } 
   }
 }
+
+template<typename IDX_T>
+struct TupleHasher 
+{
+public:
+  int num_bytes;
+  int mode_to_leave;
+  TupleHasher(int num_bytes) {
+    this->num_bytes = num_bytes;
+  }
+
+  uint32_t operator()(IDX_T* const &ptr) const
+  {
+    if(ptr != nullptr)
+      return MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c); 
+    else
+      return 0;
+  }
+};
+
+template<typename IDX_T>
+struct TupleEqual 
+{
+public:
+  int num_bytes;
+  TupleEqual(int num_bytes) {
+    this->num_bytes = num_bytes;
+  }
+
+  bool operator()(IDX_T* const &s1, uint32_t* const &s2) const
+  {
+      if(s1 == nullptr || s2 == nullptr) {
+        return s1 == s2;
+      }
+      else {
+        return ! memcmp(s1, s2, num_bytes);
+      }
+  }
+};
 
 /*
  * This function builds and returns a sparse matrix.
@@ -78,34 +118,33 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     vector<int> counts(num_samples, 0);
 
     uint32_t num_bytes = dim * sizeof(IDX_T);
-    auto hash_fcn = [dim, num_bytes](IDX_T* const &ptr) {  
-      return MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c);
-    }; 
 
-    auto cmp_fcn = [dim, num_bytes](
-      IDX_T* const &ptr1, 
-      IDX_T* const &ptr2) {
-      return ! memcmp(ptr1, ptr2, num_bytes);
-    }; 
+    IDX_T* empty_key = nullptr;
+    TupleHasher<IDX_T> hasher(num_bytes);
+    TupleEqual<IDX_T> comparer(num_bytes);
 
-    std::allocator<IDX_T*> alloc;
-    unordered_map<IDX_T*, 
+    google::dense_hash_map<uint32_t*, 
         uint32_t, 
-        decltype(hash_fcn),
-        decltype(cmp_fcn),
-        decltype(alloc)>
-        sample_map(num_samples, hash_fcn, cmp_fcn, alloc); 
+        TupleHasher<IDX_T>, 
+        TupleEqual<IDX_T>> dmap(
+            num_samples,
+            hasher,
+            comparer 
+        );
+
+    dmap.set_empty_key(empty_key);
+    //dmap[sample_mat.ptr] = 31;
+    //exit(1);
 
     // Insert all items into our hashtable; we will use simple linear probing 
-
-    auto start = start_clock();
+    //auto start = start_clock();
     double elapsed = 0.0;
     int64_t count;
 
     for(uint32_t i = 0; i < num_samples; i++) {
       IDX_T* nz_ptr = sample_mat.ptr + i * dim;
 
-      auto res = sample_map.insert(std::make_pair(nz_ptr, i));
+      auto res = dmap.insert(std::make_pair(nz_ptr, i));
       if(res.second) 
         counts[i] = 1; 
       else
@@ -122,20 +161,22 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
       IDX_T temp = nz_ptr[mode_to_leave];
       nz_ptr[mode_to_leave] = 0;
-      auto res = sample_map.find(nz_ptr);
+      auto res = dmap.find(nz_ptr);
       nz_ptr[mode_to_leave] = temp;
-      if(res != sample_map.end()) {
+      if(res != dmap.end()) {
         uint32_t val = res->second;
         gathered.rows.push_back(val);
-        gathered.cols.push_back(nz_ptr[mode_to_leave]);
+        gathered.cols.push_back(temp);
         gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 
         count += val;
       }
+      count += temp;
     }
 
-    elapsed += stop_clock_get_elapsed(start);
+    //elapsed += stop_clock_get_elapsed(start);
+    //cout << count << endl;
     //cout << elapsed << endl;
-    //exit(1);
+
 
     return gathered;
 }
@@ -219,6 +260,6 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-O3']
 cfg['extra_link_args'] = ['-O3']
-cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h']
+cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h']
 %>
 */

@@ -23,9 +23,11 @@
 #include "common.h"
 #include "hashing.h"
 #include "sparsehash/dense_hash_map"
+#include "cuckoofilter/src/cuckoofilter.h"
 #include "tensor_alltoallv.h"
 
 using namespace std;
+using namespace cuckoofilter;
 namespace py = pybind11;
 
 template<typename IDX_T>
@@ -43,7 +45,7 @@ void compute_mode_hashes(
     // TODO: Need to template this out!
     uint32_t offset = offsets.ptr[j];
     for(uint32_t i = 0; i < ranges.ptr[j]; i++) {
-      hashes.ptrs[j][i] = murmurhash2(offset + i, 0x9747b28c + j);
+      hashes.ptrs[j][i] = murmurhash2_fast(offset + i, 0x9747b28c + j);
       //hashes.ptrs[j][i] = offset + i; 
     } 
   }
@@ -54,7 +56,6 @@ struct TupleHasher
 {
 public:
   int num_bytes;
-  int mode_to_leave;
   TupleHasher(int num_bytes) {
     this->num_bytes = num_bytes;
   }
@@ -65,6 +66,25 @@ public:
       return MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c); 
     else
       return 0;
+  }
+};
+
+
+template<typename IDX_T>
+struct CuckooHash 
+{
+public:
+  int num_bytes; 
+  CuckooHash() {
+    //this->num_bytes = num_bytes;
+    this->num_bytes = 16;
+  }
+
+  uint64_t operator()(IDX_T* const &ptr) const
+  {
+      uint64_t h1 = MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c); 
+      h1 = (h1 << 32) + MurmurHash3_x86_32 ( ptr, num_bytes, 0x9793b15c); 
+      return h1;
   }
 };
 
@@ -123,7 +143,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     TupleHasher<IDX_T> hasher(num_bytes);
     TupleEqual<IDX_T> comparer(num_bytes);
 
-    google::dense_hash_map<uint32_t*, 
+    google::dense_hash_map<IDX_T*, 
         uint32_t, 
         TupleHasher<IDX_T>, 
         TupleEqual<IDX_T>> dmap(
@@ -132,7 +152,12 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
             comparer 
         );
 
+    CuckooFilter<IDX_T*, 
+        12, 
+        SingleTable, 
+        CuckooHash<IDX_T>> filter(num_samples);
     dmap.set_empty_key(empty_key);
+
     //dmap[sample_mat.ptr] = 31;
     //exit(1);
 
@@ -145,10 +170,13 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       IDX_T* nz_ptr = sample_mat.ptr + i * dim;
 
       auto res = dmap.insert(std::make_pair(nz_ptr, i));
-      if(res.second) 
-        counts[i] = 1; 
-      else
+      if(res.second) {
+        counts[i] = 1;
+        filter.Add(nz_ptr);
+      } 
+      else {
         counts[res.first->second]++; 
+      }
     }
 
     for(int64_t i = 0; i < num_samples; i++) {
@@ -161,16 +189,18 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
       IDX_T temp = nz_ptr[mode_to_leave];
       nz_ptr[mode_to_leave] = 0;
-      auto res = dmap.find(nz_ptr);
-      nz_ptr[mode_to_leave] = temp;
-      if(res != dmap.end()) {
-        uint32_t val = res->second;
-        gathered.rows.push_back(val);
-        gathered.cols.push_back(temp);
-        gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 
-        count += val;
+
+      if(filter.Contain(nz_ptr) == cuckoofilter::Ok) { 
+        auto res = dmap.find(nz_ptr); 
+        if(res != dmap.end()) {
+          uint32_t val = res->second;
+          gathered.rows.push_back(val);
+          gathered.cols.push_back(temp);
+          gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 
+          count += val;
+        }
       }
-      count += temp;
+      nz_ptr[mode_to_leave] = temp;
     }
 
     //elapsed += stop_clock_get_elapsed(start);
@@ -259,7 +289,8 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 <%
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-O3']
-cfg['extra_link_args'] = ['-O3']
-cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h']
+cfg['extra_link_args'] = ['-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/cpp_ext/cuckoofilter']
+cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h']
+cfg['libraries'] = ['cuckoofilter']
 %>
 */

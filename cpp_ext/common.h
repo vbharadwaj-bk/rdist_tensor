@@ -139,7 +139,7 @@ public:
 
 // TODO: Need to add a hash function for other sizes as well! 
 
-inline uint64_t murmurhash2 (uint32_t k1, uint64_t seed )
+inline uint64_t murmurhash2_fast (uint32_t k1, uint64_t seed )
 {
   const uint32_t m = 0x5bd1e995;
   const int r = 24;

@@ -16,3 +16,4 @@ tommyds
 sparsehash
 cuckoofilter
 sparsehash-c11
+libcuckoofilter.a

@@ -21,8 +21,6 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 	mode_rows = []
 	weight_prods = np.zeros(dist_sample_count, dtype=np.double)
 	weight_prods -= 0.5 * np.log(dist_sample_count)
-	r = factors[0].data.shape[1]
-	#lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
 
 	for i in range(len(factors)):
 		if i == mode_to_leave:
@@ -31,9 +29,9 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		factor = factors[i]
 		
 		if reuse_samples:
-			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[0]
+			all_samples, all_counts, all_probs, all_rows = factor.gathered_samples[0]
 		else:
-			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
+			all_samples, all_counts, all_probs, all_rows = factor.gathered_samples[mode_to_leave]
 
 		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
 		sample_ids = np.zeros(dist_sample_count, dtype=np.int64)
@@ -55,12 +53,6 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 				perm,
 				sample_ids
 				)
-
-		#tensor_kernels.assemble_full_lhs(
-		#	sample_ids,
-		#	all_rows,
-		#	lhs_buffer
-		#)
 
 		samples.append(inflated_samples)
 		inflated_sample_ids.append(sample_ids)
@@ -167,8 +159,6 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		# Perform the weight update after the nonzero
 		# sampling so that repeated rows are combined 
-
-		#lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)	
 
 		start = start_clock()
 		result_buffer = np.zeros_like(factor.data)

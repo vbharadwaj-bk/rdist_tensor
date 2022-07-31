@@ -62,20 +62,20 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 		start = start_clock() 
 
-		#tensor_kernels.assemble_full_lhs(
-		#	sample_ids,
-		#	all_rows,
-		#	lhs_buffer
-		#)
+		tensor_kernels.assemble_full_lhs(
+			sample_ids,
+			all_rows,
+			lhs_buffer
+		)
 
-		#MPI.COMM_WORLD.Barrier()
-		#stop_clock_and_add(start, timers, "LHS Inflation")
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, timers, "LHS Inflation")
 
 		samples.append(inflated_samples)
 		inflated_sample_ids.append(sample_ids)
 		mode_rows.append(all_rows)
 
-	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows
+	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows, lhs_buffer
 
 class AccumulatorStationaryOpt1(AlternatingOptimizer):
 	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=True):
@@ -130,8 +130,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
+		sample_idxs, weights, inflated_sample_ids, mode_rows, lhs_buffer = gather_samples_lhs(factors, s, 
 				mode_to_leave, grid, self.timers, self.reuse_samples)
+
+		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
 
 		recv_idx, recv_values = [], []
 
@@ -180,14 +182,27 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		start = start_clock()
 		result_buffer = np.zeros_like(factor.data)
 
-		spmm_compressed = get_templated_function(tensor_kernels, 
-                "spmm_compressed", 
+		#spmm_compressed = get_templated_function(tensor_kernels, 
+        #        "spmm_compressed", 
+        #        [np.uint32, np.double])
+
+		#spmm_compressed(
+		#	lhs_buffer,
+		#	inflated_sample_ids,
+		#	mode_rows,
+		#	weights,
+		#	recv_idx[0],
+		#	recv_idx[1],
+		#	recv_values,
+		#	result_buffer
+		#	)
+
+		spmm = get_templated_function(tensor_kernels, 
+                "spmm", 
                 [np.uint32, np.double])
 
-		spmm_compressed(
-			inflated_sample_ids,
-			mode_rows,
-			weights,
+		spmm(
+			lhs_buffer,
 			recv_idx[0],
 			recv_idx[1],
 			recv_values,

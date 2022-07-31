@@ -257,19 +257,29 @@ void spmm_compressed(
         IDX_T col = row_ptr[i];
         VAL_T value = val_ptr[i];
 
-        std::fill(accum_ptr, accum_ptr + r, value * weights.ptr[i]);
+        std::fill(accum_ptr, accum_ptr + r, value * weights.ptr[col]);
         for(int k = 0; k < dim_m1; k++) {
             double* row_ptr =
                 mode_rows.ptrs[k] + (inflated_sample_ids.ptrs[k][col] * r);
             for(int j = 0; j < r; j++) {
                 accum_ptr[j] *= row_ptr[j]; 
             }
+            //cout << "TEST: " << accum_ptr[0] << endl; 
         }
 
         for(int j = 0; j < r; j++) {
-            //result.ptr[row * r + j] += accum_ptr[j];
-            result.ptr[row * r + j] += lhs_buffer.ptr[col * r + j] * value; 
+            result.ptr[row * r + j] += accum_ptr[j];
+            //result.ptr[row * r + j] += lhs_buffer.ptr[col * r + j] * value; 
+
+            /*cout << lhs_buffer.ptr[col * r + j] * value << " ";
+            cout << accum_ptr[j] << " ";
+            cout << value << " "; 
+            cout << weights.ptr[col] << " ";
+            cout << col << " ";
+            cout << endl;*/
         }
+
+        //exit(1);
     }
 }
 

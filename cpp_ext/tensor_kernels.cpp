@@ -146,33 +146,6 @@ void sampled_mttkrp(
 }
 */
 
-template<typename IDX_T, typename VAL_T>
-void spmm(
-        py::array_t<double> lhs_py,
-        py::array_t<IDX_T> rhs_rows_py,
-        py::array_t<IDX_T> rhs_cols_py,
-        py::array_t<VAL_T> rhs_values_py,
-        py::array_t<double> result_py
-        ) {
-
-    NumpyArray<double> lhs(lhs_py);
-    NumpyArray<IDX_T> rhs_rows(rhs_rows_py);
-    NumpyArray<IDX_T> rhs_cols(rhs_cols_py);
-    NumpyArray<VAL_T> rhs_values(rhs_values_py);
-    NumpyArray<double> result(result_py);
-    int r = result.info.shape[1];
-    uint64_t nnz = rhs_rows.info.shape[0];
-
-    COOSparse<IDX_T, VAL_T> sampled_rhs_wrapped;
-
-    // TODO: This next step could be way more efficient...
-    // but I just want to finish this... 
-    sampled_rhs_wrapped.rows.assign(rhs_rows.ptr, rhs_rows.ptr + nnz); 
-    sampled_rhs_wrapped.cols.assign(rhs_cols.ptr, rhs_cols.ptr + nnz); 
-    sampled_rhs_wrapped.values.assign(rhs_values.ptr, rhs_values.ptr + nnz);
-    sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
-}
-
 template<typename IDX_T>
 void inflate_samples_multiply(
     py::array_t<IDX_T> samples_py,
@@ -219,6 +192,57 @@ void inflate_samples_multiply(
     }
 }
 
+template<typename IDX_T, typename VAL_T>
+void spmm_compressed(
+        py::list inflated_sample_ids_py,
+        py::list mode_rows_py,
+        py::array_t<double> weights_py,
+        py::array_t<IDX_T> rhs_rows_py,
+        py::array_t<IDX_T> rhs_cols_py,
+        py::array_t<VAL_T> rhs_values_py,
+        py::array_t<double> result_py
+        ) {
+
+    NumpyList<int64_t> inflated_sample_ids(inflated_sample_ids_py);
+    NumpyList<double> mode_rows(mode_rows_py);
+    NumpyArray<double> weights(weights_py);
+    NumpyArray<IDX_T> rhs_rows(rhs_rows_py);
+    NumpyArray<IDX_T> rhs_cols(rhs_cols_py);
+    NumpyArray<VAL_T> rhs_values(rhs_values_py);
+    NumpyArray<double> result(result_py);
+    int r = result.info.shape[1];
+    uint64_t nnz = rhs_rows.info.shape[0];
+    int dim_m1 = mode_rows.length; 
+    //sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
+
+    IDX_T* row_ptr = rhs_rows.ptr;
+    IDX_T* col_ptr = rhs_cols.ptr;
+    VAL_T* val_ptr = rhs_values.ptr;
+
+    vector<double> accumulator_row(r, 1.0);
+    double* accum_ptr = accumulator_row.data(); 
+
+    for(uint64_t i = 0; i < nnz; i++) {
+        // We perform a transpose here
+        IDX_T row = col_ptr[i];
+        IDX_T col = row_ptr[i];
+        VAL_T value = val_ptr[i];
+
+        std::fill(accum_ptr, accum_ptr + r, value * weights.ptr[i]);
+        for(int k = 0; k < dim_m1; k++) {
+            double* row_ptr =
+                mode_rows.ptrs[k] + (inflated_sample_ids.ptrs[k][col] * r);
+            for(int j = 0; j < r; j++) {
+                accum_ptr[j] *= row_ptr[j]; 
+            }
+        }
+
+        for(int j = 0; j < r; j++) {
+            result.ptr[row * r + j] += accum_ptr[j];
+        }
+    }
+}
+
 void assemble_full_lhs(
     py::array_t<int64_t> sample_ids_py,
     py::array_t<double> rows_py,
@@ -243,16 +267,9 @@ void assemble_full_lhs(
 PYBIND11_MODULE(tensor_kernels, m) {
     //m.def("sampled_mttkrp", &sampled_mttkrp);
     m.def("sp_mttkrp_u32_double", &sp_mttkrp<uint32_t, double>); 
-
-    m.def("spmm_u32_double", &spmm<uint32_t, double>);
-    m.def("spmm_u64_double", &spmm<uint64_t, double>);
-
+    m.def("spmm_compressed_u32_double", &spmm_compressed<uint32_t, double>);
     m.def("compute_tensor_values_u32", &compute_tensor_values<uint32_t>);
-    m.def("compute_tensor_values_u64", &compute_tensor_values<uint64_t>);
-
     m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
-    m.def("inflate_samples_multiply_u64", &inflate_samples_multiply<uint64_t>);
-
     m.def("assemble_full_lhs", &assemble_full_lhs);
 }
 

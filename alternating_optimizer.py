@@ -26,7 +26,8 @@ class AlternatingOptimizer:
 						"MTTKRP": 0.0,
 						"Slice Reduce-Scatter":	0.0,
 						"Sample Allgather": 0.0,
-						"LHS Assembly": 0.0,
+						"Sample Inflation": 0.0,
+						"LHS Inflation": 0.0,
 						"Nonzero Filtering + Redistribute": 0.0,
 						"Gram LSTSQ Solve":	0.0,
 						"Leverage Score Computation": 0.0

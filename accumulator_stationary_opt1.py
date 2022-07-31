@@ -17,6 +17,8 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 	tensor mode. 
 	'''
 	samples = []
+	inflated_sample_ids = []
+	mode_rows = []
 	weight_prods = np.zeros(dist_sample_count, dtype=np.double)
 	weight_prods -= 0.5 * np.log(dist_sample_count)
 	r = factors[0].data.shape[1]
@@ -33,12 +35,11 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		else:
 			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
 
-		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
-		sample_ids = np.zeros(dist_sample_count, dtype=np.int64)
+		inflated_samples = np.empty(dist_sample_count, dtype=np.uint32)
+		sample_ids = np.empty(dist_sample_count, dtype=np.int64)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
-		start = start_clock() 
 
 		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
@@ -47,6 +48,8 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
                 "inflate_samples_multiply", 
                 [np.uint32])
 
+		start = start_clock() 
+
 		inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
 				inflated_samples, weight_prods, lhs_buffer,
@@ -54,18 +57,25 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 				sample_ids
 				)
 
-		tensor_kernels.assemble_full_lhs(
-			sample_ids,
-			all_rows,
-			lhs_buffer
-		)
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, timers, "Sample Inflation")
+
+		start = start_clock() 
+
+		#tensor_kernels.assemble_full_lhs(
+		#	sample_ids,
+		#	all_rows,
+		#	lhs_buffer
+		#)
+
+		#MPI.COMM_WORLD.Barrier()
+		#stop_clock_and_add(start, timers, "LHS Inflation")
 
 		samples.append(inflated_samples)
+		inflated_sample_ids.append(sample_ids)
+		mode_rows.append(all_rows)
 
-		MPI.COMM_WORLD.Barrier()
-		stop_clock_and_add(start, timers, "LHS Assembly")
-
-	return samples, np.exp(weight_prods), lhs_buffer	
+	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows
 
 class AccumulatorStationaryOpt1(AlternatingOptimizer):
 	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=True):
@@ -120,7 +130,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		sample_idxs, weights, lhs_buffer = gather_samples_lhs(factors, s, 
+		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
 				mode_to_leave, grid, self.timers, self.reuse_samples)
 
 		recv_idx, recv_values = [], []
@@ -168,20 +178,16 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		# sampling so that repeated rows are combined 
 
 		start = start_clock()
-		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)
-
-		MPI.COMM_WORLD.Barrier()
-		stop_clock_and_add(start, self.timers, "LHS Assembly")
-
-		start = start_clock()
 		result_buffer = np.zeros_like(factor.data)
 
-		spmm = get_templated_function(tensor_kernels, 
-                "spmm", 
+		spmm_compressed = get_templated_function(tensor_kernels, 
+                "spmm_compressed", 
                 [np.uint32, np.double])
 
-		spmm(
-			lhs_buffer,
+		spmm_compressed(
+			inflated_sample_ids,
+			mode_rows,
+			weights,
 			recv_idx[0],
 			recv_idx[1],
 			recv_values,

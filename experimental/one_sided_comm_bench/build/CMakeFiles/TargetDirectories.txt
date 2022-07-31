@@ -1,0 +1,3 @@
+/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/one_sided_comm_bench/build/CMakeFiles/bench_accum.dir
+/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/one_sided_comm_bench/build/CMakeFiles/edit_cache.dir
+/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/one_sided_comm_bench/build/CMakeFiles/rebuild_cache.dir

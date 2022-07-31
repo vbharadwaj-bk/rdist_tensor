@@ -31,22 +31,22 @@ if __name__=='__main__':
     if rank == 0:
         import cppimport.import_hook
         #import cpp_ext.bloom_filter 
-        import cpp_ext.filter_nonzeros
-        import cpp_ext.redistribute_tensor
-        import cpp_ext.tensor_kernels
+        import exafac.cpp_ext.filter_nonzeros
+        import exafac.cpp_ext.redistribute_tensor
+        import exafac.cpp_ext.tensor_kernels
 
     MPI.COMM_WORLD.Barrier()
 
-    from low_rank_tensor import *
-    from grid import *
-    from sparse_tensor import *
-    from sampling import *
+    from exafac.low_rank_tensor import *
+    from exafac.grid import *
+    from exafac.sparse_tensor import *
+    from exafac.sampling import *
 
     # List of optimizers
-    from tensor_stationary_opt0 import TensorStationaryOpt0
+    from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
-    from accumulator_stationary_opt1 import AccumulatorStationaryOpt1
-    from exact_als import ExactALS
+    from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
+    from exafac.optim.exact_als import ExactALS
 
     # Let every process have a different random
     # seed based on its MPI rank; may be a better

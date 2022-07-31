@@ -1,1 +1,1 @@
-# Algorithms for Randomized Distributed Tensor Decomposition
+# Exafac (Working Name): Sampling Algorithms for Randomized Sparse Tensor Decomposition

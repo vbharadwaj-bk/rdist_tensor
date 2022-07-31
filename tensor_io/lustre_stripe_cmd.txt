@@ -1,0 +1,4 @@
+# Example of how to set up striping with
+# the lustre filesystem
+
+lfs setstripe -c 72 -S 8M my_datasets/

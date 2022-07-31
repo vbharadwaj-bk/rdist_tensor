@@ -34,6 +34,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 			all_samples, all_counts, all_probs, all_rows = factors[i].gathered_samples[mode_to_leave]
 
 		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
+		sample_ids = np.zeros(dist_sample_count, dtype=np.int64)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
@@ -49,8 +50,15 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
 				inflated_samples, weight_prods, lhs_buffer,
-				perm
+				perm,
+				sample_ids
 				)
+
+		tensor_kernels.assemble_full_lhs(
+			sample_ids,
+			all_rows,
+			lhs_buffer
+		)
 
 		samples.append(inflated_samples)
 

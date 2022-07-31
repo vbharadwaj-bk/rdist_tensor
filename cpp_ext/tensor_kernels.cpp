@@ -182,7 +182,8 @@ void inflate_samples_multiply(
     py::array_t<IDX_T> inflated_samples_py,
     py::array_t<double> weight_prods_py,
     py::array_t<double> lhs_buffer_py,
-    py::array_t<int64_t> permutation_py
+    py::array_t<int64_t> permutation_py,
+    py::array_t<int64_t> sample_ids_py
 ) {
     NumpyArray<IDX_T> samples(samples_py);
     NumpyArray<int64_t> counts(counts_py);
@@ -192,6 +193,7 @@ void inflate_samples_multiply(
     NumpyArray<double> weight_prods(weight_prods_py);
     NumpyArray<double> lhs_buffer(lhs_buffer_py);
     NumpyArray<int64_t> permutation(permutation_py);
+    NumpyArray<int64_t> sample_ids(sample_ids_py);
 
     uint64_t num_unique_samples = samples.info.shape[0];
     vector<int64_t> sample_offsets(num_unique_samples + 1, 0); 
@@ -205,21 +207,33 @@ void inflate_samples_multiply(
         + counts.ptr[num_unique_samples - 1];
 
     assert(inflated_sample_count == sample_offsets[num_unique_samples]);
-
-    vector<uint64_t> sample_ids(inflated_sample_count, 0); 
     int64_t* ptr = sample_offsets.data();
 
     for(uint64_t i = 0; i < num_unique_samples; i++) {
         for(int64_t j = ptr[i]; j < ptr[i+1]; j++) {
             int64_t perm_loc = permutation.ptr[j];
-            sample_ids[perm_loc] = i;
+            sample_ids.ptr[perm_loc] = i;
             inflated_samples.ptr[perm_loc] = samples.ptr[i];
             weight_prods.ptr[perm_loc] -= 0.5 * log(probs.ptr[i]);
         }
     }
+}
+
+void assemble_full_lhs(
+    py::array_t<int64_t> sample_ids_py,
+    py::array_t<double> rows_py,
+    py::array_t<double> lhs_buffer_py) {
+    
+    NumpyArray<int64_t> sample_ids(sample_ids_py);
+    NumpyArray<double> rows(rows_py);
+    NumpyArray<double> lhs_buffer(lhs_buffer_py);
+
+    uint64_t inflated_sample_count = sample_ids.info.shape[0];
+    uint64_t r = lhs_buffer.info.shape[1];
+
     for(uint64_t i = 0; i < inflated_sample_count; i++) {
         double* base_ptr = lhs_buffer.ptr + i * r;
-        double* row_ptr = rows.ptr + sample_ids[i] * r;
+        double* row_ptr = rows.ptr + sample_ids.ptr[i] * r;
         for(uint64_t j = 0; j < r; j++) {
             base_ptr[j] *= row_ptr[j];
         }
@@ -239,7 +253,7 @@ PYBIND11_MODULE(tensor_kernels, m) {
     m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
     m.def("inflate_samples_multiply_u64", &inflate_samples_multiply<uint64_t>);
 
-    m.def("inflate_samples_multiply_u64", &inflate_samples_multiply<uint64_t>);
+    m.def("assemble_full_lhs", &assemble_full_lhs);
 }
 
 /*

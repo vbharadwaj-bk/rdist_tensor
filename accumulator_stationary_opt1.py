@@ -16,11 +16,12 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 	With this approach, we gather fresh samples for every
 	tensor mode. 
 	'''
+	start = start_clock() 
 	samples = []
 	inflated_sample_ids = []
 	mode_rows = []
 	weight_prods = np.zeros(dist_sample_count, dtype=np.double)
-	weight_prods -= 0.5 * np.log(dist_sample_count)
+	weight_prods -= 0.5 * np.log(dist_sample_count)	
 
 	for i in range(len(factors)):
 		if i == mode_to_leave:
@@ -38,7 +39,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
-		start = start_clock() 
+
 
 		rng = default_rng(seed=broadcast_common_seed(grid.comm))
 		perm = rng.permutation(dist_sample_count)
@@ -57,6 +58,8 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		samples.append(inflated_samples)
 		inflated_sample_ids.append(sample_ids)
 		mode_rows.append(all_rows)
+
+	stop_clock_and_add(start, timers, "Sample Inflation")
 
 	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows
 

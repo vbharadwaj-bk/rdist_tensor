@@ -154,7 +154,6 @@ void inflate_samples_multiply(
     py::array_t<double> rows_py,
     py::array_t<IDX_T> inflated_samples_py,
     py::array_t<double> weight_prods_py,
-    py::array_t<double> lhs_buffer_py,
     py::array_t<int64_t> permutation_py,
     py::array_t<int64_t> sample_ids_py
 ) {
@@ -164,16 +163,12 @@ void inflate_samples_multiply(
     NumpyArray<double> rows(rows_py);
     NumpyArray<IDX_T> inflated_samples(inflated_samples_py);
     NumpyArray<double> weight_prods(weight_prods_py);
-    NumpyArray<double> lhs_buffer(lhs_buffer_py);
     NumpyArray<int64_t> permutation(permutation_py);
     NumpyArray<int64_t> sample_ids(sample_ids_py);
 
     uint64_t num_unique_samples = samples.info.shape[0];
     vector<int64_t> sample_offsets(num_unique_samples + 1, 0); 
     prefix_sum_ptr(counts.ptr, sample_offsets.data(), num_unique_samples); 
-
-    uint64_t inflated_sample_count = inflated_samples.info.shape[0];
-    uint64_t r = lhs_buffer.info.shape[1];
 
     sample_offsets[num_unique_samples] =  
         sample_offsets[num_unique_samples - 1]
@@ -221,7 +216,6 @@ void spmm(
 
 template<typename IDX_T, typename VAL_T>
 void spmm_compressed(
-        py::array_t<double> lhs_buffer_py,
         py::list inflated_sample_ids_py,
         py::list mode_rows_py,
         py::array_t<double> weights_py,
@@ -230,8 +224,6 @@ void spmm_compressed(
         py::array_t<VAL_T> rhs_values_py,
         py::array_t<double> result_py
         ) {
-
-    NumpyArray<double> lhs_buffer(lhs_buffer_py);
     NumpyList<int64_t> inflated_sample_ids(inflated_sample_ids_py);
     NumpyList<double> mode_rows(mode_rows_py);
     NumpyArray<double> weights(weights_py);
@@ -263,23 +255,12 @@ void spmm_compressed(
                 mode_rows.ptrs[k] + (inflated_sample_ids.ptrs[k][col] * r);
             for(int j = 0; j < r; j++) {
                 accum_ptr[j] *= row_ptr[j]; 
-            }
-            //cout << "TEST: " << accum_ptr[0] << endl; 
+            } 
         }
 
         for(int j = 0; j < r; j++) {
             result.ptr[row * r + j] += accum_ptr[j];
-            //result.ptr[row * r + j] += lhs_buffer.ptr[col * r + j] * value; 
-
-            /*cout << lhs_buffer.ptr[col * r + j] * value << " ";
-            cout << accum_ptr[j] << " ";
-            cout << value << " "; 
-            cout << weights.ptr[col] << " ";
-            cout << col << " ";
-            cout << endl;*/
-        }
-
-        //exit(1);
+        }        
     }
 }
 

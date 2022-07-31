@@ -22,7 +22,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 	weight_prods = np.zeros(dist_sample_count, dtype=np.double)
 	weight_prods -= 0.5 * np.log(dist_sample_count)
 	r = factors[0].data.shape[1]
-	lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
+	#lhs_buffer = np.ones((dist_sample_count, r), dtype=np.double) 
 
 	for i in range(len(factors)):
 		if i == mode_to_leave:
@@ -51,22 +51,22 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 		inflate_samples_multiply(
 				all_samples, all_counts, all_probs, all_rows,
-				inflated_samples, weight_prods, lhs_buffer,
+				inflated_samples, weight_prods,
 				perm,
 				sample_ids
 				)
 
-		tensor_kernels.assemble_full_lhs(
-			sample_ids,
-			all_rows,
-			lhs_buffer
-		)
+		#tensor_kernels.assemble_full_lhs(
+		#	sample_ids,
+		#	all_rows,
+		#	lhs_buffer
+		#)
 
 		samples.append(inflated_samples)
 		inflated_sample_ids.append(sample_ids)
 		mode_rows.append(all_rows)
 
-	return samples, np.exp(weight_prods), lhs_buffer, inflated_sample_ids, mode_rows
+	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows
 
 class AccumulatorStationaryOpt1(AlternatingOptimizer):
 	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=True):
@@ -121,7 +121,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		sample_idxs, weights, lhs_buffer, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
+		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
 				mode_to_leave, grid, self.timers, self.reuse_samples)
 
 		recv_idx, recv_values = [], []
@@ -168,17 +168,16 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		# Perform the weight update after the nonzero
 		# sampling so that repeated rows are combined 
 
-		lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)	
+		#lhs_buffer = np.einsum('i,ij->ij', weights, lhs_buffer)	
 
 		start = start_clock()
 		result_buffer = np.zeros_like(factor.data)
 
-		spmm = get_templated_function(tensor_kernels, 
+		spmm_compressed = get_templated_function(tensor_kernels, 
                 "spmm_compressed", 
                 [np.uint32, np.double])
 
-		spmm(
-			lhs_buffer,
+		spmm_compressed(
 			inflated_sample_ids,
 			mode_rows,
 			weights,

@@ -47,6 +47,8 @@ if __name__=='__main__':
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
     from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exafac.optim.exact_als import ExactALS
+    from exafac.optim.dist_grid_optimizer import DistributedGridOptimizer
+
 
     # Let every process have a different random
     # seed based on its MPI rank; may be a better
@@ -77,6 +79,10 @@ if __name__=='__main__':
     elif args.optimizer == 'accumulator_stationary':
         assert(args.samples is not None and args.samples >= 0)
         optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, args.samples)
+    elif args.optimizer == 'generic_grid':
+        assert(args.samples is not None and args.samples >= 0)
+        optimizer = DistributedGridOptimizer(ten_to_optimize, ground_truth, args.samples, None, None)
+
     else:
         print(f"Error, invalid optimizer specified: '{args.op}'")
         exit(1) 

@@ -1,17 +1,31 @@
-from exafac.distmat import *
-import numpy as np
-import numpy.linalg as la
-
-from exafac.sampling import *
-from exafac.sparse_tensor import allocate_recv_buffers
 from exafac.optim.alternating_optimizer import *
 from exafac.common import *
 
+import numpy as np
+import numpy.linalg as la
+import json
+
 import cppimport.import_hook
 import exafac.cpp_ext.tensor_kernels as tensor_kernels 
-import exafac.cpp_ext.filter_nonzeros as nz_filter 
 
-def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, reuse_samples):
+# Each processor sends some data to another processor
+# and receives some data from another processor 
+def send_recv_multiple_els(buf_lst, dest):
+	# Exchange a list of buffer shapes. Assume that each buffer is the same
+	# datatype, though 
+	shapes = []
+	for i in range(len(buf_lst)):
+		shapes.append(buf_lst.shape)
+
+	MPI.isend(shapes, dest)
+	MPI.irecv()
+
+def gather_samples_lhs(factors, 
+			dist_sample_count, 
+			mode_to_leave, 
+			grid, 
+			timers, 
+			reuse_samples):
 	start = start_clock() 
 	samples = []
 	inflated_sample_ids = []
@@ -58,20 +72,14 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows
 
-class AccumulatorStationaryOpt1(AlternatingOptimizer):
-	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=True):
-		super().__init__(ten_to_optimize, ground_truth)
-		self.sample_count = sample_count
-		self.reuse_samples = reuse_samples
-		self.info['Sample Count'] = self.sample_count
-		self.info["Algorithm Name"] = "Accumulator Stationary Opt1"	
-		self.info["Nonzeros Sampled Per Round"] = []
-		self.info["Samples Reused Between Rounds"] = self.reuse_samples 
+class DistributedGridOptimizer(AlternatingOptimizer):
+	def	__init__(self, low_rank_ten, ground_truth, comm_scheduler, sample_scheduler):
+		super().__init__(low_rank_ten, ground_truth)
+		self.comm_scheduler = comm_scheduler
+		self.sample_scheduler = sample_scheduler
+		self.reuse_samples = True 
 
 	def initial_setup(self):
-		'''
-		TODO: Need to time these functions.
-		'''
 		ten = self.ten_to_optimize
 		for mode in range(ten.dim):
 			factor = ten.factors[mode]	
@@ -85,13 +93,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 				factor.sample_and_gather_rows(factor.leverage_scores, None, 
 						self.dim, mode, self.sample_count)
 
-	# Computes a distributed MTTKRP of all but one of this 
-	# class's factors with a given dense tensor. Also performs 
-	# gram matrix computation. 
 	def optimize_factor(self, mode_to_leave):
 		factors = self.ten_to_optimize.factors
 		factor = factors[mode_to_leave]
-		grid = self.ten_to_optimize.grid
+		base_grid = self.ten_to_optimize.grid
 		s = self.sample_count 
 
 		dim = len(factors)
@@ -111,8 +116,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
+		redis_grid = self.comm_scheduler.get_grid(mode_to_leave) 
+
 		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
-				mode_to_leave, grid, self.timers, self.reuse_samples)
+				mode_to_leave, base_grid, self.timers, self.reuse_samples)
 
 		recv_idx, recv_values = [], []
 
@@ -120,16 +127,13 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
                 "sample_nonzeros_redistribute", 
                 [np.uint32, np.double])
 
-		# We will convert the sample indices to a matrix
-		# list for potentially faster hashing 
-
 		sample_mat = np.zeros((len(sample_idxs[0]), self.dim), dtype=np.uint32)
 
 		for i in range(self.dim):
 			if i < mode_to_leave:
 				sample_mat[:, i] = sample_idxs[i]
 			elif i > mode_to_leave:
-				sample_mat[:, i] = sample_idxs[i-1]		
+				sample_mat[:, i] = sample_idxs[i-1]
 
 		start = start_clock() 
 		sample_nonzeros_redistribute(
@@ -209,3 +213,4 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 	
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Sample Allgather")
+

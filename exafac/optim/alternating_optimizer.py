@@ -19,16 +19,16 @@ class AlternatingOptimizer:
 		# Timers common to the superset of our optimization
 		# methods 
 		self.timers = {
-						"Gram Matrix Computation": 0.0,
-						"Slice All-gather":	0.0,
-						"MTTKRP": 0.0,
-						"Slice Reduce-Scatter":	0.0,
-						"Sample Allgather": 0.0,
-						"Sample Inflation": 0.0,
-						"Nonzero Filtering + Redistribute": 0.0,
-						"Gram LSTSQ Solve":	0.0,
-						"Leverage Score Computation": 0.0
-						}
+			"Gram Matrix Computation": 0.0,
+			"Slice All-gather":	0.0,
+			"MTTKRP": 0.0,
+			"Slice Reduce-Scatter":	0.0,
+			"Sample Allgather": 0.0,
+			"Sample Inflation": 0.0,
+			"Nonzero Filtering + Redistribute": 0.0,
+			"Gram LSTSQ Solve":	0.0,
+			"Leverage Score Computation": 0.0
+			}
 
 		self.info = {}
 		self.info["Mode Sizes"] = self.ten_to_optimize.mode_sizes.tolist()

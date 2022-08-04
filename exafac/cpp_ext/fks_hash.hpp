@@ -1,15 +1,13 @@
+#pragma once
+
 #include <vector>
 #include <iostream>
 #include <vector>
 #include <random>
+#include "primality.hpp"
 #include "hashing.h"
 
 using namespace std;
-
-union hash_key_t {
-	uint32_t murmurkey;
-	uint32_t* leanfks_hash;
-};
 
 struct fks_node_t {
 	uint32_t count;
@@ -54,8 +52,12 @@ public:
 
 		table.resize(n);
 
-		// 
-		uint32_t prime;
+		for(uint64_t i = n; i < 2 * n; i++) {
+			if(MillerRabin(i)) {
+				prime = (uint32_t) i;
+				break;
+			}
+		}
 
 		std::mt19937 gen(seed);
 		std::uniform_int_distribution<> distrib(0, 1 << 31);
@@ -72,6 +74,7 @@ public:
 			table[hash_loc].count++;
 			table[hash_loc].temp_storage.push_back(i);
 		}
+	
 		uint32_t rolling_sum = 0;
 		for(uint32_t i = 0; i < n; i++) {
 			uint32_t space_alloc = table[i].count * table[i].count;
@@ -92,7 +95,7 @@ public:
 						std::fill(base_ptr, base_ptr + count, n);
 						table[i].hash = distrib(gen);
 
-						for(int j = 0; j < table[i].count; j++) {
+						for(uint32_t j = 0; j < table[i].count; j++) {
 							uint32_t hash_loc = hash_moda_modb(
 									idx_mat + table[i].temp_storage[j] * dim, 
 									table[i].hash, 

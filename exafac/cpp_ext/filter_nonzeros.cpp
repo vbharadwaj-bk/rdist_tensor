@@ -25,6 +25,7 @@
 #include "sparsehash/dense_hash_map"
 #include "cuckoofilter/src/cuckoofilter.h"
 #include "tensor_alltoallv.h"
+#include "fks_hash.hpp"
 
 using namespace std;
 using namespace cuckoofilter;
@@ -152,6 +153,13 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
             comparer 
         );
 
+    cout << "Constructing fastmap..." << endl;
+    FKSHash fastmap(sample_mat.ptr, 
+                dim, 
+                mode_to_leave, 
+                num_samples, 
+                45);
+
     CuckooFilter<IDX_T*, 
         12, 
         SingleTable, 
@@ -163,7 +171,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     // Insert all items into our hashtable; we will use simple linear probing 
     //auto start = start_clock();
-    double elapsed = 0.0;
     int64_t count;
 
     for(uint32_t i = 0; i < num_samples; i++) {
@@ -184,6 +191,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }
 
     // Check all items in the larger set against the hash table
+    double elapsed = 0.0;
+    auto start = start_clock();
 
     for(uint64_t i = 0; i < nnz; i++) {
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
@@ -197,16 +206,18 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
           gathered.rows.push_back(val);
           gathered.cols.push_back(temp);
           gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 
-          count += val;
+          //count += val;
         }
+        //count += 1;
       }
       nz_ptr[mode_to_leave] = temp;
     }
 
-    //elapsed += stop_clock_get_elapsed(start);
+    elapsed += stop_clock_get_elapsed(start);
     //cout << count << endl;
     //cout << elapsed << endl;
 
+    exit(1);
 
     return gathered;
 }
@@ -290,7 +301,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-O3']
 cfg['extra_link_args'] = ['-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
-cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp']
+cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
 cfg['libraries'] = ['cuckoofilter']
 %>
 */

@@ -290,7 +290,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-O3']
 cfg['extra_link_args'] = ['-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
-cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h']
+cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp']
 cfg['libraries'] = ['cuckoofilter']
 %>
 */

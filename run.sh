@@ -7,12 +7,15 @@
 . modules.sh
 export OMP_NUM_THREADS=1
 
-#gdb --args 
 TENSOR=$SCRATCH/tensors/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
+
+
+#srun -N 1 -u -n 1 
+#gdb --args 
+python decompose_sparse.py -i $TENSOR  \
 	-g "1,1,1,1" -t 25 -iter 20 \
-	-o $OUTPUT -op "accumulator_stationary" -s 131000 
+	-o $OUTPUT -op "accumulator_stationary" -s 131000
 
 #srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
 #	-g "1,1,1,1" -t 25 -iter 20 \

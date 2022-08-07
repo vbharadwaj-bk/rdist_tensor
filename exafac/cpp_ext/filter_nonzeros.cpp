@@ -153,25 +153,24 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
             comparer 
         );
 
-    cout << "Constructing fastmap..." << endl;
-    FKSHash fastmap(sample_mat.ptr, 
+    //cout << "Constructing fastmap..." << endl;
+    /*FKSHash fastmap(sample_mat.ptr, 
                 dim, 
                 mode_to_leave, 
                 num_samples, 
-                45);
+                45);*/
 
     CuckooFilter<IDX_T*, 
-        12, 
+        16, 
         SingleTable, 
         CuckooHash<IDX_T>> filter(num_samples);
     dmap.set_empty_key(empty_key);
 
-    //dmap[sample_mat.ptr] = 31;
-    //exit(1);
-
     // Insert all items into our hashtable; we will use simple linear probing 
     //auto start = start_clock();
-    int64_t count;
+    int64_t count = 0;
+
+    uint32_t count_unique = 0;
 
     for(uint32_t i = 0; i < num_samples; i++) {
       IDX_T* nz_ptr = sample_mat.ptr + i * dim;
@@ -180,6 +179,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       if(res.second) {
         counts[i] = 1;
         filter.Add(nz_ptr);
+        count_unique++;
       } 
       else {
         counts[res.first->second]++; 
@@ -199,7 +199,9 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       IDX_T temp = nz_ptr[mode_to_leave];
       nz_ptr[mode_to_leave] = 0;
 
-      if(filter.Contain(nz_ptr) == cuckoofilter::Ok) { 
+      if(true) {
+      //if(filter.Contain(nz_ptr) == cuckoofilter::Ok) {
+        count++;
         auto res = dmap.find(nz_ptr); 
         if(res != dmap.end()) {
           uint32_t val = res->second;
@@ -214,10 +216,10 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }
 
     elapsed += stop_clock_get_elapsed(start);
-    //cout << count << endl;
-    //cout << elapsed << endl;
+    //cout << "# of NNZ Gathered: " << gathered.rows.size() << endl;
 
-    exit(1);
+    //cout << "# of Cuckoo filter hits: " << count << endl;
+    //cout << elapsed << endl;
 
     return gathered;
 }

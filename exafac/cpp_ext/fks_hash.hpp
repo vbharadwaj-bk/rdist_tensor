@@ -35,6 +35,13 @@ inline uint32_t hash_moda_modb(
     return modp >= b ? modp % b : modp;
 }
 
+void print_tuple(uint32_t* buf, int dim) {
+	for(int i = 0; i < dim; i++) {
+		cout << buf[i] << " ";
+	}
+	cout << endl;
+}
+
 class FKSHash {
 public:
 	vector<fks_node_t> table;
@@ -60,9 +67,11 @@ public:
 		}
 
 		std::mt19937 gen(seed);
-		std::uniform_int_distribution<> distrib(0, 1 << 31);
+		std::uniform_int_distribution<> distrib(0, 1ul << 30);
+		base_seed = distrib(gen);
 
-		base_seed = distrib(gen); 
+	 	uint32_t total_space = 0;
+
 		for(uint32_t i = 0; i < n; i++) {
 			uint32_t* base_ptr = idx_mat + i * dim;
 			uint32_t hash_loc = hash_moda_modb(
@@ -71,13 +80,18 @@ public:
 					dim, 
 					prime, 
 					n);
+			
+			total_space -= table[hash_loc].count * table[hash_loc].count;
 			table[hash_loc].count++;
+			total_space += table[hash_loc].count * table[hash_loc].count;
 			table[hash_loc].temp_storage.push_back(i);
 		}
-	
+		packed_storage.resize(total_space);
+
 		uint32_t rolling_sum = 0;
-		for(uint32_t i = 0; i < n; i++) {
+		for(uint32_t i = 0; i < n; i++) {	
 			uint32_t space_alloc = table[i].count * table[i].count;
+
 			if(table[i].count > 0) {
 				table[i].start_loc = rolling_sum;
 
@@ -89,15 +103,16 @@ public:
 				}
 				else if(count > 0) {
 					bool found_injection = false;
-
 					while(! found_injection) {
 						found_injection = true;
-						std::fill(base_ptr, base_ptr + count, n);
+						std::fill(base_ptr, base_ptr + (count * count), n);
 						table[i].hash = distrib(gen);
 
-						for(uint32_t j = 0; j < table[i].count; j++) {
+						for(uint32_t j = 0; j < count; j++) {
+							uint32_t* tup_ptr = idx_mat + table[i].temp_storage[j] * dim;
+
 							uint32_t hash_loc = hash_moda_modb(
-									idx_mat + table[i].temp_storage[j] * dim, 
+									tup_ptr,	
 									table[i].hash, 
 									dim, 
 									prime, 
@@ -144,7 +159,7 @@ public:
 						table[hash_loc1].hash, 
 						dim, 
 						prime, 
-						n);
+						table[hash_loc1].count * table[hash_loc1].count);
 				return base_ptr[hash_loc2];	
 			}
 		}

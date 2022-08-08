@@ -51,11 +51,13 @@ public:
 	uint32_t mode_to_leave;
 	uint32_t n;
 	uint32_t prime;
+	uint32_t* base_table;
 
 	FKSHash(uint32_t* idx_mat, uint32_t dim, uint32_t mode_to_leave, uint32_t n, uint64_t seed) {
 		this->dim = dim;
 		this->mode_to_leave = mode_to_leave;
 		this->n = n;
+		this->base_table = idx_mat;
 
 		table.resize(n);
 
@@ -138,6 +140,8 @@ public:
 	 * Returns n if the element is not found. 
 	 */
 	uint32_t lookup_careful(uint32_t* buf) {
+		int num_bytes = this->dim * 4;
+
 		uint32_t hash_loc1 = hash_moda_modb(
 				buf, 
 				base_seed, 
@@ -145,13 +149,16 @@ public:
 				prime, 
 				n);
 
-		if(table[hash_loc1].count == 0)
-			return n;
+		uint32_t found_val;
+
+		if(table[hash_loc1].count == 0) {
+			found_val = n;
+		}
 		else {
 			uint32_t* base_ptr = packed_storage.data() + table[hash_loc1].start_loc;
 
 			if(table[hash_loc1].count == 1) {
-				return *base_ptr;
+				found_val = *base_ptr;
 			}
 			else {
 				uint32_t hash_loc2 = hash_moda_modb(
@@ -160,8 +167,16 @@ public:
 						dim, 
 						prime, 
 						table[hash_loc1].count * table[hash_loc1].count);
-				return base_ptr[hash_loc2];	
+
+				found_val = base_ptr[hash_loc2];
+			}
+
+			if(found_val != n) {
+				if( memcmp(base_table + found_val * dim, buf, num_bytes)) {
+					found_val = n;
+				}
 			}
 		}
+		return found_val;
 	}
 };

@@ -153,12 +153,12 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
             comparer 
         );
 
-    //cout << "Constructing fastmap..." << endl;
-    /*FKSHash fastmap(sample_mat.ptr, 
+    cout << "Constructing fastmap..." << endl;
+    FKSHash fastmap(sample_mat.ptr, 
                 dim, 
                 mode_to_leave, 
                 num_samples, 
-                45);*/
+                45);
 
     CuckooFilter<IDX_T*, 
         16, 
@@ -205,6 +205,13 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
         auto res = dmap.find(nz_ptr); 
         if(res != dmap.end()) {
           uint32_t val = res->second;
+
+          uint32_t densemap_lookup = fastmap.lookup_careful(nz_ptr);
+
+          //if(densemap_lookup != val) {
+          //  cout << "Error! " << val << " " << densemap_lookup << endl; 
+          //}
+
           gathered.rows.push_back(val);
           gathered.cols.push_back(temp);
           gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 

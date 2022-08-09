@@ -44,6 +44,7 @@ void print_tuple(uint32_t* buf, int dim) {
 
 class FKSHash {
 public:
+	uint32_t table_size;
 	vector<fks_node_t> table;
 	vector<uint32_t> packed_storage;
 	uint32_t base_seed;
@@ -58,10 +59,11 @@ public:
 		this->mode_to_leave = mode_to_leave;
 		this->n = n;
 		this->base_table = idx_mat;
+		this->table_size = n;
 
-		table.resize(n);
+		table.resize(table_size);
 
-		for(uint64_t i = n; i < 2 * n; i++) {
+		for(uint64_t i = table_size; i < 2 * table_size; i++) {
 			if(MillerRabin(i)) {
 				prime = (uint32_t) i;
 				break;
@@ -81,7 +83,7 @@ public:
 					base_seed, 
 					dim, 
 					prime, 
-					n);
+					table_size);
 			
 			total_space -= table[hash_loc].count * table[hash_loc].count;
 			table[hash_loc].count++;
@@ -91,7 +93,7 @@ public:
 		packed_storage.resize(total_space);
 
 		uint32_t rolling_sum = 0;
-		for(uint32_t i = 0; i < n; i++) {	
+		for(uint32_t i = 0; i < table_size; i++) {	
 			uint32_t space_alloc = table[i].count * table[i].count;
 
 			if(table[i].count > 0) {
@@ -147,7 +149,7 @@ public:
 				base_seed, 
 				dim, 
 				prime, 
-				n);
+				table_size);
 
 		uint32_t found_val;
 

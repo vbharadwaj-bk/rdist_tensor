@@ -83,6 +83,10 @@ public:
 
   uint64_t operator()(IDX_T* const &ptr) const
   {
+      /*uint64_t buf[2];
+      MurmurHash3_x64_128 ( ptr, num_bytes, 0x9747b28c, &buf);
+      return buf[0];*/
+
       uint64_t h1 = MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c); 
       h1 = (h1 << 32) + MurmurHash3_x86_32 ( ptr, num_bytes, 0x9793b15c); 
       return h1;

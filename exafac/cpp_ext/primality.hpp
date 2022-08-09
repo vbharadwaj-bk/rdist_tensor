@@ -41,7 +41,7 @@ bool MillerRabin(u64 n) { // returns true if n is prime, else returns false.
         r++;
     }
 
-    for (int a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
+    for (u64 a : {2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37}) {
         if (n == a)
             return true;
         if (check_composite(n, a, d, r))

@@ -124,7 +124,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       py::array_t<VAL_T> &values_py, 
       py::array_t<IDX_T> &sample_mat_py,
       py::array_t<double> &weights_py,
-      int mode_to_leave) {
+      int mode_to_leave,
+      int dim) {
 
     COOSparse<IDX_T, VAL_T> gathered;
     NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
@@ -138,7 +139,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
     // TODO: Add an assertion downcasting this!
     uint32_t num_samples = (uint32_t) sample_mat.info.shape[0];
-    int dim = idxs_mat.info.shape[1];
 
     vector<int> counts(num_samples, 0);
     uint32_t num_bytes = dim * sizeof(IDX_T);
@@ -175,7 +175,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       //if(true) {
       if(filter.Contain(nz_ptr) == cuckoofilter::Ok) {
         count++;
-        uint32_t val = fastmap.lookup_careful(nz_ptr);
+        uint32_t val = fastmap.lookup_careful(nz_ptr, dim);
 
         if(val != num_samples) {
           gathered.rows.push_back(val);
@@ -207,15 +207,33 @@ void sample_nonzeros_redistribute(
       py::function allocate_recv_buffers
       ) {
 
-      COOSparse<IDX_T, VAL_T> gathered = 
-        sample_nonzeros<IDX_T, VAL_T>(
+      NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
+      int dim = idxs_mat.info.shape[1];
+
+      COOSparse<IDX_T, VAL_T> gathered;
+
+      if(dim == 3) {
+        gathered = sample_nonzeros<IDX_T, VAL_T>(
           idxs_mat_py,
           offsets_py,
           mode_hashes_py,
           values_py, 
           sample_mat_py,
           weights_py,
-          mode_to_leave);
+          mode_to_leave,
+          3);
+      }
+      else {
+        gathered = sample_nonzeros<IDX_T, VAL_T>(
+          idxs_mat_py,
+          offsets_py,
+          mode_hashes_py,
+          values_py, 
+          sample_mat_py,
+          weights_py,
+          mode_to_leave,
+          dim);
+      }
 
       uint64_t nnz = gathered.rows.size(); 
 
@@ -268,7 +286,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-O3']
+cfg['extra_compile_args'] = ['-O3', '-finline-limit=1000']
 cfg['extra_link_args'] = ['-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
 cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
 cfg['libraries'] = ['cuckoofilter']

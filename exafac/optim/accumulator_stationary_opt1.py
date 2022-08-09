@@ -131,15 +131,12 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			elif i > mode_to_leave:
 				sample_mat[:, i] = sample_idxs[i-1]		
 
-		# TODO: Several things break if you try to make this unique! 
 		unique_samples, unique_indices, unique_counts = \
 			np.unique(sample_mat,
 			return_index=True,
 			return_counts=True, 
 			axis=0,
 			)	
-
-		#unique_samples = sample_mat
 
 		weights = weights[unique_indices]
 		weights *= np.sqrt(unique_counts)

@@ -48,20 +48,20 @@ public:
 	vector<fks_node_t> table;
 	vector<uint32_t> packed_storage;
 	uint32_t base_seed;
-	uint32_t dim;
 	uint32_t mode_to_leave;
 	uint32_t n;
 	uint32_t prime;
 	uint32_t* base_table;
 
 	FKSHash(uint32_t* idx_mat, uint32_t dim, uint32_t mode_to_leave, uint32_t n, uint64_t seed) {
-		this->dim = dim;
 		this->mode_to_leave = mode_to_leave;
 		this->n = n;
 		this->base_table = idx_mat;
 		this->table_size = n;
 
 		table.resize(table_size);
+
+		prime = 0; // Dummy value, we know MR will succeed
 
 		for(uint64_t i = table_size; i < 2 * table_size; i++) {
 			if(MillerRabin(i)) {
@@ -141,8 +141,8 @@ public:
 	 * Look up an element that you are not certain is in the table. 
 	 * Returns n if the element is not found. 
 	 */
-	uint32_t lookup_careful(uint32_t* buf) {
-		int num_bytes = this->dim * 4;
+	uint32_t lookup_careful(uint32_t* buf, uint32_t dim) {
+		int num_bytes = dim * 4;
 
 		uint32_t hash_loc1 = hash_moda_modb(
 				buf, 
@@ -174,7 +174,13 @@ public:
 			}
 
 			if(found_val != n) {
-				if( memcmp(base_table + found_val * dim, buf, num_bytes)) {
+				uint32_t* ptr1 = base_table + found_val * dim;
+				uint32_t* ptr2 = buf;
+				bool eq = 1;
+				for(int i = 0; i < dim; i++) {
+					eq *= ptr1[i] == ptr2[i]; 
+				}
+				if(! eq) {
 					found_val = n;
 				}
 			}

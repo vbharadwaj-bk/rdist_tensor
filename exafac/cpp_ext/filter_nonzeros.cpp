@@ -76,9 +76,9 @@ struct CuckooHash
 {
 public:
   int num_bytes; 
-  CuckooHash() {
+  CuckooHash(int num_bytes) {
     //this->num_bytes = num_bytes;
-    this->num_bytes = 12;
+    this->num_bytes = num_bytes;
   }
 
   uint64_t operator()(IDX_T* const &ptr) const
@@ -137,21 +137,7 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     int dim = idxs_mat.info.shape[1];
 
     vector<int> counts(num_samples, 0);
-
     uint32_t num_bytes = dim * sizeof(IDX_T);
-
-    IDX_T* empty_key = nullptr;
-    TupleHasher<IDX_T> hasher(num_bytes);
-    TupleEqual<IDX_T> comparer(num_bytes);
-
-    google::dense_hash_map<IDX_T*, 
-        uint32_t, 
-        TupleHasher<IDX_T>, 
-        TupleEqual<IDX_T>> dmap(
-            num_samples,
-            hasher,
-            comparer 
-        );
 
     FKSHash fastmap(sample_mat.ptr, 
                 dim, 
@@ -160,33 +146,17 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
                 45);
 
     CuckooFilter<IDX_T*, 
-        16, 
+        12, 
         SingleTable, 
-        CuckooHash<IDX_T>> filter(num_samples);
-    dmap.set_empty_key(empty_key);
+        CuckooHash<IDX_T>> filter(num_samples, num_bytes);
 
     // Insert all items into our hashtable; we will use simple linear probing 
     //auto start = start_clock();
     int64_t count = 0;
 
-    uint32_t count_unique = 0;
-
     for(uint32_t i = 0; i < num_samples; i++) {
       IDX_T* nz_ptr = sample_mat.ptr + i * dim;
-
-      auto res = dmap.insert(std::make_pair(nz_ptr, i));
-      if(res.second) {
-        counts[i] = 1;
-        filter.Add(nz_ptr);
-        count_unique++;
-      } 
-      else {
-        counts[res.first->second]++; 
-      }
-    }
-
-    for(int64_t i = 0; i < num_samples; i++) {
-      weights.ptr[i] *= sqrt(counts[i]);
+      filter.Add(nz_ptr);
     }
 
     // Check all items in the larger set against the hash table
@@ -198,42 +168,21 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       IDX_T temp = nz_ptr[mode_to_leave];
       nz_ptr[mode_to_leave] = 0;
 
-      if(true) {
-      //if(filter.Contain(nz_ptr) == cuckoofilter::Ok) {
+      //if(true) {
+      if(filter.Contain(nz_ptr) == cuckoofilter::Ok) {
         count++;
-        //auto res = dmap.find(nz_ptr); 
-        uint32_t densemap_lookup = fastmap.lookup_careful(nz_ptr);
+        uint32_t val = fastmap.lookup_careful(nz_ptr);
 
-        /*if(res == dmap.end() && densemap_lookup == num_samples)  {
-          cout << "ERROR!" << endl;
-          exit(1);
-        }*/
-
-        //if(res != dmap.end()) {
-        if(densemap_lookup != num_samples) {
-          //uint32_t val = res->second;
-
-          uint32_t val = densemap_lookup; 
-
-          //if(densemap_lookup != val) {
-          //  cout << "Error! " << val << " " << densemap_lookup << endl; 
-          //}
-
+        if(val != num_samples) {
           gathered.rows.push_back(val);
           gathered.cols.push_back(temp);
           gathered.values.push_back(values.ptr[i] * weights.ptr[val]); 
-          //count += val;
         }
-        //count += 1;
       }
       nz_ptr[mode_to_leave] = temp;
     }
 
     elapsed += stop_clock_get_elapsed(start);
-    //cout << "# of NNZ Gathered: " << gathered.rows.size() << endl;
-
-    //cout << "# of Cuckoo filter hits: " << count << endl;
-    //cout << elapsed << endl;
 
     return gathered;
 }

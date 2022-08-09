@@ -153,7 +153,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
             comparer 
         );
 
-    cout << "Constructing fastmap..." << endl;
     FKSHash fastmap(sample_mat.ptr, 
                 dim, 
                 mode_to_leave, 
@@ -202,11 +201,19 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       if(true) {
       //if(filter.Contain(nz_ptr) == cuckoofilter::Ok) {
         count++;
-        auto res = dmap.find(nz_ptr); 
-        if(res != dmap.end()) {
-          uint32_t val = res->second;
+        //auto res = dmap.find(nz_ptr); 
+        uint32_t densemap_lookup = fastmap.lookup_careful(nz_ptr);
 
-          uint32_t densemap_lookup = fastmap.lookup_careful(nz_ptr);
+        /*if(res == dmap.end() && densemap_lookup == num_samples)  {
+          cout << "ERROR!" << endl;
+          exit(1);
+        }*/
+
+        //if(res != dmap.end()) {
+        if(densemap_lookup != num_samples) {
+          //uint32_t val = res->second;
+
+          uint32_t val = densemap_lookup; 
 
           //if(densemap_lookup != val) {
           //  cout << "Error! " << val << " " << densemap_lookup << endl; 

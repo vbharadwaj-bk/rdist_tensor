@@ -126,7 +126,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
       py::array_t<double> &weights_py,
       int mode_to_leave,
       int dim) {
-
     COOSparse<IDX_T, VAL_T> gathered;
     NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
     NumpyArray<IDX_T> offsets(offsets_py); 

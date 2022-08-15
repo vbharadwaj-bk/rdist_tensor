@@ -45,14 +45,9 @@ class DistSparseTensor:
         end_nnz = min(local_nnz_ct * (self.rank + 1), self.nnz)
 
         self.tensor_idxs = []
-        for i in range(self.dim):
-            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1) 
 
-        # TODO: Need to remove this downcast! 
-        # ============================================================== 
-        #for i in range(self.dim):
-        #    self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
-        # ============================================================== 
+        for i in range(self.dim):
+            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 
@@ -70,7 +65,7 @@ class DistSparseTensor:
 
         self.offsets = np.zeros(self.dim, dtype=np.uint64)
 
-        # TODO: THESE ARE FORCED, REMOVE THEM!
+        # TODO: Eventually, will support more than these two datatypes 
         self.idx_dtype=np.uint32
         self.val_dtype=np.double
 
@@ -116,17 +111,6 @@ class DistSparseTensor:
         self.tensor_idxs = recv_buffers
         self.values = recv_values[0]
 
-        if debug:
-            for i in range(len(recv_buffers[0])):
-                for j in range(self.dim):
-                    start = tensor_grid.start_coords[j][grid.coords[j]]
-                    end= tensor_grid.start_coords[j][grid.coords[j] + 1]
-                    val = recv_buffers[j][i]
-                    assert(start <= val and val < end)
-
-            if self.rank == 0:
-                print("Finished debug test!")
-
         for j in range(self.dim):
             self.offsets[j] = self.tensor_grid.start_coords[j][grid.coords[j]]
             self.tensor_idxs[j] -= self.offsets[j] 
@@ -138,16 +122,7 @@ class DistSparseTensor:
         self.offset_idxs = [self.tensor_idxs[j] 
             + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
 
-        self.mode_hashes = [np.zeros(interval, dtype=np.uint64) for interval in tensor_grid.intervals]
-
         # Compute hashes of the indices that this processor will reference 
-        compute_mode_hashes = get_templated_function(nz_filter, "compute_mode_hashes", [np.uint32]) 
-
-        compute_mode_hashes(
-            self.offsets.astype(np.uint32), 
-            np.array(tensor_grid.intervals, dtype=np.uint32), 
-            self.mode_hashes)
-
         self.mat_idxs = np.zeros((
             len(self.tensor_idxs[0]),
             self.dim
@@ -157,6 +132,10 @@ class DistSparseTensor:
 
         for i in range(self.dim):
             self.mat_idxs[:, i] = self.offset_idxs[i] 
+
+        print("Constructing slicer...")
+        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+        exit(1)
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 

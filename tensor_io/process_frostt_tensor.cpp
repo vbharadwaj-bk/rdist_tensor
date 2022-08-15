@@ -7,14 +7,16 @@
 #include <cassert>
 #include <hdf5.h>
 
-#define BUFFER_SIZE 10000
+#define BUFFER_SIZE 100000
 
 using namespace std;
 
 /*
- * This file assumes that the tensor is 1-indexed. 
+ * This file assumes that the tensor is 1-indexed. We read in the tensor
+ * using 64-bit integer indices and double precision, but can downcast to
+ * whichever format is preferred.
  */
-
+template<typename IDX_T, typename VAL_T>
 void convertFromFROSTT(string in_file, hsize_t num_lines) {
     cout << "Starting file conversion!" << endl; 
 
@@ -28,7 +30,6 @@ void convertFromFROSTT(string in_file, hsize_t num_lines) {
     // Read the first line and count the number of tokens 
     std::getline(firstline_stream, line); 
     std::istringstream is( line );
-
     
     int count = 0;
     while ( std::getline( is, token, ' ')) {
@@ -38,8 +39,27 @@ void convertFromFROSTT(string in_file, hsize_t num_lines) {
     firstline_stream.close();
     hsize_t dim = count - 1;
 
-    hid_t idx_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
-    hid_t val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
+    hid_t idx_datatype;
+    hid_t val_datatype; 
+    if(std::is_same<IDX_T, uint64_t>::value) {
+        idx_datatype = H5Tcopy(H5T_NATIVE_ULLONG);
+    }
+    else if(std::is_same<IDX_T, uint32_t>::value) {
+        idx_datatype = H5Tcopy(H5T_NATIVE_UINT);
+    }
+    else {
+        assert(false);
+    }
+
+    if(std::is_same<VAL_T, double>::value) {
+        val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
+    }
+    else if(std::is_same<IDX_T, float>::value) {
+        val_datatype = H5Tcopy(H5T_NATIVE_FLOAT);
+    }
+    else {
+        assert(false);
+    }
 
     hid_t file_dataspace = H5Screate_simple(1, &num_lines, NULL); 
     hid_t mode_size_dataspace = H5Screate_simple(1, &dim, NULL);
@@ -53,19 +73,19 @@ void convertFromFROSTT(string in_file, hsize_t num_lines) {
     hid_t min_mode_dataset = H5Dcreate(file, min_mode_set.c_str(), idx_datatype, mode_size_dataspace,
                 H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
 
-    vector<unique_ptr<uint64_t>> idx_buffers;
-    vector<uint64_t> mode_maxes;
-    vector<uint64_t> mode_mins;
+    vector<unique_ptr<IDX_T>> idx_buffers;
+    vector<IDX_T> mode_maxes;
+    vector<IDX_T> mode_mins;
 
     vector<hid_t> datasets;
 
-    unique_ptr<double> val_buffer(new double[BUFFER_SIZE]); 
+    unique_ptr<VAL_T> val_buffer(new VAL_T[BUFFER_SIZE]); 
 
     cout << "Dimension: " << dim << endl; 
     cout << "NNZ: " << num_lines << endl; 
 
     for(int i = 0; i < dim; i++) {
-        idx_buffers.emplace_back(new uint64_t[BUFFER_SIZE]);
+        idx_buffers.emplace_back(new IDX_T[BUFFER_SIZE]);
 
         string datasetname = "MODE_" + std::to_string(i);
 
@@ -90,7 +110,7 @@ void convertFromFROSTT(string in_file, hsize_t num_lines) {
 
     for(hsize_t i = 0; i < num_lines; i++) {
         for(int j = 0; j < dim; j++) {
-            hsize_t idx;
+            IDX_T idx;
             iffstream >> idx;
             idx_buffers[j].get()[pos_in_buffer] = idx;
 
@@ -102,7 +122,7 @@ void convertFromFROSTT(string in_file, hsize_t num_lines) {
                 mode_mins[j] = idx;
             }
         }
-        double val;
+        VAL_T val;
         iffstream >> val;
         val_buffer.get()[pos_in_buffer] = val; 
 
@@ -146,7 +166,6 @@ void convertFromFROSTT(string in_file, hsize_t num_lines) {
         pos_in_buffer = 0;
     }
 
-
     int status = H5Dwrite(max_mode_dataset, idx_datatype, H5P_DEFAULT, H5P_DEFAULT,
             H5P_DEFAULT, mode_maxes.data());
 
@@ -176,5 +195,5 @@ int main(int argc, char** argv) {
     string name(argv[1]);
     hsize_t num_lines = atol(argv[2]);
  
-    convertFromFROSTT(name, num_lines);
+    convertFromFROSTT<uint32_t, double>(name, num_lines);
 }

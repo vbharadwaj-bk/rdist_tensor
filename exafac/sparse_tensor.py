@@ -46,12 +46,12 @@ class DistSparseTensor:
 
         self.tensor_idxs = []
         for i in range(self.dim):
-            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
+            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1) 
 
         # TODO: Need to remove this downcast! 
         # ============================================================== 
-        for i in range(self.dim):
-            self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
+        #for i in range(self.dim):
+        #    self.tensor_idxs[i] = self.tensor_idxs[i].astype(np.uint32, copy=False)
         # ============================================================== 
 
         self.values = f['VALUES'][start_nnz:end_nnz]

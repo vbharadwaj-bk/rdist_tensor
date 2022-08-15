@@ -1,0 +1,8 @@
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/uber-pickups/uber.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/nips/nips.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/nell/nell-1.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/amazon/amazon-reviews.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/reddit-2015/reddit-2015.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/patents/patents.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/flickr/flickr-4d.tns.gz
+https://s3.us-east-2.amazonaws.com/frostt/frostt_data/enron/enron.tns.gz

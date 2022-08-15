@@ -18,3 +18,4 @@ sparsehash-c11
 libcuckoofilter.a
 !data/.empty
 !tensors/.empty
+!tensors/frostt_tensors.txt

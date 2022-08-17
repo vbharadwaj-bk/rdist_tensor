@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <string.h>
+#include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -46,6 +46,13 @@ public:
         info = arr_py.request();
         ptr = static_cast<T*>(info.ptr);
     }
+
+    NumpyArray(py::object obj, string attr_name) {
+        py::array_t<T> arr_py = obj.attr(attr_name.c_str()).cast<py::array_t<T>>();
+        info = arr_py.request();
+        ptr = static_cast<T*>(info.ptr);
+    }
+
     NumpyArray(T* input_ptr) {
         ptr = input_ptr;
     }

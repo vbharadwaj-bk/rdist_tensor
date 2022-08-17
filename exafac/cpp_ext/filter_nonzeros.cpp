@@ -199,17 +199,16 @@ public:
  */
 template<typename IDX_T, typename VAL_T>
 COOSparse<IDX_T, VAL_T> sample_nonzeros(
-      py::array_t<IDX_T> &idxs_mat_py, 
-      py::array_t<IDX_T> &offsets_py, 
-      py::array_t<VAL_T> &values_py, 
+      py::object &sampler,
       py::array_t<IDX_T> &sample_mat_py,
       py::array_t<double> &weights_py,
       int mode_to_leave,
       int dim) {
     COOSparse<IDX_T, VAL_T> gathered;
-    NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
-    NumpyArray<IDX_T> offsets(offsets_py); 
-    NumpyArray<VAL_T> values(values_py); 
+    NumpyArray<IDX_T> idxs_mat(sampler, "idxs_mat"); 
+    NumpyArray<IDX_T> offsets(sampler, "offsets"); 
+    NumpyArray<VAL_T> values(sampler, "values"); 
+
     NumpyArray<IDX_T> sample_mat(sample_mat_py);
     NumpyArray<double> weights(weights_py); 
 
@@ -282,19 +281,13 @@ void sample_nonzeros_redistribute(
       py::function allocate_recv_buffers
       ) {
 
-      py::array_t<IDX_T> idxs_mat_py = sampler.attr("idxs_mat").cast<py::array_t<IDX_T>>();
-      py::array_t<IDX_T> offsets_py = sampler.attr("offsets").cast<py::array_t<IDX_T>>();
-      py::array_t<VAL_T> values_py = sampler.attr("values").cast<py::array_t<VAL_T>>(); 
-
-      NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
+      NumpyArray<IDX_T> idxs_mat(sampler, "idxs_mat"); 
       int dim = idxs_mat.info.shape[1];
 
       COOSparse<IDX_T, VAL_T> gathered;
 
       gathered = sample_nonzeros<IDX_T, VAL_T>(
-        idxs_mat_py,
-        offsets_py,
-        values_py, 
+        sampler, 
         sample_mat_py,
         weights_py,
         mode_to_leave,

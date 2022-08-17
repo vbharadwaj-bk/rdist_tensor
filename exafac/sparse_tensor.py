@@ -16,6 +16,22 @@ import exafac.cpp_ext.filter_nonzeros as nz_filter
 
 from exafac.sampling import broadcast_common_seed
 
+class TensorSampler:
+    def __init__(self, id):
+        self.name = id 
+
+class HashedSampleSet(TensorSampler):
+    def __init__(self, idxs_mat, offsets, values):
+        super().__init__("HashedSampleSet")
+        self.idxs_mat = idxs_mat
+        self.offsets = offsets
+        self.values = values
+
+class HashedTensorTuples(TensorSampler):
+    def __init__(self, mat_idxs, values):
+        super().__init__("HashedTensorTuples")
+        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+
 def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
     for i in range(dim):
         lst_idx.append(np.empty(count, dtype=str_to_type[idx_t]))
@@ -131,11 +147,9 @@ class DistSparseTensor:
         )
 
         for i in range(self.dim):
-            self.mat_idxs[:, i] = self.offset_idxs[i] 
+            self.mat_idxs[:, i] = self.offset_idxs[i]
 
-        print("Constructing slicer...")
-        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
-        exit(1)
+        self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 

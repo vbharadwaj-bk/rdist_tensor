@@ -141,9 +141,7 @@ public:
 	 * Look up an element that you are not certain is in the table. 
 	 * Returns n if the element is not found. 
 	 */
-	uint32_t lookup_careful(uint32_t* buf, uint32_t dim) {
-		int num_bytes = dim * 4;
-
+	uint32_t lookup_careful(uint32_t* buf, int dim) {
 		uint32_t hash_loc1 = hash_moda_modb(
 				buf, 
 				base_seed, 
@@ -178,7 +176,7 @@ public:
 				uint32_t* ptr2 = buf;
 				bool eq = 1;
 				for(int i = 0; i < dim; i++) {
-					eq *= ptr1[i] == ptr2[i]; 
+					eq = eq && ptr1[i] == ptr2[i]; 
 				}
 				if(! eq) {
 					found_val = n;

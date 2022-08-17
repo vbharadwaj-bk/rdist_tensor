@@ -46,7 +46,10 @@ public:
   uint32_t operator()(IDX_T* const &ptr) const
   {
     if(ptr != nullptr) {
-      uint32_t pre_hash = MurmurHash3_x86_32(ptr, mode_to_leave * sizeof(IDX_T), 0x9747b28c);
+      //uint32_t pre_hash = MurmurHash3_x86_32(ptr, mode_to_leave * sizeof(IDX_T), 0x9747b28c);
+
+      uint32_t pre_hash = MurmurHash3_x86_32(ptr, 12, 0x9747b28c);
+
       uint32_t post_hash = MurmurHash3_x86_32(ptr + mode_to_leave + 1, 
           sizeof(IDX_T) * (dim - mode_to_leave - 1), 0x9747b28c);
 
@@ -62,7 +65,7 @@ template<typename IDX_T>
 struct TupleEqual 
 {
 public:
-  int dim, mode_to_leave
+  int dim, mode_to_leave;
   TupleEqual(int mode_to_leave, int dim) {
     this->dim = dim;
     this->mode_to_leave = mode_to_leave;
@@ -74,17 +77,17 @@ public:
         return s1 == s2;
       }
       else {
-        return (! memcmp(s1, s2, sizeof(IDX_T) * mode_to_leave)) 
+        auto res = (! memcmp(s1, s2, sizeof(IDX_T) * mode_to_leave)) 
             && (! memcmp(
             s1 + mode_to_leave + 1,
             s2 + mode_to_leave + 1,
             sizeof(IDX_T) * (dim - mode_to_leave - 1)
         ));
+
+        return res;
       }
   }
 };
-
-
 
 template<typename IDX_T, typename VAL_T>
 class HashIdxLookup {
@@ -92,16 +95,16 @@ public:
   int dim;
   int mode_to_leave;
 
-  google::dense_hash_map< IDX_T*, 
+  unique_ptr<google::dense_hash_map< IDX_T*, 
                           uint64_t,
                           TupleHasher<IDX_T>,
-                          TupleEqual<IDX_T>> lookup_table*;
+                          TupleEqual<IDX_T>>> lookup_table;
 
   vector<vector<pair<IDX_T, VAL_T>>> storage;
   uint64_t num_buckets;
 
-  TupleHasher hasher;
-  TupleEqual equality_checker;
+  TupleHasher<IDX_T> hasher;
+  TupleEqual<IDX_T> equality_checker;
 
   HashIdxLookup(int dim, int mode_to_leave, IDX_T* idx_ptr, VAL_T* val_ptr, uint64_t nnz) :
     hasher(mode_to_leave, dim), equality_checker(mode_to_leave, dim) {
@@ -109,14 +112,17 @@ public:
     this->dim = dim;
     this->num_buckets = 0;
 
-    lookup_table = new google::dense_hash_map< IDX_T*, 
-                          uint32_t,
+    lookup_table.reset(new google::dense_hash_map< IDX_T*, 
+                          uint64_t,
                           TupleHasher<IDX_T>,
-                          TupleEqual<IDX_T>>(nnz, hasher, equality_checker);
+                          TupleEqual<IDX_T>>(nnz, hasher, equality_checker));
 
-    for(int i = 0; i < nnz; i++) {
+    lookup_table->set_empty_key(nullptr);
+
+    for(uint64_t i = 0; i < nnz; i++) {
       IDX_T* idx = idx_ptr + i * dim;
       VAL_T val = val_ptr[i];
+
       auto res = lookup_table->find(idx);
 
       uint64_t bucket;
@@ -132,34 +138,29 @@ public:
     }
   }
 
-  void lookup_and_append(IDX_T r_idx, IDX_T* buf, COOSparse &res) {
+  void lookup_and_append(IDX_T r_idx, IDX_T* buf, COOSparse<IDX_T, VAL_T> &res) {
     auto pair_loc = lookup_table->find(buf);
     if(res != lookup_table->end()) {
       vector<pair<IDX_T, VAL_T>> pairs = storage[pair_loc->second];
-      for(auto it = pairs.start(); it !+ pairs.end(); it++) {
+      for(auto it = pairs.start(); it != pairs.end(); it++) {
         res.rows.push_back(r_idx);
         res.cols.push_back(it->first);
         res.vals.push_back(it->second);
       }  
     }
   }
-
-  ~HashIdxLookup() {
-    delete lookup_table;
-  }
 };
 
 template<typename IDX_T, typename VAL_T>
 class TensorSlicer {
 public:
-  vector<HashIdxLookup> lookups;
+  vector<HashIdxLookup<IDX_T, VAL_T>> lookups;
 
   TensorSlicer(py::array_t<IDX_T> idxs_py, py::array_t<VAL_T> vals_py) {
     NumpyArray<IDX_T> idxs(idxs_py);
-    NumpyArray<IDX_T> vals(vals_py);
+    NumpyArray<VAL_T> vals(vals_py);
 
-    uint64_t nnz = idxs.info;
-    int dim = idxs.info.shape[0];
+    int dim = idxs.info.shape[1];
     uint64_t nnz = vals.info.shape[0];
 
     for(int i = 0; i < dim; i++) {
@@ -167,7 +168,7 @@ public:
     }
   }
 
-  void lookup_and_append(IDX_T r_idx, IDX_T* buf, int mode_to_leave, COOSparse &res) {
+  void lookup_and_append(IDX_T r_idx, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
     lookups[mode_to_leave].lookup_and_append(r_idx, buf, res); 
   }
 };
@@ -187,7 +188,6 @@ public:
       /*uint64_t buf[2];
       MurmurHash3_x64_128 ( ptr, num_bytes, 0x9747b28c, &buf);
       return buf[0];*/
-
       uint64_t h1 = MurmurHash3_x86_32 ( ptr, num_bytes, 0x9747b28c); 
       h1 = (h1 << 32) + MurmurHash3_x86_32 ( ptr, num_bytes, 0x9793b15c); 
       return h1;
@@ -201,7 +201,6 @@ template<typename IDX_T, typename VAL_T>
 COOSparse<IDX_T, VAL_T> sample_nonzeros(
       py::array_t<IDX_T> &idxs_mat_py, 
       py::array_t<IDX_T> &offsets_py, 
-      py::list &mode_hashes_py,
       py::array_t<VAL_T> &values_py, 
       py::array_t<IDX_T> &sample_mat_py,
       py::array_t<double> &weights_py,
@@ -210,7 +209,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     COOSparse<IDX_T, VAL_T> gathered;
     NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
     NumpyArray<IDX_T> offsets(offsets_py); 
-    NumpyList<uint64_t> mode_hashes(mode_hashes_py); 
     NumpyArray<VAL_T> values(values_py); 
     NumpyArray<IDX_T> sample_mat(sample_mat_py);
     NumpyArray<double> weights(weights_py); 
@@ -273,11 +271,8 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
 
 template<typename IDX_T, typename VAL_T>
 void sample_nonzeros_redistribute(
-      py::array_t<IDX_T> idxs_mat_py,
-      py::array_t<IDX_T> offsets_py,
-      py::array_t<VAL_T> values_py, 
+      py::object sampler,
       py::array_t<IDX_T> sample_mat_py,
-      py::list mode_hashes_py,
       py::array_t<double> weights_py,
       int mode_to_leave,
       uint64_t row_divisor,
@@ -287,33 +282,23 @@ void sample_nonzeros_redistribute(
       py::function allocate_recv_buffers
       ) {
 
+      py::array_t<IDX_T> idxs_mat_py = sampler.attr("idxs_mat").cast<py::array_t<IDX_T>>();
+      py::array_t<IDX_T> offsets_py = sampler.attr("offsets").cast<py::array_t<IDX_T>>();
+      py::array_t<VAL_T> values_py = sampler.attr("values").cast<py::array_t<VAL_T>>(); 
+
       NumpyArray<IDX_T> idxs_mat(idxs_mat_py); 
       int dim = idxs_mat.info.shape[1];
 
       COOSparse<IDX_T, VAL_T> gathered;
 
-      if(dim == 3) {
-        gathered = sample_nonzeros<IDX_T, VAL_T>(
-          idxs_mat_py,
-          offsets_py,
-          mode_hashes_py,
-          values_py, 
-          sample_mat_py,
-          weights_py,
-          mode_to_leave,
-          3);
-      }
-      else {
-        gathered = sample_nonzeros<IDX_T, VAL_T>(
-          idxs_mat_py,
-          offsets_py,
-          mode_hashes_py,
-          values_py, 
-          sample_mat_py,
-          weights_py,
-          mode_to_leave,
-          dim);
-      }
+      gathered = sample_nonzeros<IDX_T, VAL_T>(
+        idxs_mat_py,
+        offsets_py,
+        values_py, 
+        sample_mat_py,
+        weights_py,
+        mode_to_leave,
+        dim); 
 
       uint64_t nnz = gathered.rows.size(); 
 
@@ -361,7 +346,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 
   py::class_<TensorSlicer<uint32_t, double>>(m, "TensorSlicer")
-    .def(py::init<>());
+    .def(py::init<py::array_t<uint32_t>, py::array_t<double>>());
 }
 
 /*

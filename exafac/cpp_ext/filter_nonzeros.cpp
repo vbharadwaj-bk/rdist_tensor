@@ -301,7 +301,8 @@ void sample_nonzeros_redistribute(
       py::array_t<int> row_order_to_proc_py,  
       py::list recv_idx_py,
       py::list recv_values_py,
-      py::function allocate_recv_buffers
+      py::function allocate_recv_buffers,
+      int rank
       ) {
 
       NumpyArray<IDX_T> sample_mat(sample_mat_py); 
@@ -337,7 +338,7 @@ void sample_nonzeros_redistribute(
           int processor = row_order_to_proc.ptr[col_ptr[i] / row_divisor];
           assignment_ptr[i] = processor; 
           send_counts[processor]++;
-      }
+      } 
 
       tensor_alltoallv(
           2, 

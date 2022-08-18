@@ -153,7 +153,8 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			factor.row_order_to_proc, 
 			recv_idx,
 			recv_values,
-			allocate_recv_buffers)
+			allocate_recv_buffers,
+			grid.rank)
 
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	

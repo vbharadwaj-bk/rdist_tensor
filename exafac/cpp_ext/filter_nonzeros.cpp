@@ -48,7 +48,7 @@ public:
     if(ptr != nullptr) {
       //uint32_t pre_hash = MurmurHash3_x86_32(ptr, mode_to_leave * sizeof(IDX_T), 0x9747b28c);
 
-      uint32_t pre_hash = MurmurHash3_x86_32(ptr, 12, 0x9747b28c);
+      uint32_t pre_hash = MurmurHash3_x86_32(ptr, sizeof(IDX_T) * mode_to_leave, 0x9747b28c);
 
       uint32_t post_hash = MurmurHash3_x86_32(ptr + mode_to_leave + 1, 
           sizeof(IDX_T) * (dim - mode_to_leave - 1), 0x9747b28c);
@@ -287,6 +287,7 @@ COOSparse<IDX_T, VAL_T> sample_hash_tuples(
         mode_to_leave, 
         gathered);
   }
+
   return gathered;
 }
 

@@ -149,7 +149,9 @@ class DistSparseTensor:
         for i in range(self.dim):
             self.mat_idxs[:, i] = self.offset_idxs[i]
 
-        self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
+        #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
+        self.sampler = HashedTensorTuples(self.mat_idxs, self.values)
+
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 

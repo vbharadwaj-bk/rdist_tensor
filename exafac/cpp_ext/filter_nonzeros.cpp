@@ -138,14 +138,14 @@ public:
     }
   }
 
-  void lookup_and_append(IDX_T r_idx, IDX_T* buf, COOSparse<IDX_T, VAL_T> &res) {
+  void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, COOSparse<IDX_T, VAL_T> &res) {
     auto pair_loc = lookup_table->find(buf);
     if(res != lookup_table->end()) {
       vector<pair<IDX_T, VAL_T>> pairs = storage[pair_loc->second];
       for(auto it = pairs.start(); it != pairs.end(); it++) {
         res.rows.push_back(r_idx);
         res.cols.push_back(it->first);
-        res.vals.push_back(it->second);
+        res.vals.push_back(weight * it->second);
       }  
     }
   }
@@ -168,8 +168,8 @@ public:
     }
   }
 
-  void lookup_and_append(IDX_T r_idx, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
-    lookups[mode_to_leave].lookup_and_append(r_idx, buf, res); 
+  void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
+    lookups[mode_to_leave].lookup_and_append(r_idx, weight, buf, res); 
   }
 };
 
@@ -198,7 +198,7 @@ public:
  * This function builds and returns a sparse matrix.
  */
 template<typename IDX_T, typename VAL_T>
-COOSparse<IDX_T, VAL_T> sample_nonzeros(
+COOSparse<IDX_T, VAL_T> sample_hash_samples(
       py::object &sampler,
       py::array_t<IDX_T> &sample_mat_py,
       py::array_t<double> &weights_py,
@@ -241,8 +241,6 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
     }
 
     // Check all items in the larger set against the hash table
-    double elapsed = 0.0;
-    auto start = start_clock();
 
     for(uint64_t i = 0; i < nnz; i++) {
       IDX_T* nz_ptr = idxs_mat.ptr + i * dim; 
@@ -261,11 +259,37 @@ COOSparse<IDX_T, VAL_T> sample_nonzeros(
         }
       }
       nz_ptr[mode_to_leave] = temp;
-    }
-
-    elapsed += stop_clock_get_elapsed(start);
+    } 
 
     return gathered;
+}
+
+template<typename IDX_T, typename VAL_T>
+COOSparse<IDX_T, VAL_T> sample_hash_tuples(
+      py::object &sampler,
+      py::array_t<IDX_T> &sample_mat_py,
+      py::array_t<double> &weights_py,
+      int mode_to_leave,
+      int dim) {
+
+  TensorSlicer<IDX_T, VAL_T> slicer = 
+      sampler.attr("slicer").cast<TensorSlicer<IDX_T, VAL_T>>();
+
+  NumpyArray<IDX_T> sample_mat(sample_mat_py);
+  NumpyArray<double> weights(weights_py);
+
+  // TODO: Add an assertion downcasting this!
+  uint32_t num_samples = (uint32_t) sample_mat.info.shape[0];
+
+  COOSparse<IDX_T, VAL_T> gathered;
+
+  for(int i = 0; i < num_samples; i++) {  
+    slicer.lookup_and_append(i, weights.ptr[i], 
+        sample_mat + i * dim, 
+        mode_to_leave, 
+        gathered);
+  }
+  return gathered;
 }
 
 template<typename IDX_T, typename VAL_T>
@@ -286,7 +310,7 @@ void sample_nonzeros_redistribute(
 
       COOSparse<IDX_T, VAL_T> gathered;
 
-      gathered = sample_nonzeros<IDX_T, VAL_T>(
+      gathered = sample_hash_tuples<IDX_T, VAL_T>(
         sampler, 
         sample_mat_py,
         weights_py,

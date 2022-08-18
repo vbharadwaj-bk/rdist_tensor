@@ -30,7 +30,7 @@ class HashedSampleSet(TensorSampler):
 class HashedTensorTuples(TensorSampler):
     def __init__(self, mat_idxs, values):
         super().__init__("HashedTensorTuples")
-        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+        self.slicer = nz_filter.TensorSlicer(mat_idxs, values)
 
 def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
     for i in range(dim):
@@ -150,7 +150,7 @@ class DistSparseTensor:
             self.mat_idxs[:, i] = self.offset_idxs[i]
 
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
-        self.sampler = HashedTensorTuples(self.mat_idxs, self.values)
+        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
 
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):

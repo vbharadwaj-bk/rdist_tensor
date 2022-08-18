@@ -140,12 +140,12 @@ public:
 
   void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, COOSparse<IDX_T, VAL_T> &res) {
     auto pair_loc = lookup_table->find(buf);
-    if(res != lookup_table->end()) {
-      vector<pair<IDX_T, VAL_T>> pairs = storage[pair_loc->second];
-      for(auto it = pairs.start(); it != pairs.end(); it++) {
+    if(pair_loc != lookup_table->end()) {
+      vector<pair<IDX_T, VAL_T>> &pairs = storage[pair_loc->second];
+      for(auto it = pairs.begin(); it != pairs.end(); it++) {
         res.rows.push_back(r_idx);
         res.cols.push_back(it->first);
-        res.vals.push_back(weight * it->second);
+        res.values.push_back(weight * it->second);
       }  
     }
   }
@@ -266,14 +266,13 @@ COOSparse<IDX_T, VAL_T> sample_hash_samples(
 
 template<typename IDX_T, typename VAL_T>
 COOSparse<IDX_T, VAL_T> sample_hash_tuples(
-      py::object &sampler,
+      TensorSlicer<IDX_T, VAL_T> &slicer,
       py::array_t<IDX_T> &sample_mat_py,
       py::array_t<double> &weights_py,
       int mode_to_leave,
       int dim) {
 
-  TensorSlicer<IDX_T, VAL_T> slicer = 
-      sampler.attr("slicer").cast<TensorSlicer<IDX_T, VAL_T>>();
+  COOSparse<IDX_T, VAL_T> gathered;
 
   NumpyArray<IDX_T> sample_mat(sample_mat_py);
   NumpyArray<double> weights(weights_py);
@@ -281,11 +280,10 @@ COOSparse<IDX_T, VAL_T> sample_hash_tuples(
   // TODO: Add an assertion downcasting this!
   uint32_t num_samples = (uint32_t) sample_mat.info.shape[0];
 
-  COOSparse<IDX_T, VAL_T> gathered;
-
-  for(int i = 0; i < num_samples; i++) {  
-    slicer.lookup_and_append(i, weights.ptr[i], 
-        sample_mat + i * dim, 
+  for(uint32_t i = 0; i < num_samples; i++) {  
+    slicer.lookup_and_append(i, 
+        weights.ptr[i], 
+        sample_mat.ptr + i * dim, 
         mode_to_leave, 
         gathered);
   }
@@ -294,7 +292,7 @@ COOSparse<IDX_T, VAL_T> sample_hash_tuples(
 
 template<typename IDX_T, typename VAL_T>
 void sample_nonzeros_redistribute(
-      py::object sampler,
+      TensorSlicer<IDX_T, VAL_T> &slicer,
       py::array_t<IDX_T> sample_mat_py,
       py::array_t<double> weights_py,
       int mode_to_leave,
@@ -305,13 +303,13 @@ void sample_nonzeros_redistribute(
       py::function allocate_recv_buffers
       ) {
 
-      NumpyArray<IDX_T> idxs_mat(sampler, "idxs_mat"); 
-      int dim = idxs_mat.info.shape[1];
+      NumpyArray<IDX_T> sample_mat(sample_mat_py); 
+      int dim = sample_mat.info.shape[1];
 
       COOSparse<IDX_T, VAL_T> gathered;
 
       gathered = sample_hash_tuples<IDX_T, VAL_T>(
-        sampler, 
+        slicer, 
         sample_mat_py,
         weights_py,
         mode_to_leave,
@@ -355,15 +353,13 @@ void sample_nonzeros_redistribute(
 } 
 
 PYBIND11_MODULE(filter_nonzeros, m) {
-  py::class_<COOSparse<uint32_t, double>>(m, "COOSparse"); 
-  //  .def("print_contents", &COOSparse::print_contents);
-  //m.def("sample_nonzeros", &sample_nonzeros);
-
-  m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
-  //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
+  py::class_<COOSparse<uint32_t, double>>(m, "COOSparse");
 
   py::class_<TensorSlicer<uint32_t, double>>(m, "TensorSlicer")
     .def(py::init<py::array_t<uint32_t>, py::array_t<double>>());
+
+  m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
+  //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }
 
 /*

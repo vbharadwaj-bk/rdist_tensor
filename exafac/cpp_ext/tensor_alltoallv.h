@@ -32,6 +32,10 @@ void tensor_alltoallv(
         py::list &recv_values_py,
         py::function &allocate_recv_buffers 
         ) {
+
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     MPI_Datatype MPI_IDX_T, MPI_VAL_T;
     DEFINE_MPI_DATATYPES();
 
@@ -128,6 +132,8 @@ void tensor_alltoallv(
     }
     // ===================================================
 
+    auto start = start_clock();
+
     for(int j = 0; j < dim; j++) {
         MPI_Alltoallv(send_idx[j].data(), 
                         send_counts_dcast.data(), 
@@ -150,4 +156,10 @@ void tensor_alltoallv(
                     recv_offsets_dcast.data(), 
                     MPI_VAL_T, MPI_COMM_WORLD 
                     );
+
+    double elapsed = stop_clock_get_elapsed(start);
+
+    if(rank == 0) {
+        cout << elapsed << endl;
+    }
 }

@@ -301,8 +301,7 @@ void sample_nonzeros_redistribute(
       py::array_t<int> row_order_to_proc_py,  
       py::list recv_idx_py,
       py::list recv_values_py,
-      py::function allocate_recv_buffers,
-      int rank
+      py::function allocate_recv_buffers
       ) {
 
       NumpyArray<IDX_T> sample_mat(sample_mat_py); 

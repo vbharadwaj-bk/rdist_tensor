@@ -6,8 +6,9 @@ module load cudatoolkit
 conda deactivate
 module load python
 conda activate lazy-h5py
-export HDF5_USE_FILE_LOCKING=FALSE
 module load cray-hdf5
 
 export CC=CC
 export CXX=CC
+
+export HDF5_USE_FILE_LOCKING=FALSE

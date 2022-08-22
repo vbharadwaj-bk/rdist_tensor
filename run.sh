@@ -28,7 +28,7 @@ OUTPUT="data/uber.out"
 TENSOR=$SCRATCH/tensors/amazon-reviews.tns_converted.hdf5
 OUTPUT="data/amazon.out"
 FACTOR_FILE="data/amazon_factors.hdf5"
-srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
+srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 200 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
 
 #TENSOR=$SCRATCH/tensors/reddit-2015.tns_converted.hdf5
 #OUTPUT="data/reddit.out"

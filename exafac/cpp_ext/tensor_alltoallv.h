@@ -160,6 +160,6 @@ void tensor_alltoallv(
     double elapsed = stop_clock_get_elapsed(start);
 
     if(rank == 0) {
-        cout << elapsed << endl;
+        //cout << elapsed << endl;
     }
 }

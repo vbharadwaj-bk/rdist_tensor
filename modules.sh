@@ -7,6 +7,7 @@ conda deactivate
 module load python
 conda activate lazy-h5py
 module load cray-hdf5
+module load fast-mkl-amd
 
 export CC=CC
 export CXX=CC

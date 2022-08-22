@@ -188,10 +188,8 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		stop_clock_and_add(start, self.timers, "MTTKRP")
 
 		start = start_clock()
-		lstsq_soln = la.lstsq(gram_prod, result_buffer.T, rcond=None)
-		res = (np.diag(singular_values ** -1) @ lstsq_soln[0]).T.copy()	
-
-		factor.data = res
+		pinv = la.pinv(gram_prod)
+		factor.data = (result_buffer @ pinv @ np.diag(singular_values ** -1)).copy()	
 		factor.normalize_cols()
 
 		MPI.COMM_WORLD.Barrier()

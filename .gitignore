@@ -3,6 +3,7 @@ data/*
 visualization/*
 tensor_io/build/*
 experimental/one_sided_comm_bench/build/
+experimental/graphblas_io/build/
 !experimental/one_sided_comm_bench/build/jobscript.sh
 tensors/*
 .rendered*
@@ -16,6 +17,7 @@ sparsehash
 cuckoofilter
 sparsehash-c11
 libcuckoofilter.a
+GraphBLAS
 !data/.empty
 !tensors/.empty
 !tensors/frostt_tensors.txt

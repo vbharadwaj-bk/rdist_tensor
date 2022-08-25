@@ -8,6 +8,7 @@
 #include <chrono>
 #include <mpi.h>
 #include <string>
+//#include <shmem.h> 
 
 #include "common.h"
 
@@ -132,7 +133,7 @@ void tensor_alltoallv(
     }
     // ===================================================
 
-    auto start = start_clock();
+    //auto start = start_clock();
 
     for(int j = 0; j < dim; j++) {
         MPI_Alltoallv(send_idx[j].data(), 
@@ -157,7 +158,7 @@ void tensor_alltoallv(
                     MPI_VAL_T, MPI_COMM_WORLD 
                     );
 
-    double elapsed = stop_clock_get_elapsed(start);
+    //double elapsed = stop_clock_get_elapsed(start);
 
     if(rank == 0) {
         //cout << elapsed << endl;

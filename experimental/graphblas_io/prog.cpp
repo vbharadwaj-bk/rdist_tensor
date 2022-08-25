@@ -74,7 +74,22 @@ int main (int argc, char** argv)
             size_of_file
             );
 
-        // Should add some multithreading support 
+        GrB_Index nrows;
+        GrB_Index cols;
+        GrB_Index nvals;
+        GrB_Matrix_nrows(&nrows, C);
+        GrB_Matrix_nrows(&ncols, C);
+        GrB_Matrix_nvals(&nvals, C);
+
+        char name[500];
+        GxB_Matrix_type_name(&name, C);
+
+        cout << "GRB Matrix Type Name: " << name << endl;
+
+        //vector<GrB_Index> I;
+        //vector<GrB_Index> J;
+
+        // Should add some multithreading support
 
     }
 

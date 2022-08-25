@@ -41,14 +41,15 @@ if __name__=='__main__':
     from exafac.grid import *
     from exafac.sparse_tensor import *
     from exafac.sampling import *
+    #from exafac.cpp_ext.tensor_kernels import * 
 
-    # List of optimizers
+    #shmem_init()
+
     from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
     from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exafac.optim.exact_als import ExactALS
     from exafac.optim.dist_grid_optimizer import DistributedGridOptimizer
-
 
     # Let every process have a different random
     # seed based on its MPI rank; may be a better
@@ -94,3 +95,6 @@ if __name__=='__main__':
             factor_file = args.factor_file,
             num_iterations=args.iter, 
             compute_accuracy_interval=0)
+
+    #shmem_finalize()
+    

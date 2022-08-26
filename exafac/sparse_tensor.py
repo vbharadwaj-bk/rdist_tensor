@@ -62,10 +62,18 @@ class DistSparseTensor:
 
         self.tensor_idxs = []
 
+        if self.rank == 0:
+            print("Loading sparse tensor...")
+
         for i in range(self.dim):
             self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
 
         self.values = f['VALUES'][start_nnz:end_nnz]
+
+        MPI.COMM_WORLD.Barrier()
+        if self.rank == 0:
+            print("Finished loading sparse tensor...")
+
 
         if preprocessing is not None:
             if preprocessing == "log_count":

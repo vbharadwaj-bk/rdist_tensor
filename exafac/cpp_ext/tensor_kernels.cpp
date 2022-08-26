@@ -9,8 +9,8 @@
 #include <cassert>
 #include "common.h"
 
-//#include <shmem.h>
-//#include <shmemx.h>
+#include <shmem.h>
+#include <shmemx.h>
 
 using namespace std;
 namespace py = pybind11;
@@ -289,11 +289,11 @@ void assemble_full_lhs(
 }
 
 void shmem_init_py() {
-    //shmem_init();
+    shmem_init(); 
 }
 
 void shmem_finalize_py() {
-    //shmem_finalize();
+    shmem_finalize();
 }
 
 PYBIND11_MODULE(tensor_kernels, m) {

@@ -25,6 +25,7 @@
 #include "sparsehash/dense_hash_map"
 #include "cuckoofilter/src/cuckoofilter.h"
 #include "tensor_alltoallv.h"
+#include "tensor_alltoallv_shmemx.h"
 #include "fks_hash.hpp"
 
 using namespace std;
@@ -339,7 +340,7 @@ void sample_nonzeros_redistribute(
           send_counts[processor]++;
       } 
 
-      tensor_alltoallv(
+      tensor_alltoallv_shmemx(
           2, 
           proc_count, 
           nnz, 
@@ -368,7 +369,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 setup_pybind11(cfg)
 cfg['extra_compile_args'] = ['-O3', '-finline-limit=1000']
 cfg['extra_link_args'] = ['-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
-cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
+cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'tensor_alltoallv_shmemx.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
 cfg['libraries'] = ['cuckoofilter']
 %>
 */

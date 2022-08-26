@@ -10,12 +10,12 @@ export OMP_NUM_THREADS=1
 #TENSOR_DIR=$SCRATCH/tensors
 TENSOR_DIR=tensors
 
-#TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
-#OUTPUT="data/uber.out"
-#srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
-#	-g "1,1,1,1" -t 25 -iter 20 \
-#	-o $OUTPUT -op "accumulator_stationary" -s 131000
-#gdb --args 
+TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
+OUTPUT="data/uber.out"
+srun -N 1 -u -n 64 python decompose_sparse.py -i $TENSOR  \
+	-g "4,1,4,4" -t 25 -iter 20 \
+	-o $OUTPUT -op "accumulator_stationary" -s 131000
+gdb --args 
 
 #srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
 #	-g "1,1,1,1" -t 25 -iter 20 \
@@ -26,10 +26,10 @@ TENSOR_DIR=tensors
 #FACTOR_FILE="data/nell_factors.hdf5"
 #srun -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 500000
 
-TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/amazon.out"
-FACTOR_FILE="data/amazon_factors.hdf5"
-srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" -t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
+#TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
+#OUTPUT="data/amazon.out"
+#FACTOR_FILE="data/amazon_factors.hdf5"
+#srun -u -N 4 -n 256 -c 2 python decompose_sparse.py -i $TENSOR -g "8,4,8" -t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000
 
 #TENSOR=$TENSOR_DIR/tensors/reddit-2015.tns_converted.hdf5
 #OUTPUT="data/reddit.out"

@@ -41,9 +41,9 @@ if __name__=='__main__':
     from exafac.grid import *
     from exafac.sparse_tensor import *
     from exafac.sampling import *
-    #from exafac.cpp_ext.tensor_kernels import * 
+    from exafac.cpp_ext.tensor_kernels import shmem_init, shmem_finalize
 
-    #shmem_init()
+    shmem_init()
 
     from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
@@ -96,5 +96,5 @@ if __name__=='__main__':
             num_iterations=args.iter, 
             compute_accuracy_interval=0)
 
-    #shmem_finalize()
+    shmem_finalize()
     

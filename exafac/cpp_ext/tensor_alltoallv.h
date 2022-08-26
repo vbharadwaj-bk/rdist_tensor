@@ -8,18 +8,12 @@
 #include <chrono>
 #include <mpi.h>
 #include <string>
-//#include <shmem.h> 
 
 #include "common.h"
 
 using namespace std;
 namespace py = pybind11;
 
-/*
- * Note: sendcounts could be computed from 
- * processor_assignments, but we require precomputation
- * for efficiency. 
- */
 template<typename IDX_T, typename VAL_T>
 void tensor_alltoallv(
 		int dim,

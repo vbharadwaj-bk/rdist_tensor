@@ -294,6 +294,7 @@ void shmem_init_py() {
 
 void shmem_finalize_py() {
     shmem_finalize();
+
 }
 
 PYBIND11_MODULE(tensor_kernels, m) {

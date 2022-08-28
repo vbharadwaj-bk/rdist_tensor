@@ -15,7 +15,7 @@ OUTPUT="data/uber.out"
 srun -N 1 -u -n 64 python decompose_sparse.py -i $TENSOR  \
 	-g "4,1,4,4" -t 25 -iter 20 \
 	-o $OUTPUT -op "accumulator_stationary" -s 131000
-gdb --args 
+#gdb --args 
 
 #srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
 #	-g "1,1,1,1" -t 25 -iter 20 \

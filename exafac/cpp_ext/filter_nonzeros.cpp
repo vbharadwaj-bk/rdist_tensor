@@ -340,6 +340,8 @@ void sample_nonzeros_redistribute(
           send_counts[processor]++;
       } 
 
+      MPI_Barrier(MPI_COMM_WORLD);
+
       tensor_alltoallv_shmemx(
           2, 
           proc_count, 

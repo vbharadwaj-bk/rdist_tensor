@@ -43,6 +43,8 @@ void tensor_alltoallv_shmemx(
         py::function &allocate_recv_buffers 
         ) {
 
+    auto start = start_clock();
+
     SymArray<int> send_counts_dcast(proc_count);
     for(uint i = 0; i < proc_count; i++) {
         send_counts_dcast.ptr[i] = (int) send_counts[i];
@@ -73,18 +75,18 @@ void tensor_alltoallv_shmemx(
     // Retrieve the maximum number of nonzeros owned
     // by any single processor
 
-    uint64_t max_nnz;
+    uint64_t max_nnz_send;
     MPI_Allreduce(&nnz, 
-            &max_nnz, 
+            &max_nnz_send, 
             1, 
             MPI_UINT64_T, 
             MPI_MAX,
             MPI_COMM_WORLD 
             );
 
-    SymArray<IDX_T> send_idx_rows(max_nnz); 
-    SymArray<IDX_T> send_idx_cols(max_nnz); 
-    SymArray<VAL_T> send_values(max_nnz); 
+    SymArray<IDX_T> send_idx_rows(max_nnz_send); 
+    SymArray<IDX_T> send_idx_cols(max_nnz_send); 
+    SymArray<VAL_T> send_values(max_nnz_send); 
 
     MPI_Alltoall(send_counts_dcast.ptr, 
                 1, MPI_INT, 
@@ -97,6 +99,15 @@ void tensor_alltoallv_shmemx(
 
     prefix_sum_ptr(recv_counts.ptr, recv_offsets.ptr, proc_count);
 
+    uint64_t max_nnz_recv;
+    MPI_Allreduce(&total_received_coords, 
+            &max_nnz_recv, 
+            1, 
+            MPI_UINT64_T, 
+            MPI_MAX,
+            MPI_COMM_WORLD 
+            );
+
     allocate_recv_buffers(dim, 
             total_received_coords, 
             recv_idx_py, 
@@ -107,6 +118,10 @@ void tensor_alltoallv_shmemx(
 
     NumpyList<IDX_T> recv_idx(recv_idx_py);
     NumpyList<VAL_T> recv_values(recv_values_py);
+
+    SymArray<IDX_T> recv_idx_rows(max_nnz_recv);
+    SymArray<IDX_T> recv_idx_cols(max_nnz_recv);
+    SymArray<VAL_T> recv_idx_vals(max_nnz_recv);
 
     // Pack the send buffers
     prefix_sum_ptr(send_counts_dcast.ptr, send_offsets.ptr, proc_count);
@@ -134,20 +149,20 @@ void tensor_alltoallv_shmemx(
 
     uint64_t total_send_coords = 
 				std::accumulate(send_counts.begin(), send_counts.end(), 0);
-
-    //auto start = start_clock();
  
     MPI_Alltoallv(send_idx_rows.ptr, 
                     send_counts_dcast.ptr, 
                     send_offsets.ptr, 
                     MPI_IDX_T, 
-                    recv_idx.ptrs[0], 
+                    recv_idx_rows.ptr, 
                     recv_counts.ptr, 
                     recv_offsets.ptr, 
                     MPI_IDX_T, 
                     MPI_COMM_WORLD 
                     );
-    
+
+    memcpy(recv_idx.ptrs[0], recv_idx_rows.ptr, sizeof(IDX_T) * total_received_coords);
+
     MPI_Alltoallv(send_idx_cols.ptr, 
                     send_counts_dcast.ptr, 
                     send_offsets.ptr, 
@@ -170,10 +185,12 @@ void tensor_alltoallv_shmemx(
                     MPI_COMM_WORLD 
                     );
 
-    //double elapsed = stop_clock_get_elapsed(start);
+    shmem_barrier_all();
+
+    double elapsed = stop_clock_get_elapsed(start);
 
     if(rank == 0) {
-        //cout << elapsed << endl;
+        cout << elapsed << endl;
     }
 
     //recv_counts.free_memory();
@@ -186,5 +203,4 @@ void tensor_alltoallv_shmemx(
     //send_idx_rows.free_memory(); 
     //send_idx_cols.free_memory();
 
-    shmem_barrier_all();
 }

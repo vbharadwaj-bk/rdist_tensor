@@ -12,8 +12,8 @@ TENSOR_DIR=tensors
 
 TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -u -n 64 python decompose_sparse.py -i $TENSOR  \
-	-g "4,1,4,4" -t 25 -iter 20 \
+srun -N 1 -u -n 2 python decompose_sparse.py -i $TENSOR  \
+	-g "2,1,1,1" -t 25 -iter 20 \
 	-o $OUTPUT -op "accumulator_stationary" -s 131000
 #gdb --args 
 

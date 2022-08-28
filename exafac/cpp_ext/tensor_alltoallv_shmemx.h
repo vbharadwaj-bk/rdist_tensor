@@ -149,8 +149,39 @@ void tensor_alltoallv_shmemx(
 
     uint64_t total_send_coords = 
 				std::accumulate(send_counts.begin(), send_counts.end(), 0);
- 
-    MPI_Alltoallv(send_idx_rows.ptr, 
+    
+    SymArray<int64_t> pSync(_SHMEM_ALLTOALL_SYNC_SIZE);
+    for(int i = 0; i < _SHMEM_ALLTOALL_SYNC_SIZE; i++) {
+        pSync.ptr[i] = _SHMEM_SYNC_VALUE; 
+    }
+
+    SymArray<uint64_t> recv_counts_sym(proc_count);
+    SymArray<uint64_t> send_offsets_sym(proc_count);
+    SymArray<uint64_t> recv_offsets_sym(proc_count);
+    SymArray<uint64_t> running_offsets_sym(proc_count);
+    SymArray<uint64_t> send_counts_sym(proc_count);
+
+    for(int i = 0; i < proc_count; i++) {
+        recv_counts_sym.ptr[i] = recv_counts.ptr[i] * sizeof(IDX_T);
+        send_offsets_sym.ptr[i] = send_offsets.ptr[i] * sizeof(IDX_T);
+        recv_offsets_sym.ptr[i] = recv_offsets.ptr[i] * sizeof(IDX_T);
+        send_counts_sym.ptr[i] = send_counts_dcast.ptr[i] * sizeof(IDX_T); 
+    }
+
+    shmem_barrier_all();
+
+    shmemx_alltoallv(   recv_idx_rows.ptr, 
+                        recv_offsets_sym.ptr, 
+                        recv_counts_sym.ptr,
+                        send_idx_rows.ptr, 
+                        send_offsets_sym.ptr, 
+                        send_counts_sym.ptr,
+                        0, 
+                        0, 
+                        shmem_n_pes(),
+                        pSync.ptr);
+
+    /*MPI_Alltoallv(send_idx_rows.ptr, 
                     send_counts_dcast.ptr, 
                     send_offsets.ptr, 
                     MPI_IDX_T, 
@@ -159,7 +190,9 @@ void tensor_alltoallv_shmemx(
                     recv_offsets.ptr, 
                     MPI_IDX_T, 
                     MPI_COMM_WORLD 
-                    ); 
+                    );*/
+
+    shmem_barrier_all();
 
     MPI_Alltoallv(send_idx_cols.ptr, 
                     send_counts_dcast.ptr, 

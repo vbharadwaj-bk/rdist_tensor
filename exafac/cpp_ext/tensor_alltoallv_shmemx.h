@@ -26,6 +26,10 @@ public:
         memset(ptr, 0x00, sizeof(T) * n_elements);
     }
 
+    constexpr T& operator[](std::size_t idx) {
+        return ptr[idx];
+    }
+
     void fill(T value) {
         std::fill(ptr, ptr + size, value);
     }
@@ -90,9 +94,11 @@ void tensor_alltoallv_shmemx(
             MPI_COMM_WORLD 
             );
 
-    SymArray<IDX_T> send_idx_rows(max_nnz_send); 
-    SymArray<IDX_T> send_idx_cols(max_nnz_send); 
-    SymArray<VAL_T> send_values(max_nnz_send); 
+    SymArray<Triple<IDX_T, VAL_T>> send_buffer(max_nnz_send); 
+
+    //SymArray<IDX_T> send_idx_rows(max_nnz_send); 
+    //SymArray<IDX_T> send_idx_cols(max_nnz_send); 
+    //SymArray<VAL_T> send_values(max_nnz_send); 
 
     MPI_Alltoall(send_counts_dcast.ptr, 
                 1, MPI_INT, 
@@ -125,9 +131,11 @@ void tensor_alltoallv_shmemx(
     NumpyList<IDX_T> recv_idx(recv_idx_py);
     NumpyList<VAL_T> recv_values(recv_values_py);
 
-    SymArray<IDX_T> recv_idx_rows(max_nnz_recv);
-    SymArray<IDX_T> recv_idx_cols(max_nnz_recv);
-    SymArray<VAL_T> recv_idx_vals(max_nnz_recv);
+    //SymArray<IDX_T> recv_idx_rows(max_nnz_recv);
+    //SymArray<IDX_T> recv_idx_cols(max_nnz_recv);
+    //SymArray<VAL_T> recv_idx_vals(max_nnz_recv);
+
+    SymArray<Triple<IDX_T, VAL_T>> recv_buffer(max_nnz_recv); 
 
     // Pack the send buffers
     prefix_sum_ptr(send_counts_dcast.ptr, send_offsets.ptr, proc_count);
@@ -141,9 +149,13 @@ void tensor_alltoallv_shmemx(
         // #pragma omp atomic capture 
         idx = running_offsets.ptr[owner]++;
 
-        send_idx_rows.ptr[idx] = coords.ptrs[0][i];
-        send_idx_cols.ptr[idx] = coords.ptrs[1][i];
-        send_values.ptr[idx] = values.ptr[i]; 
+        send_buffer[idx].row = coords.ptrs[0][i];
+        send_buffer[idx].col = coords.ptrs[1][i];
+        send_buffer[idx].val = values.ptr[i];
+
+        //send_idx_rows.ptr[idx] = coords.ptrs[0][i];
+        //send_idx_cols.ptr[idx] = coords.ptrs[1][i];
+        //send_values.ptr[idx] = values.ptr[i]; 
     }
 
     // Execute the AlltoAll operations
@@ -166,18 +178,19 @@ void tensor_alltoallv_shmemx(
     SymArray<uint64_t> send_counts_sym(proc_count);
 
     for(int i = 0; i < proc_count; i++) {
-        recv_counts_sym.ptr[i] = recv_counts.ptr[i] * sizeof(IDX_T);
-        send_offsets_sym.ptr[i] = send_offsets.ptr[i] * sizeof(IDX_T);
-        recv_offsets_sym.ptr[i] = recv_offsets.ptr[i] * sizeof(IDX_T);
-        send_counts_sym.ptr[i] = send_counts_dcast.ptr[i] * sizeof(IDX_T); 
+        size_t dt_size = sizeof(Triple<IDX_T, VAL_T>);
+        recv_counts_sym.ptr[i] = recv_counts.ptr[i] * dt_size; 
+        send_offsets_sym.ptr[i] = send_offsets.ptr[i] * dt_size; 
+        recv_offsets_sym.ptr[i] = recv_offsets.ptr[i] * dt_size; 
+        send_counts_sym.ptr[i] = send_counts_dcast.ptr[i] * dt_size; 
     }
 
     shmem_barrier_all();
 
-    shmemx_alltoallv(   recv_idx_rows.ptr, 
+    shmemx_alltoallv(   recv_buffer.ptr, 
                         recv_offsets_sym.ptr, 
                         recv_counts_sym.ptr,
-                        send_idx_rows.ptr, 
+                        send_buffer.ptr, 
                         send_offsets_sym.ptr, 
                         send_counts_sym.ptr,
                         0, 
@@ -198,6 +211,7 @@ void tensor_alltoallv_shmemx(
 
     shmem_barrier_all();
 
+    /*
     MPI_Alltoallv(send_idx_cols.ptr, 
                     send_counts_dcast.ptr, 
                     send_offsets.ptr, 
@@ -219,12 +233,17 @@ void tensor_alltoallv_shmemx(
                     MPI_VAL_T, 
                     MPI_COMM_WORLD 
                     );
+    */
 
-    memcpy(recv_idx.ptrs[0], recv_idx_rows.ptr, sizeof(IDX_T) * total_received_coords);
-    memcpy(recv_idx.ptrs[1], recv_idx_cols.ptr, sizeof(IDX_T) * total_received_coords);
-    memcpy(recv_values.ptrs[0], recv_idx_vals.ptr, sizeof(VAL_T) * total_received_coords);
+    for(int i = 0; i < total_received_coords; i++) {
+        recv_idx.ptrs[0][i] = recv_buffer[i].row;
+        recv_idx.ptrs[1][i] = recv_buffer[i].col;
+        recv_values.ptrs[0][i] = recv_buffer[i].val;
+    }
 
-    shmem_barrier_all();
+    //memcpy(recv_idx.ptrs[0], recv_idx_rows.ptr, sizeof(IDX_T) * total_received_coords);
+    //memcpy(recv_idx.ptrs[1], recv_idx_cols.ptr, sizeof(IDX_T) * total_received_coords);
+    //memcpy(recv_values.ptrs[0], recv_idx_vals.ptr, sizeof(VAL_T) * total_received_coords);
 
     double elapsed = stop_clock_get_elapsed(start);
 

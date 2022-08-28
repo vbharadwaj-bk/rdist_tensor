@@ -43,7 +43,7 @@ void tensor_alltoallv_shmemx(
         py::function &allocate_recv_buffers 
         ) {
 
-    SymArray<int> send_counts_dcast(proc_count, 0);
+    SymArray<int> send_counts_dcast(proc_count);
     for(uint i = 0; i < proc_count; i++) {
         send_counts_dcast.ptr[i] = (int) send_counts[i];
     }
@@ -73,11 +73,18 @@ void tensor_alltoallv_shmemx(
     // Retrieve the maximum number of nonzeros owned
     // by any single processor
 
+    uint64_t max_nnz;
+    MPI_Allreduce(&nnz, 
+            &max_nnz, 
+            1, 
+            MPI_UINT64_T, 
+            MPI_MAX,
+            MPI_COMM_WORLD 
+            );
 
-
-    SymArray<IDX_T> send_idx_rows(nnz, 0); 
-    SymArray<IDX_T> send_idx_cols(nnz, 0); 
-    SymArray<VAL_T> send_values(nnz, 0); 
+    SymArray<IDX_T> send_idx_rows(max_nnz); 
+    SymArray<IDX_T> send_idx_cols(max_nnz); 
+    SymArray<VAL_T> send_values(max_nnz); 
 
     MPI_Alltoall(send_counts_dcast.ptr, 
                 1, MPI_INT, 
@@ -169,15 +176,15 @@ void tensor_alltoallv_shmemx(
         //cout << elapsed << endl;
     }
 
-    recv_counts.free_memory();
-    send_offsets.free_memory();
-    recv_offsets.free_memory();
-    running_offsets.free_memory();
-    send_counts_dcast.free_memory();
-    send_values.free_memory();
+    //recv_counts.free_memory();
+    //send_offsets.free_memory();
+    //recv_offsets.free_memory();
+    //running_offsets.free_memory();
+    //send_counts_dcast.free_memory();
+    //send_values.free_memory();
 
-    send_idx_rows.free_memory(); 
-    send_idx_cols.free_memory();
+    //send_idx_rows.free_memory(); 
+    //send_idx_cols.free_memory();
 
     shmem_barrier_all();
 }

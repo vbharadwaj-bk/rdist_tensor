@@ -159,15 +159,13 @@ void tensor_alltoallv_shmemx(
                     recv_offsets.ptr, 
                     MPI_IDX_T, 
                     MPI_COMM_WORLD 
-                    );
-
-    memcpy(recv_idx.ptrs[0], recv_idx_rows.ptr, sizeof(IDX_T) * total_received_coords);
+                    ); 
 
     MPI_Alltoallv(send_idx_cols.ptr, 
                     send_counts_dcast.ptr, 
                     send_offsets.ptr, 
                     MPI_IDX_T, 
-                    recv_idx.ptrs[1], 
+                    recv_idx_cols.ptr, 
                     recv_counts.ptr, 
                     recv_offsets.ptr, 
                     MPI_IDX_T, 
@@ -178,12 +176,16 @@ void tensor_alltoallv_shmemx(
                     send_counts_dcast.ptr, 
                     send_offsets.ptr,
                     MPI_VAL_T, 
-                    recv_values.ptrs[0], 
+                    recv_idx_vals.ptr, 
                     recv_counts.ptr, 
                     recv_offsets.ptr, 
                     MPI_VAL_T, 
                     MPI_COMM_WORLD 
                     );
+
+    memcpy(recv_idx.ptrs[0], recv_idx_rows.ptr, sizeof(IDX_T) * total_received_coords);
+    memcpy(recv_idx.ptrs[1], recv_idx_cols.ptr, sizeof(IDX_T) * total_received_coords);
+    memcpy(recv_values.ptrs[0], recv_idx_vals.ptr, sizeof(VAL_T) * total_received_coords);
 
     shmem_barrier_all();
 

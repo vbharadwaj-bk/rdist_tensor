@@ -19,15 +19,21 @@ template<typename T>
 class SymArray {
 public:
     T* ptr;
+    uint64_t size;
     SymArray(uint64_t n_elements) { 
-        ptr = (T*) shmem_malloc(sizeof(T) * n_elements);
+        size = n_elements;
+        ptr = (T*) shmem_malloc(sizeof(T) * size);
         memset(ptr, 0x00, sizeof(T) * n_elements);
+    }
+
+    void fill(T value) {
+        std::fill(ptr, ptr + size, value);
     }
 
     ~SymArray() {
         shmem_free(ptr);
     }
-}; 
+};
 
 template<typename IDX_T, typename VAL_T>
 void tensor_alltoallv_shmemx(
@@ -151,9 +157,7 @@ void tensor_alltoallv_shmemx(
 				std::accumulate(send_counts.begin(), send_counts.end(), 0);
     
     SymArray<int64_t> pSync(_SHMEM_ALLTOALL_SYNC_SIZE);
-    for(int i = 0; i < _SHMEM_ALLTOALL_SYNC_SIZE; i++) {
-        pSync.ptr[i] = _SHMEM_SYNC_VALUE; 
-    }
+    pSync.fill(_SHMEM_SYNC_VALUE);
 
     SymArray<uint64_t> recv_counts_sym(proc_count);
     SymArray<uint64_t> send_offsets_sym(proc_count);

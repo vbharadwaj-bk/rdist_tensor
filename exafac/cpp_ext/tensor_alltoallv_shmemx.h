@@ -8,6 +8,7 @@
 #include <chrono>
 #include <mpi.h>
 #include <string>
+#include <memory>
 #include <shmem.h> 
 #include <shmemx.h> 
 #include "common.h"
@@ -20,10 +21,26 @@ class SymArray {
 public:
     T* ptr;
     uint64_t size;
+
+    SymArray() {
+        ptr = nullptr;
+        size = 0;
+    }
+
     SymArray(uint64_t n_elements) { 
         size = n_elements;
         ptr = (T*) shmem_malloc(sizeof(T) * size);
         memset(ptr, 0x00, sizeof(T) * n_elements);
+    }
+
+    void reallocate(uint64_t n_elements) {
+        size = n_elements;
+        if(ptr == nullptr) {
+            ptr = (T*) shmem_malloc(sizeof(T) * size);
+        }
+        else {
+            ptr = (T*) shmem_realloc(ptr, sizeof(T) * size);
+        }
     }
 
     constexpr T& operator[](std::size_t idx) {
@@ -36,6 +53,80 @@ public:
 
     ~SymArray() {
         shmem_free(ptr);
+    }
+};
+
+template<typename IDX_T, typename VAL_T>
+class SHMEMX_Alltoallv {
+    uint64_t proc_count;
+
+    SymArray<Triple<IDX_T, VAL_T>> recv_buffer;
+    SymArray<uint64_t> recv_counts;
+    SymArray<uint64_t> recv_offsets;
+
+    SymArray<uint64_t> pSync;
+public:
+    uint64_t total_received_coords;
+    SymArray<Triple<IDX_T, VAL_T>> send_buffer;
+    SymArray<uint64_t> send_counts;
+    SymArray<uint64_t> send_offsets;
+    SymArray<uint64_t> running_offsets;
+
+    SHMEMX_Alltoallv() 
+    {
+        proc_count = shmem_n_pes();
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
+
+        send_counts.reallocate(proc_count);
+        send_offsets.reallocate(proc_count);
+        recv_counts.reallocate(proc_count);
+        recv_offsets.reallocate(proc_count);
+        running_offsets.reallocate(proc_count);
+        pSync.reallocate(_SHMEM_ALLTOALL_SYNC_SIZE);
+        pSync.fill(_SHMEM_SYNC_VALUE);
+
+        shmem_barrier_all();
+    }
+
+    // This assumes the send buffer, send counts, and
+    // send offsets have all been filled
+    void execute_alltoallv() {
+        MPI_Alltoall(send_counts.ptr, 
+                    1, MPI_UINT64, 
+                    recv_counts.ptr, 
+                    1, MPI_UINT64, 
+                    MPI_COMM_WORLD);
+
+        total_received_coords = 
+                    std::accumulate(recv_counts.ptr, recv_counts.ptr + proc_count, 0);
+
+        prefix_sum_ptr(recv_counts.ptr, recv_offsets.ptr, proc_count);
+
+        uint64_t max_nnz_recv;
+        MPI_Allreduce(&total_received_coords, 
+                &max_nnz_recv, 
+                1, 
+                MPI_UINT64_T, 
+                MPI_MAX,
+                MPI_COMM_WORLD 
+                );
+
+        if(max_nnz_recv > recv_buffer.size) {
+            recv_buffer.reallocate(max_nnz_recv);
+        }
+
+        shmemx_alltoallv(   recv_buffer.ptr, 
+                            recv_offsets.ptr, 
+                            recv_counts.ptr,
+                            send_buffer.ptr, 
+                            send_offsets.ptr, 
+                            send_counts.ptr,
+                            0, 
+                            0, 
+                            proc_count,
+                            pSync.ptr);
+
+        shmem_barrier_all();
     }
 };
 
@@ -63,27 +154,10 @@ void tensor_alltoallv_shmemx(
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
 
-    MPI_Datatype MPI_IDX_T, MPI_VAL_T;
-    DEFINE_MPI_DATATYPES();
-
-    string idx_t_str, val_t_str;
-    if(MPI_IDX_T == MPI_UINT64_T) 
-        idx_t_str = "u64";
-    else 
-        idx_t_str = "u32"; 
-
-    if(MPI_VAL_T == MPI_DOUBLE) 
-        val_t_str = "double";
-    else 
-        val_t_str = "float"; 
-
     SymArray<int> recv_counts(proc_count);
     SymArray<int> send_offsets(proc_count);
     SymArray<int> recv_offsets(proc_count);
-    SymArray<int> running_offsets(proc_count);
-
-    // Retrieve the maximum number of nonzeros owned
-    // by any single processor
+    SymArray<int> running_offsets(proc_count); 
 
     uint64_t max_nnz_send;
     MPI_Allreduce(&nnz, 
@@ -95,10 +169,6 @@ void tensor_alltoallv_shmemx(
             );
 
     SymArray<Triple<IDX_T, VAL_T>> send_buffer(max_nnz_send); 
-
-    //SymArray<IDX_T> send_idx_rows(max_nnz_send); 
-    //SymArray<IDX_T> send_idx_cols(max_nnz_send); 
-    //SymArray<VAL_T> send_values(max_nnz_send); 
 
     MPI_Alltoall(send_counts_dcast.ptr, 
                 1, MPI_INT, 
@@ -131,9 +201,6 @@ void tensor_alltoallv_shmemx(
     NumpyList<IDX_T> recv_idx(recv_idx_py);
     NumpyList<VAL_T> recv_values(recv_values_py);
 
-    //SymArray<IDX_T> recv_idx_rows(max_nnz_recv);
-    //SymArray<IDX_T> recv_idx_cols(max_nnz_recv);
-    //SymArray<VAL_T> recv_idx_vals(max_nnz_recv);
 
     SymArray<Triple<IDX_T, VAL_T>> recv_buffer(max_nnz_recv); 
 
@@ -152,18 +219,9 @@ void tensor_alltoallv_shmemx(
         send_buffer[idx].row = coords.ptrs[0][i];
         send_buffer[idx].col = coords.ptrs[1][i];
         send_buffer[idx].val = values.ptr[i];
-
-        //send_idx_rows.ptr[idx] = coords.ptrs[0][i];
-        //send_idx_cols.ptr[idx] = coords.ptrs[1][i];
-        //send_values.ptr[idx] = values.ptr[i]; 
     }
 
     // Execute the AlltoAll operations
-
-    // ===================================================
-    // Explicit downcast: this errors if we have more than one
-    // integer's worth of data to transfer. We should replace this 
-    // with a more intelligent AlltoAll operation 
 
     uint64_t total_send_coords = 
 				std::accumulate(send_counts.begin(), send_counts.end(), 0);
@@ -198,42 +256,7 @@ void tensor_alltoallv_shmemx(
                         shmem_n_pes(),
                         pSync.ptr);
 
-    /*MPI_Alltoallv(send_idx_rows.ptr, 
-                    send_counts_dcast.ptr, 
-                    send_offsets.ptr, 
-                    MPI_IDX_T, 
-                    recv_idx_rows.ptr, 
-                    recv_counts.ptr, 
-                    recv_offsets.ptr, 
-                    MPI_IDX_T, 
-                    MPI_COMM_WORLD 
-                    );*/
-
     shmem_barrier_all();
-
-    /*
-    MPI_Alltoallv(send_idx_cols.ptr, 
-                    send_counts_dcast.ptr, 
-                    send_offsets.ptr, 
-                    MPI_IDX_T, 
-                    recv_idx_cols.ptr, 
-                    recv_counts.ptr, 
-                    recv_offsets.ptr, 
-                    MPI_IDX_T, 
-                    MPI_COMM_WORLD 
-                    );
-    
-    MPI_Alltoallv(send_values.ptr,
-                    send_counts_dcast.ptr, 
-                    send_offsets.ptr,
-                    MPI_VAL_T, 
-                    recv_idx_vals.ptr, 
-                    recv_counts.ptr, 
-                    recv_offsets.ptr, 
-                    MPI_VAL_T, 
-                    MPI_COMM_WORLD 
-                    );
-    */
 
     for(uint i = 0; i < total_received_coords; i++) {
         recv_idx.ptrs[0][i] = recv_buffer[i].row;
@@ -241,24 +264,9 @@ void tensor_alltoallv_shmemx(
         recv_values.ptrs[0][i] = recv_buffer[i].val;
     }
 
-    //memcpy(recv_idx.ptrs[0], recv_idx_rows.ptr, sizeof(IDX_T) * total_received_coords);
-    //memcpy(recv_idx.ptrs[1], recv_idx_cols.ptr, sizeof(IDX_T) * total_received_coords);
-    //memcpy(recv_values.ptrs[0], recv_idx_vals.ptr, sizeof(VAL_T) * total_received_coords);
-
     double elapsed = stop_clock_get_elapsed(start);
 
     if(rank == 0) {
         cout << elapsed << endl;
     }
-
-    //recv_counts.free_memory();
-    //send_offsets.free_memory();
-    //recv_offsets.free_memory();
-    //running_offsets.free_memory();
-    //send_counts_dcast.free_memory();
-    //send_values.free_memory();
-
-    //send_idx_rows.free_memory(); 
-    //send_idx_cols.free_memory();
-
 }

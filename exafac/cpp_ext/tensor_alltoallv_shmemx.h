@@ -177,7 +177,7 @@ void tensor_alltoallv_shmemx(
     SymArray<uint64_t> running_offsets_sym(proc_count);
     SymArray<uint64_t> send_counts_sym(proc_count);
 
-    for(int i = 0; i < proc_count; i++) {
+    for(uint i = 0; i < proc_count; i++) {
         size_t dt_size = sizeof(Triple<IDX_T, VAL_T>);
         recv_counts_sym.ptr[i] = recv_counts.ptr[i] * dt_size; 
         send_offsets_sym.ptr[i] = send_offsets.ptr[i] * dt_size; 
@@ -235,7 +235,7 @@ void tensor_alltoallv_shmemx(
                     );
     */
 
-    for(int i = 0; i < total_received_coords; i++) {
+    for(uint i = 0; i < total_received_coords; i++) {
         recv_idx.ptrs[0][i] = recv_buffer[i].row;
         recv_idx.ptrs[1][i] = recv_buffer[i].col;
         recv_values.ptrs[0][i] = recv_buffer[i].val;

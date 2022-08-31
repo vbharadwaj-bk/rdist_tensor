@@ -93,6 +93,8 @@ class DistSparseTensor:
         self.idx_dtype=np.uint32
         self.val_dtype=np.double
 
+        self.nonzero_redist = nz_filter.SHMEMX_Alltoallv(allocate_recv_buffers)
+
     def random_permute(self):
         '''
         Applies a random permutation to the indices of the sparse

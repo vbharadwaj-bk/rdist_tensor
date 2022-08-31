@@ -152,9 +152,7 @@ void tensor_alltoallv(
                     MPI_VAL_T, MPI_COMM_WORLD 
                     );
 
-    double elapsed = stop_clock_get_elapsed(start);
-
-    if(rank == 0) {
+    /*if(rank == 0) {
         cout << elapsed << endl;
-    }
+    }*/
 }

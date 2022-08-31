@@ -172,6 +172,7 @@ public:
   void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
     lookups[mode_to_leave].lookup_and_append(r_idx, weight, buf, res); 
   }
+
 };
 
 template<typename IDX_T>
@@ -302,7 +303,7 @@ void sample_nonzeros_redistribute(
       py::array_t<int> row_order_to_proc_py,  
       py::list recv_idx_py,
       py::list recv_values_py,
-      py::function allocate_recv_buffers
+      SHMEMX_Alltoallv<uint32_t, double> &nonzero_redist
       ) {
 
       NumpyArray<IDX_T> sample_mat(sample_mat_py); 
@@ -315,45 +316,58 @@ void sample_nonzeros_redistribute(
         sample_mat_py,
         weights_py,
         mode_to_leave,
-        dim); 
+        dim);
 
       uint64_t nnz = gathered.rows.size(); 
 
-      vector<IDX_T*> coords;
-      coords.push_back(gathered.rows.data());
-      coords.push_back(gathered.cols.data());
-      IDX_T* col_ptr = gathered.cols.data(); 
-
-      NumpyList<IDX_T> coords_wrapped(coords);
-      NumpyArray<VAL_T> values_wrapped(gathered.values.data());
       NumpyArray<int> row_order_to_proc(row_order_to_proc_py);
 
-      uint64_t proc_count = row_order_to_proc.info.shape[0]; 
+      uint64_t max_nnz_send;
+      MPI_Allreduce(&nnz, 
+              &max_nnz_send, 
+              1, 
+              MPI_UINT64_T, 
+              MPI_MAX,
+              MPI_COMM_WORLD 
+              );
 
-      vector<int> processor_assignments(nnz, 0);
-      int* assignment_ptr = processor_assignments.data();
-      vector<uint64_t> send_counts(proc_count, 0);
+      SymArray<Triple<IDX_T, VAL_T>> &send_buffer = nonzero_redist.send_buffer;
+      SymArray<uint64_t> &send_counts = nonzero_redist.send_counts;
+      SymArray<uint64_t> &send_offsets = nonzero_redist.send_offsets;
+      SymArray<uint64_t> &running_offsets = nonzero_redist.running_offsets;
+
+      if(max_nnz_send > send_buffer.size) {
+        send_buffer.reallocate(max_nnz_send);
+      }
+
+      IDX_T* col_ptr = gathered.cols.data();
+
+      send_counts.fill(0);
+      for(uint64_t i = 0; i < nnz; i++) {
+          int processor = row_order_to_proc.ptr[col_ptr[i] / row_divisor];
+          send_counts[processor]++;
+      }
+      prefix_sum_ptr(send_counts.ptr, send_offsets.ptr, send_counts.size);
+
+      std::copy(send_offsets.ptr, 
+          send_offsets.ptr + send_offsets.size, 
+          running_offsets.ptr);
 
       for(uint64_t i = 0; i < nnz; i++) {
           int processor = row_order_to_proc.ptr[col_ptr[i] / row_divisor];
-          assignment_ptr[i] = processor; 
-          send_counts[processor]++;
-      } 
+          uint64_t pos = running_offsets[processor]++;
+          send_buffer[pos].row = gathered.rows[i];
+          send_buffer[pos].col = gathered.cols[i];
+          send_buffer[pos].val = gathered.values[i];
+      }
 
       MPI_Barrier(MPI_COMM_WORLD);
+      nonzero_redist.execute_alltoallv(recv_idx_py,
+          recv_values_py); 
 
-      tensor_alltoallv_shmemx(
-          2, 
-          proc_count, 
-          nnz, 
-          coords_wrapped, 
-          values_wrapped, 
-          processor_assignments,
-          send_counts, 
-          recv_idx_py, 
-          recv_values_py, 
-          allocate_recv_buffers 
-          );
+      if(nonzero_redist.rank == 0) {
+          cout << elapsed << endl;
+      }
 } 
 
 PYBIND11_MODULE(filter_nonzeros, m) {
@@ -362,6 +376,9 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<TensorSlicer<uint32_t, double>>(m, "TensorSlicer")
     .def(py::init<py::array_t<uint32_t>, py::array_t<double>>());
 
+  py::class_<SHMEMX_Alltoallv<uint32_t, double>>(m, "SHMEMX_Alltoallv")
+    .def(py::init<py::function>());
+
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
   //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }
@@ -369,7 +386,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-O3', '-finline-limit=1000']
+cfg['extra_compile_args'] = ['-O3', '-finline-limit=1000', '-march=native']
 cfg['extra_link_args'] = ['-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
 cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'tensor_alltoallv_shmemx.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
 cfg['libraries'] = ['cuckoofilter']

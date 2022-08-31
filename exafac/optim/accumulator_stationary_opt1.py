@@ -66,7 +66,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		self.info['Sample Count'] = self.sample_count
 		self.info["Algorithm Name"] = "Accumulator Stationary Opt1"	
 		self.info["Nonzeros Sampled Per Round"] = []
-		self.info["Samples Reused Between Rounds"] = self.reuse_samples 
+		self.info["Samples Reused Between Rounds"] = self.reuse_samples
 
 	def initial_setup(self):
 		'''
@@ -153,7 +153,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			factor.row_order_to_proc, 
 			recv_idx,
 			recv_values,
-			allocate_recv_buffers)
+			self.ground_truth.nonzero_redist)
 
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	

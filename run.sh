@@ -17,6 +17,7 @@ TENSOR_DIR=tensors
 #	-o $OUTPUT -op "accumulator_stationary" -s 131000
 #gdb --args 
 
+
 #srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
 #	-g "1,1,1,1" -t 25 -iter 20 \
 #	-o $OUTPUT -op "exact" 

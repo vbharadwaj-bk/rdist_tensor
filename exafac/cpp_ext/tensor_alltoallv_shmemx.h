@@ -63,17 +63,20 @@ class SHMEMX_Alltoallv {
     SymArray<Triple<IDX_T, VAL_T>> recv_buffer;
     SymArray<uint64_t> recv_counts;
     SymArray<uint64_t> recv_offsets;
+    SymArray<int64_t> pSync;
 
-    SymArray<uint64_t> pSync;
 public:
+    int rank;
     uint64_t total_received_coords;
     SymArray<Triple<IDX_T, VAL_T>> send_buffer;
     SymArray<uint64_t> send_counts;
     SymArray<uint64_t> send_offsets;
     SymArray<uint64_t> running_offsets;
 
-    SHMEMX_Alltoallv() 
+    py::function allocate_recv_buffers;
+    SHMEMX_Alltoallv(py::function allocate_recv_buffers) 
     {
+        this->allocate_recv_buffers = allocate_recv_buffers;
         proc_count = shmem_n_pes();
         MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
 
@@ -83,18 +86,20 @@ public:
         recv_offsets.reallocate(proc_count);
         running_offsets.reallocate(proc_count);
         pSync.reallocate(_SHMEM_ALLTOALL_SYNC_SIZE);
-        pSync.fill(_SHMEM_SYNC_VALUE);
 
+        pSync.fill(_SHMEM_SYNC_VALUE); 
         shmem_barrier_all();
     }
 
     // This assumes the send buffer, send counts, and
     // send offsets have all been filled
-    void execute_alltoallv() {
+    void execute_alltoallv(py::list recv_idx_py,
+                           py::list recv_values_py) {
+
         MPI_Alltoall(send_counts.ptr, 
-                    1, MPI_UINT64, 
+                    1, MPI_UINT64_T, 
                     recv_counts.ptr, 
-                    1, MPI_UINT64, 
+                    1, MPI_UINT64_T, 
                     MPI_COMM_WORLD);
 
         total_received_coords = 
@@ -115,6 +120,12 @@ public:
             recv_buffer.reallocate(max_nnz_recv);
         }
 
+        for(uint i = 0; i < proc_count; i++) {
+            send_counts[i] *= sizeof(Triple<IDX_T, VAL_T>);
+            send_offsets[i] *= sizeof(Triple<IDX_T, VAL_T>);
+            recv_offsets[i] *= sizeof(Triple<IDX_T, VAL_T>);
+        }
+
         shmemx_alltoallv(   recv_buffer.ptr, 
                             recv_offsets.ptr, 
                             recv_counts.ptr,
@@ -126,147 +137,23 @@ public:
                             proc_count,
                             pSync.ptr);
 
-        shmem_barrier_all();
+        shmem_barrier_all(); 
+
+        allocate_recv_buffers(2, 
+                total_received_coords, 
+                recv_idx_py, 
+                recv_values_py,
+                "u32",
+                "double" 
+                );
+
+        NumpyList<IDX_T> recv_idx(recv_idx_py);
+        NumpyList<VAL_T> recv_values(recv_values_py);
+
+        for(uint i = 0; i < total_received_coords; i++) {
+            recv_idx.ptrs[0][i] = recv_buffer[i].row;
+            recv_idx.ptrs[1][i] = recv_buffer[i].col;
+            recv_values.ptrs[0][i] = recv_buffer[i].val;
+        }
     }
 };
-
-template<typename IDX_T, typename VAL_T>
-void tensor_alltoallv_shmemx(
-		int dim,
-		uint64_t proc_count,
-		uint64_t nnz,
-        NumpyList<IDX_T> &coords,
-        NumpyArray<VAL_T> &values,
-		vector<int> &processor_assignments,
-		vector<uint64_t> &send_counts,
-        py::list &recv_idx_py,
-        py::list &recv_values_py,
-        py::function &allocate_recv_buffers 
-        ) {
-
-    auto start = start_clock();
-
-    SymArray<int> send_counts_dcast(proc_count);
-    for(uint i = 0; i < proc_count; i++) {
-        send_counts_dcast.ptr[i] = (int) send_counts[i];
-    }
-
-    int rank;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
-
-    SymArray<int> recv_counts(proc_count);
-    SymArray<int> send_offsets(proc_count);
-    SymArray<int> recv_offsets(proc_count);
-    SymArray<int> running_offsets(proc_count); 
-
-    uint64_t max_nnz_send;
-    MPI_Allreduce(&nnz, 
-            &max_nnz_send, 
-            1, 
-            MPI_UINT64_T, 
-            MPI_MAX,
-            MPI_COMM_WORLD 
-            );
-
-    SymArray<Triple<IDX_T, VAL_T>> send_buffer(max_nnz_send); 
-
-    MPI_Alltoall(send_counts_dcast.ptr, 
-                1, MPI_INT, 
-                recv_counts.ptr, 
-                1, MPI_INT, 
-                MPI_COMM_WORLD);
-
-    uint64_t total_received_coords = 
-				std::accumulate(recv_counts.ptr, recv_counts.ptr + proc_count, 0);
-
-    prefix_sum_ptr(recv_counts.ptr, recv_offsets.ptr, proc_count);
-
-    uint64_t max_nnz_recv;
-    MPI_Allreduce(&total_received_coords, 
-            &max_nnz_recv, 
-            1, 
-            MPI_UINT64_T, 
-            MPI_MAX,
-            MPI_COMM_WORLD 
-            );
-
-    allocate_recv_buffers(dim, 
-            total_received_coords, 
-            recv_idx_py, 
-            recv_values_py,
-            idx_t_str,
-            val_t_str 
-            );
-
-    NumpyList<IDX_T> recv_idx(recv_idx_py);
-    NumpyList<VAL_T> recv_values(recv_values_py);
-
-
-    SymArray<Triple<IDX_T, VAL_T>> recv_buffer(max_nnz_recv); 
-
-    // Pack the send buffers
-    prefix_sum_ptr(send_counts_dcast.ptr, send_offsets.ptr, proc_count);
-    memcpy(running_offsets.ptr, send_offsets.ptr, sizeof(int) * proc_count);
-    //running_offsets = send_offsets;
-
-    for(uint64_t i = 0; i < nnz; i++) {
-        int owner = processor_assignments[i];
-        uint64_t idx;
-
-        // #pragma omp atomic capture 
-        idx = running_offsets.ptr[owner]++;
-
-        send_buffer[idx].row = coords.ptrs[0][i];
-        send_buffer[idx].col = coords.ptrs[1][i];
-        send_buffer[idx].val = values.ptr[i];
-    }
-
-    // Execute the AlltoAll operations
-
-    uint64_t total_send_coords = 
-				std::accumulate(send_counts.begin(), send_counts.end(), 0);
-    
-    SymArray<int64_t> pSync(_SHMEM_ALLTOALL_SYNC_SIZE);
-    pSync.fill(_SHMEM_SYNC_VALUE);
-
-    SymArray<uint64_t> recv_counts_sym(proc_count);
-    SymArray<uint64_t> send_offsets_sym(proc_count);
-    SymArray<uint64_t> recv_offsets_sym(proc_count);
-    SymArray<uint64_t> running_offsets_sym(proc_count);
-    SymArray<uint64_t> send_counts_sym(proc_count);
-
-    for(uint i = 0; i < proc_count; i++) {
-        size_t dt_size = sizeof(Triple<IDX_T, VAL_T>);
-        recv_counts_sym.ptr[i] = recv_counts.ptr[i] * dt_size; 
-        send_offsets_sym.ptr[i] = send_offsets.ptr[i] * dt_size; 
-        recv_offsets_sym.ptr[i] = recv_offsets.ptr[i] * dt_size; 
-        send_counts_sym.ptr[i] = send_counts_dcast.ptr[i] * dt_size; 
-    }
-
-    shmem_barrier_all();
-
-    shmemx_alltoallv(   recv_buffer.ptr, 
-                        recv_offsets_sym.ptr, 
-                        recv_counts_sym.ptr,
-                        send_buffer.ptr, 
-                        send_offsets_sym.ptr, 
-                        send_counts_sym.ptr,
-                        0, 
-                        0, 
-                        shmem_n_pes(),
-                        pSync.ptr);
-
-    shmem_barrier_all();
-
-    for(uint i = 0; i < total_received_coords; i++) {
-        recv_idx.ptrs[0][i] = recv_buffer[i].row;
-        recv_idx.ptrs[1][i] = recv_buffer[i].col;
-        recv_values.ptrs[0][i] = recv_buffer[i].val;
-    }
-
-    double elapsed = stop_clock_get_elapsed(start);
-
-    if(rank == 0) {
-        cout << elapsed << endl;
-    }
-}

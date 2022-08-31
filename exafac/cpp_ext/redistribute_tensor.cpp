@@ -70,7 +70,6 @@ PYBIND11_MODULE(redistribute_tensor, m) {
     m.def("redistribute_nonzeros_u64_double", &redistribute_nonzeros<uint64_t, double>);
 }
 
-
 /*
 <%
 setup_pybind11(cfg)

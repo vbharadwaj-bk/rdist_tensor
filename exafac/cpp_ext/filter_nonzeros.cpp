@@ -365,9 +365,9 @@ void sample_nonzeros_redistribute(
       nonzero_redist.execute_alltoallv(recv_idx_py,
           recv_values_py); 
 
-      if(nonzero_redist.rank == 0) {
+      /*if(nonzero_redist.rank == 0) {
           cout << elapsed << endl;
-      }
+      }*/
 } 
 
 PYBIND11_MODULE(filter_nonzeros, m) {
@@ -377,7 +377,8 @@ PYBIND11_MODULE(filter_nonzeros, m) {
     .def(py::init<py::array_t<uint32_t>, py::array_t<double>>());
 
   py::class_<SHMEMX_Alltoallv<uint32_t, double>>(m, "SHMEMX_Alltoallv")
-    .def(py::init<py::function>());
+    .def(py::init<py::function>())
+    .def("destroy", &SHMEMX_Alltoallv<uint32_t, double>::destroy);
 
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
   //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);

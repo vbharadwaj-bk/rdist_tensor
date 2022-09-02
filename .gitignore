@@ -4,6 +4,8 @@ visualization/*
 tensor_io/build/*
 experimental/one_sided_comm_bench/build/
 experimental/graphblas_io/build/
+experimental/openshmem_test/build/
+!experimental/openshmem_test/build/jobscript.sh
 !experimental/one_sided_comm_bench/build/jobscript.sh
 tensors/*
 .rendered*

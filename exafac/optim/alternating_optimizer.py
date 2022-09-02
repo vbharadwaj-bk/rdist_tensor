@@ -58,14 +58,15 @@ class AlternatingOptimizer:
 		for key in self.timers:
 			self.timers[key] = 0.0
 
-	def	fit(self, num_iterations, output_file, factor_file=None, compute_accuracy_interval=0):
-		assert(compute_accuracy_interval >= 0)
+	def	fit(self, max_iterations, output_file, factor_file=None, epoch_interval=5):
+		assert(epoch_interval>= 0)
 
 		self.zero_timers()
-		self.info["Iteration Count"] = num_iterations 
+		self.info["Max Iteration Count"] = max_iterations 
 
 		now = datetime.now()
 		self.info["Experiment Time"] = now.strftime("%d/%m/%Y %H:%M:%S")
+		self.info["Epoch Interval"] = epoch_interval 
 
 		low_rank_ten = self.ten_to_optimize
 		ground_truth = self.ground_truth
@@ -75,18 +76,25 @@ class AlternatingOptimizer:
 		loss_values	= []
 
 		self.initial_setup()
-		for	iter in	range(num_iterations):
+
+		for	iter in	range(max_iterations):
 			if grid.rank == 0:
 				print(f"Starting iteration {iter}...")
-			if (compute_accuracy_interval != 0 and iter % compute_accuracy_interval == 0) \
+			if (epoch_interval != 0 and iter % epoch_interval == 0) \
 					or iter == 0 \
-					or iter == num_iterations - 1:
+					or iter == max_iterations - 1:
 				loss = low_rank_ten.compute_loss(ground_truth)
 				loss_iterations.append(iter)
 				loss_values.append(loss.item())
 
 				if grid.rank == 0:
 					print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
+
+				# Stopping condition 
+				if len(loss_values) >= 2 and loss_values[-1] < loss_values[-2]: 
+					if grid.rank == 0:
+						print(f"Loss failed to decrease after {iter} iterations. Stopping...")
+					break
 
 			# Optimize each factor while keeping the others constant	
 			for	mode_to_optimize in	range(self.dim):

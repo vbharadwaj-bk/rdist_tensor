@@ -1,6 +1,7 @@
 from mpi4py import MPI
 import numpy as np
 import argparse
+import gc
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
@@ -8,15 +9,16 @@ if __name__=='__main__':
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--input', type=str, help='HDF5 of Input Tensor', required=True)
-    parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int) 
+    parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=str)
+    parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=str)
     parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
     parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
     parser.add_argument("-o", "--output", help="Output file to print benchmark statistics", required=True)
     parser.add_argument('-g','--grid', type=str, help='Grid Shape (Comma separated)', required=True)
     parser.add_argument('-op','--optimizer', type=str, help='Optimizer to use for tensor decomposition', required=False, default='exact')
-    parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
     parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)
+    parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
 
     args = None
     try:
@@ -41,9 +43,6 @@ if __name__=='__main__':
     from exafac.grid import *
     from exafac.sparse_tensor import *
     from exafac.sampling import *
-    from exafac.cpp_ext.tensor_kernels import shmem_init, shmem_finalize
-
-    shmem_init()
 
     from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
@@ -63,38 +62,45 @@ if __name__=='__main__':
     grid = Grid(grid_dimensions)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)
     ground_truth.random_permute()
-    ground_truth.redistribute_nonzeros(tensor_grid) 
+    ground_truth.redistribute_nonzeros(tensor_grid)
 
-    ten_to_optimize = DistLowRank(tensor_grid, args.trank) 
-    #ten_to_optimize.initialize_factors_deterministic(args.rs) 
-    ten_to_optimize.initialize_factors_gaussian() 
-    #ten_to_optimize.initialize_factors_rrf(ground_truth, 200000) 
+    for sample_count in [int(el) for el in args.samples.split(",")]:
+        for trank in [int(el) for el in args.trank.split(",")]:
+            gc.collect()
 
-    optimizer = None
-    if args.optimizer == 'exact':
-        assert(args.samples is None)
-        optimizer = ExactALS(ten_to_optimize, ground_truth)
-    elif args.optimizer == 'tensor_stationary':
-        assert(args.samples is not None and args.samples >= 0)
-        optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, args.samples)
-    elif args.optimizer == 'accumulator_stationary':
-        assert(args.samples is not None and args.samples >= 0)
-        optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, args.samples)
-    elif args.optimizer == 'generic_grid':
-        assert(args.samples is not None and args.samples >= 0)
-        optimizer = DistributedGridOptimizer(ten_to_optimize, ground_truth, args.samples, None, None)
+            ten_to_optimize = DistLowRank(tensor_grid, trank) 
+            ten_to_optimize.initialize_factors_gaussian() 
 
-    else:
-        print(f"Error, invalid optimizer specified: '{args.op}'")
-        exit(1) 
+            optimizer = None
+            if args.optimizer == 'exact':
+                assert(args.samples is None)
+                optimizer = ExactALS(ten_to_optimize, ground_truth)
+            elif args.optimizer == 'tensor_stationary':
+                assert(args.samples is not None and sample_count >= 0)
+                optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, sample_count)
+            elif args.optimizer == 'accumulator_stationary':
+                assert(args.samples is not None and sample_count >= 0)
+                optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, sample_count)
+            elif args.optimizer == 'generic_grid':
+                assert(args.samples is not None and sample_count >= 0)
+                optimizer = DistributedGridOptimizer(ten_to_optimize, ground_truth, sample_count, None, None)
 
-    if grid.rank == 0:
-        print(f"Starting tensor decomposition...")
- 
-    optimizer.fit(output_file=args.output,
-            factor_file = args.factor_file,
-            num_iterations=args.iter, 
-            compute_accuracy_interval=0)
+            else:
+                print(f"Error, invalid optimizer specified: '{args.op}'")
+                exit(1) 
 
-    shmem_finalize()
+            if grid.rank == 0:
+                print(f"Starting tensor decomposition...")
+        
+            optimizer.fit(output_file=args.output,
+                    factor_file = args.factor_file,
+                    max_iterations=args.iter, 
+                    epoch_interval=args.epoch_iter)
+
+            if grid.rank == 0:
+                print(f"Finished tensor decomposition...")
+
+    ground_truth.nonzero_redist.destroy()
     
+    if grid.rank == 0:
+        print("Finalized SHMEM...")

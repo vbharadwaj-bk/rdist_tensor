@@ -288,12 +288,12 @@ void assemble_full_lhs(
     }
 }
 
-void shmem_init_py() {
-    shmem_init(); 
+/*void shmem_init_py() {
+  
 }
 void shmem_finalize_py() {
     shmem_finalize();
-}
+}*/
 
 PYBIND11_MODULE(tensor_kernels, m) {
     //m.def("sampled_mttkrp", &sampled_mttkrp);
@@ -303,9 +303,6 @@ PYBIND11_MODULE(tensor_kernels, m) {
     m.def("compute_tensor_values_u32", &compute_tensor_values<uint32_t>);
     m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
     m.def("assemble_full_lhs", &assemble_full_lhs);
-
-    m.def("shmem_init", &shmem_init_py);
-    m.def("shmem_finalize", &shmem_finalize_py);
 }
 
 /*

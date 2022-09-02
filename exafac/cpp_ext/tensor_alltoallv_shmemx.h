@@ -51,9 +51,16 @@ public:
         std::fill(ptr, ptr + size, value);
     }
 
-    ~SymArray() {
-        shmem_free(ptr);
+    void destroy() {
+        if(ptr != nullptr) {
+            shmem_free(ptr);
+            ptr = nullptr;
+        }
     }
+
+    /*~SymArray() {
+        destroy();
+    }*/
 };
 
 template<typename IDX_T, typename VAL_T>
@@ -76,6 +83,7 @@ public:
     py::function allocate_recv_buffers;
     SHMEMX_Alltoallv(py::function allocate_recv_buffers) 
     {
+        shmem_init();
         this->allocate_recv_buffers = allocate_recv_buffers;
         proc_count = shmem_n_pes();
         MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -89,6 +97,19 @@ public:
 
         pSync.fill(_SHMEM_SYNC_VALUE); 
         shmem_barrier_all();
+    }
+
+    void destroy() { 
+        send_counts.destroy();
+        send_offsets.destroy();
+        recv_counts.destroy();
+        recv_offsets.destroy();
+        running_offsets.destroy();
+        pSync.destroy();
+        send_buffer.destroy();
+        recv_buffer.destroy();
+
+        shmem_finalize();
     }
 
     // This assumes the send buffer, send counts, and

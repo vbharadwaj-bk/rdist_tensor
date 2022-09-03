@@ -2,15 +2,21 @@
 #include <shmemx.h> 
 #include <iostream>
 
-using namesapce std;
+using namespace std;
 
 int main(int argc, char** argv) {
     shmem_init();
 
-    cout << "SHEM Initialized!" << endl;
+    int my_rank = _my_pe();
+
+    if(my_rank == 0) {
+        cout << "SHEM Initialized!" << endl;
+    }
 
     shmem_finalize();
 
-    cout << "SHMEM Finalized!" << endl;
+    if(my_rank == 0) {
+        cout << "SHMEM Finalized!" << endl;
+    } 
 }
 

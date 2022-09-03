@@ -28,8 +28,6 @@ void tensor_alltoallv(
         py::function &allocate_recv_buffers 
         ) {
 
-    auto start = start_clock();
-
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -86,11 +84,12 @@ void tensor_alltoallv(
     prefix_sum(send_counts, send_offsets);
     running_offsets = send_offsets;
 
+    #pragma omp parallel for 
     for(uint64_t i = 0; i < nnz; i++) {
         int owner = processor_assignments[i];
         uint64_t idx;
 
-        // #pragma omp atomic capture 
+        #pragma omp atomic capture 
         idx = running_offsets[owner]++;
 
         for(int j = 0; j < dim; j++) {
@@ -151,8 +150,4 @@ void tensor_alltoallv(
                     recv_offsets_dcast.data(), 
                     MPI_VAL_T, MPI_COMM_WORLD 
                     );
-
-    /*if(rank == 0) {
-        cout << elapsed << endl;
-    }*/
 }

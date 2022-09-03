@@ -41,12 +41,14 @@ void redistribute_nonzeros(
     vector<uint64_t> send_counts(proc_count, 0);
     vector<int> processor_assignments(nnz, -1);
 
-    // TODO: Could parallelize using OpenMP if we want faster IO 
+    #pragma omp parallel for
     for(uint64_t i = 0; i < nnz; i++) {
         uint64_t processor = 0;
         for(int j = 0; j < dim; j++) {
             processor += prefix_mult.ptr[j] * (coords.ptrs[j][i] / intervals.ptr[j]); 
         }
+
+        #pragma omp atomic 
         send_counts[processor]++;
         processor_assignments[i] = processor;
     }

@@ -64,7 +64,12 @@ if __name__=='__main__':
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)
 
-    for sample_count in [int(el) for el in args.samples.split(",")]:
+    if args.samples is None:
+        sample_counts = [None]
+    else:
+        sample_counts = args.samples.split(",")
+
+    for sample_count in sample_counts: 
         for trank in [int(el) for el in args.trank.split(",")]:
             gc.collect()
 

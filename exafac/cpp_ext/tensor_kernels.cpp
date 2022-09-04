@@ -106,49 +106,6 @@ void compute_tensor_values(
     }
 }
 
-/*
-void sampled_mttkrp(
-        int mode,
-        py::list factors_py,
-        py::list krp_sample_idxs_py,
-        py::array_t<double> sampled_lhs_py,
-        COOSparse &sampled_rhs,
-        py::array_t<double> weights_py
-) {
-    NumpyList<double> factors(factors_py);
-    NumpyList<uint64_t> krp_samples(krp_sample_idxs_py);
-    NumpyArray<double> lhs(sampled_lhs_py);
-    NumpyArray<double> weights(weights_py);
-
-    int dim = factors.length;
-    int num_samples = krp_samples.infos[0].shape[0];
-    int r = factors.infos[0].shape[1];
-    double* result_ptr = factors.ptrs[mode];
-
-    // Assemble the LHS using Hadamard products
-    #pragma omp parallel for
-    for(int i = 0; i < num_samples; i++) {
-        for(int j = 0; j < r; j++) {
-            lhs.ptr[i * r + j] = weights.ptr[i];
-        }
-
-        for(int k = 0; k < dim; k++) {
-            if(k < mode) {
-                for(int j = 0; j < r; j++) {
-                    lhs.ptr[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k][i] * r + j];
-                }
-            }
-            if(k > mode) {
-                for(int j = 0; j < r; j++) {
-                    lhs.ptr[i * r + j] *= factors.ptrs[k][krp_samples.ptrs[k-1][i] * r + j];
-                }
-            }
-        }
-    }
-    sampled_rhs.cpu_spmm(lhs.ptr, result_ptr, r);
-}
-*/
-
 template<typename IDX_T>
 void inflate_samples_multiply(
     py::array_t<IDX_T> samples_py,
@@ -237,15 +194,17 @@ void spmm_compressed(
     int r = result.info.shape[1];
     uint64_t nnz = rhs_rows.info.shape[0];
     int dim_m1 = mode_rows.length; 
-    //sampled_rhs_wrapped.cpu_spmm(lhs.ptr, result.ptr, r);
 
     IDX_T* row_ptr = rhs_rows.ptr;
     IDX_T* col_ptr = rhs_cols.ptr;
     VAL_T* val_ptr = rhs_values.ptr;
 
+#pragma omp parallel 
+{
     vector<double> accumulator_row(r, 1.0);
     double* accum_ptr = accumulator_row.data(); 
 
+    #pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
         // We perform a transpose here
         IDX_T row = col_ptr[i];
@@ -262,38 +221,13 @@ void spmm_compressed(
         }
 
         for(int j = 0; j < r; j++) {
+            #pragma omp atomic 
             result.ptr[row * r + j] += accum_ptr[j];
         }        
     }
 }
 
-void assemble_full_lhs(
-    py::array_t<int64_t> sample_ids_py,
-    py::array_t<double> rows_py,
-    py::array_t<double> lhs_buffer_py) {
-    
-    NumpyArray<int64_t> sample_ids(sample_ids_py);
-    NumpyArray<double> rows(rows_py);
-    NumpyArray<double> lhs_buffer(lhs_buffer_py);
-
-    uint64_t inflated_sample_count = sample_ids.info.shape[0];
-    uint64_t r = lhs_buffer.info.shape[1];
-
-    for(uint64_t i = 0; i < inflated_sample_count; i++) {
-        double* base_ptr = lhs_buffer.ptr + i * r;
-        double* row_ptr = rows.ptr + sample_ids.ptr[i] * r;
-        for(uint64_t j = 0; j < r; j++) {
-            base_ptr[j] *= row_ptr[j];
-        }
-    }
 }
-
-/*void shmem_init_py() {
-  
-}
-void shmem_finalize_py() {
-    shmem_finalize();
-}*/
 
 PYBIND11_MODULE(tensor_kernels, m) {
     //m.def("sampled_mttkrp", &sampled_mttkrp);
@@ -302,7 +236,6 @@ PYBIND11_MODULE(tensor_kernels, m) {
     m.def("spmm_compressed_u32_double", &spmm_compressed<uint32_t, double>);
     m.def("compute_tensor_values_u32", &compute_tensor_values<uint32_t>);
     m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
-    m.def("assemble_full_lhs", &assemble_full_lhs);
 }
 
 /*

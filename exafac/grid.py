@@ -89,7 +89,6 @@ class TensorGrid:
                 self.bound_starts.append(coords[grid.coords[i]])
                 self.bound_ends.append(coords[grid.coords[i] + 1])
 
-
 if __name__=='__main__':
     #grid = Grid([3, 3, 3])
     #tGrid = TensorGrid([5, 1, 20], grid=grid)

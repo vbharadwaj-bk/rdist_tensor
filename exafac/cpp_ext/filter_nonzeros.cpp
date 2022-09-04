@@ -172,7 +172,6 @@ public:
   void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
     lookups[mode_to_leave].lookup_and_append(r_idx, weight, buf, res); 
   }
-
 };
 
 template<typename IDX_T>

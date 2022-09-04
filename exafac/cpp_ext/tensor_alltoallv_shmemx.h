@@ -171,6 +171,7 @@ public:
         NumpyList<IDX_T> recv_idx(recv_idx_py);
         NumpyList<VAL_T> recv_values(recv_values_py);
 
+        #pragma omp parallel for
         for(uint i = 0; i < total_received_coords; i++) {
             recv_idx.ptrs[0][i] = recv_buffer[i].row;
             recv_idx.ptrs[1][i] = recv_buffer[i].col;

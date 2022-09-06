@@ -5,14 +5,14 @@
 #SBATCH -t 02:00:00
 
 . modules.sh
-export OMP_NUM_THREADS=128
+export OMP_NUM_THREADS=64
 
 #TENSOR_DIR=$SCRATCH/tensors
 TENSOR_DIR=tensors
 TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
-	-g "1,1,1,1" -iter 15 \
+srun -N 1 -u -n 64 python decompose_sparse.py -i $TENSOR  \
+	-g "4,1,4,4" -iter 5 \
     -o $OUTPUT -op "exact" \
     -t "25" \
     #-s "131000"

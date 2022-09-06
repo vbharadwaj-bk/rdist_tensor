@@ -2,6 +2,7 @@ from mpi4py import MPI
 import numpy as np
 import argparse
 import gc
+import cppimport.import_hook
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
@@ -31,7 +32,6 @@ if __name__=='__main__':
         exit(1)
 
     if rank == 0:
-        import cppimport.import_hook
         #import cpp_ext.bloom_filter 
         import exafac.cpp_ext.filter_nonzeros
         import exafac.cpp_ext.redistribute_tensor
@@ -39,25 +39,33 @@ if __name__=='__main__':
 
     MPI.COMM_WORLD.Barrier()
 
+    if rank == 0:
+        print("Loading Python modules...")
+
     from exafac.low_rank_tensor import *
     from exafac.grid import *
     from exafac.sparse_tensor import *
     from exafac.sampling import *
 
-    from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
+    #from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
-    from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
+    #from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exafac.optim.exact_als import ExactALS
-    from exafac.optim.dist_grid_optimizer import DistributedGridOptimizer
+    #from exafac.optim.dist_grid_optimizer import DistributedGridOptimizer
 
     # Let every process have a different random
     # seed based on its MPI rank; may be a better
     # way to initialize, though... 
     initialize_seed_generator(args.rs + rank)
 
+    if rank == 0:
+        print("Seed generator Initialized...")
+
     grid_dimensions = [int(el) for el in args.grid.split(',')]
     # TODO: Should assert that the grid has the proper dimensions here!
 
+    if rank == 0:
+        print("Initializing Sparse Tensor...")
     ground_truth = DistSparseTensor(args.input, preprocessing=args.preprocessing)
     grid = Grid(grid_dimensions)
     tensor_grid = TensorGrid(ground_truth.max_idxs, grid=grid)

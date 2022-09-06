@@ -36,7 +36,7 @@ class DistLowRank:
         gathered_matrices = []
         for i in range(self.dim):
             if which_factors[i]:
-                self.factors[i].allgather_factor()
+                self.factors[i].allgather_factor(self.grid.slices[i])
                 gathered_matrices.append(self.factors[i].gathered_factor)
 
         return gathered_matrices, None

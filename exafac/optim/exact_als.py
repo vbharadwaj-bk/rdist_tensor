@@ -1,5 +1,6 @@
 from exafac.optim.alternating_optimizer import *
 from exafac.common import *
+from exafac.grid import *
 
 import numpy as np
 import numpy.linalg as la
@@ -17,12 +18,22 @@ class ExactALS(AlternatingOptimizer):
 		# Initial allgather of tensor factors 
 		for mode in range(self.ten_to_optimize.dim):
 			self.ten_to_optimize.factors[mode].normalize_cols()
-			self.ten_to_optimize.factors[mode].allgather_factor()
+			#self.ten_to_optimize.factors[mode].allgather_factor()
 			self.ten_to_optimize.factors[mode].compute_gram_matrix()
 
 	def optimize_factor(self, mode_to_leave):
 		factors = self.ten_to_optimize.factors
 		grid = self.ten_to_optimize.grid
+
+		original_tensor_grid = self.ground_truth.tensor_grid
+
+		new_grid = Grid([8, 1, 2, 4]) 
+		new_tensor_grid = TensorGrid(self.ground_truth.tensor_grid.tensor_dims, new_grid)
+
+		# This tests nonzero redistribution to an arbitrary grid 
+		self.ground_truth.redistribute_nonzeros(new_tensor_grid)
+		for factor in factors:
+			factor.permute_to_grid(new_tensor_grid)
 
 		dim = len(factors)
 		factors_to_gather = [True] * dim 
@@ -40,6 +51,9 @@ class ExactALS(AlternatingOptimizer):
 		# Compute inverse of the gram matrix 
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
+
+		for i in range(dim):
+			factors[i].allgather_factor(new_grid.slices[i])
 
 		start = start_clock()
 		gathered_matrices = [factor.gathered_factor for factor in factors]
@@ -59,7 +73,7 @@ class ExactALS(AlternatingOptimizer):
 
 		start = start_clock()
 		mttkrp_reduced = np.zeros_like(factors[mode_to_leave].data)
-		grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
+		new_grid.slices[mode_to_leave].Reduce_scatter([gathered_matrices[mode_to_leave], MPI.DOUBLE], 
 				[mttkrp_reduced, MPI.DOUBLE])
 
 		MPI.COMM_WORLD.Barrier()
@@ -79,7 +93,12 @@ class ExactALS(AlternatingOptimizer):
 		factors[mode_to_leave].compute_gram_matrix()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		start = start_clock()  
-		factors[mode_to_leave].allgather_factor()
+		#start = start_clock()  
+		#factors[mode_to_leave].allgather_factor()
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Slice All-gather")
+
+		for factor in factors:
+			factor.permute_from_grid(new_tensor_grid)
+
+		self.ground_truth.redistribute_nonzeros(original_tensor_grid)

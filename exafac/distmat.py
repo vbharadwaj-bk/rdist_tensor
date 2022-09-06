@@ -1,3 +1,4 @@
+from re import U
 import numpy as np
 from numpy.random import Generator, Philox
 
@@ -27,8 +28,10 @@ class DistMat1D:
 
         self.slice_dim = slice_dim
 
-        self.row_position = cl(self.grid.slices[slice_dim].Get_rank() + \
-            self.grid.coords[slice_dim] * self.grid.slices[slice_dim].Get_size())
+        #self.row_position = cl(self.grid.slices[slice_dim].Get_rank() + \
+        #    self.grid.coords[slice_dim] * self.grid.slices[slice_dim].Get_size())
+
+        self.row_position  = self.grid.row_positions[slice_dim][self.grid.rank]
 
         # Compute the true count of the rows that this processor owns 
         if(self.row_position * self.local_rows_padded > self.rows):
@@ -57,6 +60,19 @@ class DistMat1D:
 
         self.row_order_to_proc = self.row_order_to_proc.astype(int)
 
+    def permute_to_grid(self, new_grid):
+        new_row_positions = self.grid.row_positions[self.slice_dim]
+        self.permuted_rank = np.where(new_row_positions == self.row_position)[0]
+
+        if self.permuted_rank != self.grid.rank:
+            MPI.COMM_WORLD.Sendrecv_replace([self.data, MPI.DOUBLE], 
+                self.permuted_rank) 
+
+    def permute_from_grid(self, new_grid):
+        assert(self.permuted_rank is not None)
+        if self.permuted_rank != self.grid.rank: 
+            MPI.COMM_WORLD.Sendrecv_replace([self.data, MPI.DOUBLE], 
+                self.grid.rank) 
 
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 
@@ -83,28 +99,14 @@ class DistMat1D:
 
         self.grid.comm.Allreduce(MPI.IN_PLACE, self.gram)
 
-    def allgather_factor(self, truncate=False):
-        slice_dim = self.slice_dim
-        slice_size = cl(self.grid.slices[slice_dim].Get_size())
+    def allgather_factor(self, world, truncate=False): 
+        slice_size = cl(world.Get_size())
+
         buffer_rowct = self.local_rows_padded * slice_size
+        self.gathered_factor = np.zeros((buffer_rowct, self.cols), dtype=np.double)
 
-        if self.gathered_factor is None:
-            self.gathered_factor = np.zeros((buffer_rowct, self.cols), dtype=np.double)
-
-        self.grid.slices[slice_dim].Allgather([self.data, MPI.DOUBLE], 
+        world.Allgather([self.data, MPI.DOUBLE], 
                 [self.gathered_factor, MPI.DOUBLE])
-
-        # Handle the overhang when mode length is not divisible by
-        # the processor count
-
-        #if truncate:
-        #    if buffer_rowct * cl(self.grid.coords[slice_dim]) > self.rows:
-        #        truncated_rowct = 0
-        #    else:
-        #        truncated_rowct = min(buffer_rowct, self.rows - buffer_rowct * cl(self.grid.coords[slice_dim]))
-
-        #    buffer_data = buffer_data[:truncated_rowct] 
-        #self.gathered_factor = buffer_data
 
     def write_factor_to_file(self, hdf5_file, factor_name):
         # TODO: Undo the permutation used for load-balancing here! For now, we will 

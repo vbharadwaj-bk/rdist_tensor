@@ -12,7 +12,7 @@ TENSOR_DIR=tensors
 TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
 srun -N 1 -u -n 64 python decompose_sparse.py -i $TENSOR  \
-	-g "4,1,4,4" -iter 5 \
+	-g "4,1,4,4" -iter 15 \
     -o $OUTPUT -op "exact" \
     -t "25" \
     #-s "131000"

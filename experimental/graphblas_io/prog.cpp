@@ -8,8 +8,11 @@ extern "C" {
 #include <vector>
 #include <bitset>
 #include <cassert>
+#include <filesystem>
 
 using namespace std;
+namespace fs = std::filesystem;
+
 
 struct posix_header
 {                              /* byte offset */
@@ -44,6 +47,12 @@ int octal_string_to_int(char *current_char, unsigned int size){
 
 int main (int argc, char** argv)
 {
+
+    std::string path = "/global/project/projectdirs/m1982/vbharadw/rdist_tensor/experimental/graphblas_io/build";
+    for (const auto & entry : fs::directory_iterator(path)) {
+        std::cout << entry.path() << std::endl;
+    }
+
     GrB_init (GrB_NONBLOCKING);
 
     std::string filename(argv[1]);
@@ -64,7 +73,9 @@ int main (int argc, char** argv)
 
         assert(size_highbits[0] == 0);
         int size_of_file = octal_string_to_int(header->size, 11); 
-        char* contents = buffer.data() + 512; 
+        char* contents = buffer.data() + 512;
+
+        //GrB_Descriptor desc;
 
         GrB_Matrix C;
         GrB_Matrix_deserialize(
@@ -72,24 +83,26 @@ int main (int argc, char** argv)
             NULL, 
             (void*) contents, 
             size_of_file
-            );
+            ); // desc
 
         GrB_Index nrows;
-        GrB_Index cols;
+        GrB_Index ncols;
         GrB_Index nvals;
         GrB_Matrix_nrows(&nrows, C);
         GrB_Matrix_nrows(&ncols, C);
         GrB_Matrix_nvals(&nvals, C);
 
-        char name[500];
-        GxB_Matrix_type_name(&name, C);
+        vector<GrB_Index> I(nvals, 0);
+        vector<GrB_Index> J(nvals, 0);
+        vector<uint32_t> V(nvals, 0);
 
-        cout << "GRB Matrix Type Name: " << name << endl;
-
-        //vector<GrB_Index> I;
-        //vector<GrB_Index> J;
-
-        // Should add some multithreading support
+        GrB_Matrix_extractTuples_UINT32(
+          I.data(),
+          J.data(),
+          V.data(),
+          &nvals,
+          C
+        );
 
     }
 

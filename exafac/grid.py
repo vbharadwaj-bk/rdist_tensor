@@ -38,7 +38,7 @@ class Grid:
             row_position = cl(self.slices[slice_dim].Get_rank() + \
                 self.coords[slice_dim] * self.slices[slice_dim].Get_size())
 
-            self.row_positions.append(MPI.COMM_WORLD.allgather(row_position))
+            self.row_positions.append(np.array(MPI.COMM_WORLD.allgather(row_position)))
 
     def get_prefix_array(self):
         lst = [one_const]

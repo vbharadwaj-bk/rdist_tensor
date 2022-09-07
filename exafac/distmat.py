@@ -61,18 +61,27 @@ class DistMat1D:
         self.row_order_to_proc = self.row_order_to_proc.astype(int)
 
     def permute_to_grid(self, new_grid):
-        new_row_positions = self.grid.row_positions[self.slice_dim]
-        self.permuted_rank = np.where(new_row_positions == self.row_position)[0]
+        row_positions = new_grid.row_positions[self.slice_dim]
+        target = np.where(row_positions == self.row_position)[0][0]
 
-        if self.permuted_rank != self.grid.rank:
-            MPI.COMM_WORLD.Sendrecv_replace([self.data, MPI.DOUBLE], 
-                self.permuted_rank) 
+        #print(f"{self.grid.rank}, {self.permuted_rank}")
+
+        #if self.permuted_rank != self.grid.rank: 
+
+        MPI.COMM_WORLD.Sendrecv_replace([self.data, MPI.DOUBLE], 
+            target) 
+
+        MPI.COMM_WORLD.Barrier()
 
     def permute_from_grid(self, new_grid):
-        assert(self.permuted_rank is not None)
-        if self.permuted_rank != self.grid.rank: 
-            MPI.COMM_WORLD.Sendrecv_replace([self.data, MPI.DOUBLE], 
-                self.grid.rank) 
+        row_pos = new_grid.row_positions[self.slice_dim][self.grid.rank] 
+        row_positions = self.grid.row_positions[self.slice_dim]
+        target = np.where(row_positions == row_pos)[0][0]
+
+        MPI.COMM_WORLD.Sendrecv_replace([self.data, MPI.DOUBLE], 
+            target) 
+
+        MPI.COMM_WORLD.Barrier()
 
     def initialize_deterministic(self, offset):
         value_start = self.row_position * self.local_window_size 

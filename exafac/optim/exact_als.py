@@ -23,17 +23,22 @@ class ExactALS(AlternatingOptimizer):
 
 	def optimize_factor(self, mode_to_leave):
 		factors = self.ten_to_optimize.factors
-		grid = self.ten_to_optimize.grid
+		original_grid = self.ten_to_optimize.grid
+		original_tensor_grid = self.ground_truth.tensor_grid
 
-		#original_tensor_grid = self.ground_truth.tensor_grid
+		#grid = original_grid
+		#tensor_grid = original_tensor_grid
 
-		#new_grid = Grid([8, 1, 2, 4]) 
-		#new_tensor_grid = TensorGrid(self.ground_truth.tensor_grid.tensor_dims, new_grid)
+		grid = Grid([8, 1, 2, 4]) 
+		tensor_grid = TensorGrid(self.ground_truth.tensor_grid.tensor_dims, grid)
 
 		# This tests nonzero redistribution to an arbitrary grid 
-		#self.ground_truth.redistribute_nonzeros(new_tensor_grid)
-		#for factor in factors:
-		#	factor.permute_to_grid(new_tensor_grid)
+		self.ground_truth.redistribute_nonzeros(tensor_grid)	
+		self.ten_to_optimize.grid = grid
+		self.ten_to_optimize.tensor_grid = tensor_grid
+
+		for factor in factors:
+			factor.permute_to_grid(grid)
 
 		dim = len(factors)
 		factors_to_gather = [True] * dim 
@@ -98,7 +103,10 @@ class ExactALS(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Slice All-gather")
 
-		#for factor in factors:
-		#	factor.permute_from_grid(new_tensor_grid)
+		for factor in factors:
+			factor.permute_from_grid(grid)
 
-		#self.ground_truth.redistribute_nonzeros(original_tensor_grid)
+		self.ground_truth.redistribute_nonzeros(original_tensor_grid)
+		self.ten_to_optimize.grid = original_grid 
+		self.ten_to_optimize.tensor_grid = original_tensor_grid 
+

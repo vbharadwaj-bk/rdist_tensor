@@ -72,9 +72,9 @@ if __name__=='__main__':
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)
 
-    new_grid = Grid([8, 1, 2, 4]) 
-    new_tensor_grid = TensorGrid(ground_truth.tensor_grid.tensor_dims, new_grid)
-    ground_truth.redistribute_nonzeros(new_tensor_grid)
+    #new_grid = Grid([8, 1, 2, 4]) 
+    #new_tensor_grid = TensorGrid(ground_truth.tensor_grid.tensor_dims, new_grid)
+    #ground_truth.redistribute_nonzeros(new_tensor_grid)
 
 
     if args.samples is None:
@@ -110,10 +110,8 @@ if __name__=='__main__':
             if grid.rank == 0:
                 print(f"Starting tensor decomposition...")
 
-            ten_to_optimize.grid = new_grid
-            ten_to_optimize.tensor_grid = new_tensor_grid
-            #ten_to_optimize = DistLowRank(new_tensor_grid, trank) 
-
+            #ten_to_optimize.grid = new_grid
+            #ten_to_optimize.tensor_grid = new_tensor_grid
 
             optimizer.fit(output_file=args.output,
                     factor_file = args.factor_file,

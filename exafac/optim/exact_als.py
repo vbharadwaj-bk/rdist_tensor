@@ -15,10 +15,12 @@ class ExactALS(AlternatingOptimizer):
 		self.info["Algorithm Name"] = "Exact ALS"	
 
 	def initial_setup(self):
+		grid = self.ten_to_optimize.grid
+
 		# Initial allgather of tensor factors 
 		for mode in range(self.ten_to_optimize.dim):
 			self.ten_to_optimize.factors[mode].normalize_cols()
-			#self.ten_to_optimize.factors[mode].allgather_factor()
+			self.ten_to_optimize.factors[mode].allgather_factor(grid.slices[mode])
 			self.ten_to_optimize.factors[mode].compute_gram_matrix()
 
 	def optimize_factor(self, mode_to_leave):
@@ -26,19 +28,19 @@ class ExactALS(AlternatingOptimizer):
 		original_grid = self.ten_to_optimize.grid
 		original_tensor_grid = self.ground_truth.tensor_grid
 
-		#grid = original_grid
-		#tensor_grid = original_tensor_grid
+		grid = original_grid
+		tensor_grid = original_tensor_grid
 
-		grid = Grid([8, 1, 2, 4]) 
-		tensor_grid = TensorGrid(self.ground_truth.tensor_grid.tensor_dims, grid)
+		#grid = Grid([8, 1, 2, 4]) 
+		#tensor_grid = TensorGrid(self.ground_truth.tensor_grid.tensor_dims, grid)
 
 		# This tests nonzero redistribution to an arbitrary grid 
-		self.ground_truth.redistribute_nonzeros(tensor_grid)	
-		self.ten_to_optimize.grid = grid
-		self.ten_to_optimize.tensor_grid = tensor_grid
+		#self.ground_truth.redistribute_nonzeros(tensor_grid)	
+		#self.ten_to_optimize.grid = grid
+		#self.ten_to_optimize.tensor_grid = tensor_grid
 
-		for factor in factors:
-			factor.permute_to_grid(grid)
+		#for factor in factors:
+		#	factor.permute_to_grid(grid)
 
 		dim = len(factors)
 		factors_to_gather = [True] * dim 
@@ -57,8 +59,8 @@ class ExactALS(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		for i in range(dim):
-			factors[i].allgather_factor(grid.slices[i])
+		#for i in range(dim):
+		#	factors[i].allgather_factor(grid.slices[i])
 
 		start = start_clock()
 		gathered_matrices = [factor.gathered_factor for factor in factors]
@@ -98,15 +100,15 @@ class ExactALS(AlternatingOptimizer):
 		factors[mode_to_leave].compute_gram_matrix()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
-		#start = start_clock()  
-		#factors[mode_to_leave].allgather_factor()
+		start = start_clock()  
+		factors[mode_to_leave].allgather_factor(grid.slices[mode_to_leave])
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Slice All-gather")
 
-		for factor in factors:
-			factor.permute_from_grid(grid)
+		#for factor in factors:
+		#	factor.permute_from_grid(grid)
 
-		self.ground_truth.redistribute_nonzeros(original_tensor_grid)
-		self.ten_to_optimize.grid = original_grid 
-		self.ten_to_optimize.tensor_grid = original_tensor_grid 
+		#self.ground_truth.redistribute_nonzeros(original_tensor_grid)
+		#self.ten_to_optimize.grid = original_grid 
+		#self.ten_to_optimize.tensor_grid = original_tensor_grid 
 

@@ -96,8 +96,8 @@ class DistSparseTensor:
         self.nonzero_redist = nz_filter.SHMEMX_Alltoallv(allocate_recv_buffers)
 
         # Make a copy of the original set of nonzeros
-        self.tensor_idxs_backup = [el.copy() for el in self.tensor_idxs]
-        self.values_backup = self.values.copy() 
+        #self.tensor_idxs_backup = [el.copy() for el in self.tensor_idxs]
+        #self.values_backup = self.values.copy() 
 
 
     def random_permute(self):
@@ -127,8 +127,8 @@ class DistSparseTensor:
         redistribute_nonzeros = get_templated_function(rd, "redistribute_nonzeros", 
                 [self.idx_dtype, self.val_dtype])
         redistribute_nonzeros(tensor_grid.intervals, \
-            self.tensor_idxs_backup, \
-            self.values_backup, \
+            self.tensor_idxs, \
+            self.values, \
             grid.world_size, \
             prefix_array, recv_buffers, recv_values, \
             allocate_recv_buffers)
@@ -159,8 +159,8 @@ class DistSparseTensor:
             self.mat_idxs[:, i] = self.offset_idxs[i]
 
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
-        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
-        self.offset_idxs = None
+        #self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+        #self.offset_idxs = None
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 

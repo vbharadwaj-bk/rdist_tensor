@@ -48,10 +48,10 @@ int octal_string_to_int(char *current_char, unsigned int size){
 int main (int argc, char** argv)
 {
 
-    std::string path = "/global/project/projectdirs/m1982/vbharadw/rdist_tensor/experimental/graphblas_io/build";
+    /*std::string path = "/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/experimental/graphblas_io/build";
     for (const auto & entry : fs::directory_iterator(path)) {
         std::cout << entry.path() << std::endl;
-    }
+    }*/
 
     GrB_init (GrB_NONBLOCKING);
 
@@ -74,6 +74,9 @@ int main (int argc, char** argv)
         assert(size_highbits[0] == 0);
         int size_of_file = octal_string_to_int(header->size, 11); 
         char* contents = buffer.data() + 512;
+
+        cout << "File Size: " << size << endl;
+        cout << "Matrix Size: " << size_of_file << endl;
 
         //GrB_Descriptor desc;
 
@@ -103,6 +106,8 @@ int main (int argc, char** argv)
           &nvals,
           C
         );
+
+        GrB_Matrix_free(&C);
 
     }
 

@@ -40,10 +40,13 @@ void sp_mttkrp(
     // =======================================================
     // The code below actually implements the MTTKRP! 
     // =======================================================
-    
+
+    #pragma omp parallel
+    {    
     vector<double> accum_buffer(col_count, 1.0);
     double* accum_ptr = accum_buffer.data();
 
+    #pragma omp for
     for(uint64_t i = 0; i < nnz; i++) {
         for(int k = 0; k < col_count; k++) {
             accum_ptr[k] = values.ptr[i];
@@ -61,9 +64,11 @@ void sp_mttkrp(
         IDX_T out_row_idx = idxs.ptrs[mode][i];
         double* out_row_ptr = result_ptr + (out_row_idx * col_count);
 
-        for(int k = 0; k < col_count; k++) { 
+        for(int k = 0; k < col_count; k++) {
+            #pragma omp atomic
             out_row_ptr[k] += accum_ptr[k]; 
         }
+    }
     }
 }
 

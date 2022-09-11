@@ -76,7 +76,6 @@ if __name__=='__main__':
     #new_tensor_grid = TensorGrid(ground_truth.tensor_grid.tensor_dims, new_grid)
     #ground_truth.redistribute_nonzeros(new_tensor_grid)
 
-
     if args.samples is None:
         sample_counts = [None]
     else:

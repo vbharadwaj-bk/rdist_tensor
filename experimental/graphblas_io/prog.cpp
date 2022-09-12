@@ -11,6 +11,8 @@ extern "C" {
 #include <filesystem>
 #include <queue>
 #include <omp.h>
+#include <cstdio>
+#include <sys/stat.h>
 #include "progressbar.hpp"
 
 using namespace std;
@@ -56,6 +58,7 @@ int divide_and_roundup(int x, int y) {
 class CAIDA_Reader {
   uint64_t total_nnz;
   string data_folder; 
+  vector<char> read_buffer;
 
 public:
   CAIDA_Reader(string data_folder) {
@@ -137,7 +140,7 @@ public:
             C
           );
 
-          cout << "NNZ: " << nvals << endl;
+          //cout << "NNZ: " << nvals << endl;
 
           GrB_Matrix_free(&C);
 
@@ -149,26 +152,25 @@ public:
   }
 
   void read_tarfile(string path) {
-      std::ifstream file(path, std::ios::binary | std::ios::ate);
-      file.seekg(0, file.end);
-      std::streamsize size = file.tellg();
-      file.seekg(0, file.beg);
+      FILE* in_file = fopen(path.c_str(), "rb");
 
-      std::vector<char> buffer(size);
+      struct stat sb;
+      stat(path.c_str(), &sb);
+      int size = sb.st_size;
 
-      cout << "Started File Read" << endl;
-      if (file.read(buffer.data(), size))
-      {
-          cout << "Ended File Read" << endl;
-          bool continue_parsing = true;
-          int position = 0;
-
-          for(int i = 0; i < 64; i++) {
-            int bytes_parsed = read_graphblas_file(buffer.data() + position);
-            position += bytes_parsed;
-          }
+      if(size > read_buffer.size()) {
+        read_buffer.resize(size);
       }
-      file.close();
+
+      fread(read_buffer.data(), size, 1, in_file);
+      int position = 0;
+
+      for(int i = 0; i < 64; i++) {
+        int bytes_parsed = read_graphblas_file(read_buffer.data() + position);
+        position += bytes_parsed;
+      }
+
+      fclose(in_file);
   }
 
   void process_caida_data() {
@@ -178,13 +180,11 @@ public:
     int files_processed = 0;
     int num_files = tar_list.size();
 
-    //progressbar bar(num_files);
+    progressbar bar(num_files);
 
     #pragma omp parallel for
     for(int i = 0; i < num_files; i++) {
       read_tarfile(tar_list[i]);
-
-      cout << "Read a tarfile!" << endl;
 
       #pragma omp atomic 
       files_processed++;
@@ -194,10 +194,10 @@ public:
         int fp_capture;
         #pragma omp atomic read
         fp_capture = files_processed;
-        //while(bar_shown < fp_capture) {
-          //bar_shown++;
-          //bar.update();
-        //} 
+        while(bar_shown < fp_capture) {
+          bar_shown++;
+          bar.update();
+        } 
       }
     } 
   }

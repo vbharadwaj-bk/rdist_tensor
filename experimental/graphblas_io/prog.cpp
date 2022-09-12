@@ -13,6 +13,7 @@ extern "C" {
 using namespace std;
 namespace fs = std::filesystem;
 
+#define BLOCKSIZE 512
 
 struct posix_header
 {                              /* byte offset */
@@ -45,37 +46,27 @@ int octal_string_to_int(char *current_char, unsigned int size){
     return output;
 }
 
-int main (int argc, char** argv)
-{
+int divide_and_roundup(int x, int y) {
+  return 1 + ((x - 1) / y);
+}
 
-    /*std::string path = "/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/experimental/graphblas_io/build";
-    for (const auto & entry : fs::directory_iterator(path)) {
-        std::cout << entry.path() << std::endl;
-    }*/
-
-    GrB_init (GrB_NONBLOCKING);
-
-    std::string filename(argv[1]);
-
-    std::ifstream file(filename, std::ios::binary | std::ios::ate);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    std::vector<char> buffer(size);
-    if (file.read(buffer.data(), size))
-    {
+int read_graphblas_file(char* buf) {
       struct posix_header* header =
-        (struct posix_header*) buffer.data();
-        std::string filename(header->name);
+        (struct posix_header*) buf; 
         // In case we need the filename for something
 
         bitset<8> size_highbits(*(header->size)); 
 
         assert(size_highbits[0] == 0);
-        int size_of_file = octal_string_to_int(header->size, 11); 
-        char* contents = buffer.data() + 512;
+        int size_of_file = octal_string_to_int(header->size, 11);
 
-        cout << "File Size: " << size << endl;
+        if(size_of_file == 0)
+          return 0;
+
+        char* contents = buf + BLOCKSIZE;
+
+        std::string filename(header->name);
+        cout << "Matrix Filename: " << filename << endl;
         cout << "Matrix Size: " << size_of_file << endl;
 
         //GrB_Descriptor desc;
@@ -109,7 +100,41 @@ int main (int argc, char** argv)
 
         GrB_Matrix_free(&C);
 
+        // We will keep this as a multiple of 512 
+        int bytes_parsed = BLOCKSIZE 
+            + divide_and_roundup(size_of_file, BLOCKSIZE) * BLOCKSIZE;
+
+        return bytes_parsed;
+}
+
+int main (int argc, char** argv)
+{
+
+    /*std::string path = "/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/experimental/graphblas_io/build";
+    for (const auto & entry : fs::directory_iterator(path)) {
+        std::cout << entry.path() << std::endl;
+    }*/
+
+    GrB_init (GrB_NONBLOCKING);
+
+    std::string filename(argv[1]);
+
+    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+    std::streamsize size = file.tellg();
+    file.seekg(0, std::ios::beg);
+
+    std::vector<char> buffer(size);
+
+    if (file.read(buffer.data(), size))
+    {
+        bool continue_parsing = true;
+        int position = 0;
+
+        for(int i = 0; i < 64; i++) {
+          int bytes_parsed = read_graphblas_file(buffer.data() + position);
+          position += bytes_parsed;
+        }
     }
 
-    GrB_finalize ( ) ;
+    GrB_finalize ();
 }

@@ -53,139 +53,158 @@ int divide_and_roundup(int x, int y) {
   return 1 + ((x - 1) / y);
 }
 
-/*class CAIDA_Reader {
-    uint64_t total_nnz;
+class CAIDA_Reader {
+  uint64_t total_nnz;
+  string data_folder; 
 
-    CAIDA_Reader() {
-
-    }
-};*/
-
-int read_graphblas_file(char* buf) {
-      struct posix_header* header =
-        (struct posix_header*) buf; 
-        // In case we need the filename for something
-
-        bitset<8> size_highbits(*(header->size)); 
-
-        assert(size_highbits[0] == 0);
-        int size_of_file = octal_string_to_int(header->size, 11);
-
-        if(size_of_file == 0)
-          return 0;
-
-        char* contents = buf + BLOCKSIZE;
-
-        //std::string filename(header->name);
-
-        GrB_Matrix C;
-        GrB_Matrix_deserialize(
-            &C, 
-            NULL, 
-            (void*) contents, 
-            size_of_file
-            ); // desc
-
-        GrB_Index nrows;
-        GrB_Index ncols;
-        GrB_Index nvals;
-        GrB_Matrix_nrows(&nrows, C);
-        GrB_Matrix_nrows(&ncols, C);
-        GrB_Matrix_nvals(&nvals, C);
-
-        vector<GrB_Index> I(nvals, 0);
-        vector<GrB_Index> J(nvals, 0);
-        vector<uint32_t> V(nvals, 0);
-
-        GrB_Matrix_extractTuples_UINT32(
-          I.data(),
-          J.data(),
-          V.data(),
-          &nvals,
-          C
-        );
-
-        GrB_Matrix_free(&C);
-
-        // We will keep this as a multiple of 512 
-        int bytes_parsed = BLOCKSIZE 
-            + divide_and_roundup(size_of_file, BLOCKSIZE) * BLOCKSIZE;
-
-        return bytes_parsed;
-}
-
-void read_tarfile(string path) {
-    std::ifstream file(path, std::ios::binary | std::ios::ate);
-    std::streamsize size = file.tellg();
-    file.seekg(0, std::ios::beg);
-
-    std::vector<char> buffer(size);
-
-    if (file.read(buffer.data(), size))
-    {
-        bool continue_parsing = true;
-        int position = 0;
-
-        for(int i = 0; i < 64; i++) {
-          int bytes_parsed = read_graphblas_file(buffer.data() + position);
-          position += bytes_parsed;
-        }
-    }
-}
-
-vector<string> get_tarfile_list(string &base_folder) {
-  queue<fs::path> remaining_folders;
-  fs::path base_path(base_folder);
-  remaining_folders.push(base_path);
-
-  vector<string> tarfile_list;
-
-  while(! remaining_folders.empty()) {
-    fs::path latest = remaining_folders.front();
-    remaining_folders.pop();
-    for (const auto & entry : fs::directory_iterator(latest)) {
-      fs::path entry_path = entry.path();
-      if(entry.is_directory()) {
-        remaining_folders.push(entry_path);
-      }
-      else {
-        tarfile_list.push_back(entry_path.string());
-      }
-    }
+public:
+  CAIDA_Reader(string data_folder) {
+    GrB_init (GrB_NONBLOCKING);
+    total_nnz = 0;
+    this->data_folder = data_folder;
+    process_caida_data();
   }
 
-  return tarfile_list;
-} 
+  ~CAIDA_Reader() {
+    GrB_finalize ();
+  }
 
-int main (int argc, char** argv)
-{
-    GrB_init (GrB_NONBLOCKING);
-    std::string foldername(argv[1]);
-    vector<string> tar_list = get_tarfile_list(foldername);
+  vector<string> get_tarfile_list(string &base_folder) {
+    queue<fs::path> remaining_folders;
+    fs::path base_path(base_folder);
+    remaining_folders.push(base_path);
+
+    vector<string> tarfile_list;
+
+    while(! remaining_folders.empty()) {
+      fs::path latest = remaining_folders.front();
+      remaining_folders.pop();
+      for (const auto & entry : fs::directory_iterator(latest)) {
+        fs::path entry_path = entry.path();
+        if(entry.is_directory()) {
+          remaining_folders.push(entry_path);
+        }
+        else {
+          tarfile_list.push_back(entry_path.string());
+        }
+      }
+    }
+
+    return tarfile_list;
+  } 
+
+  int read_graphblas_file(char* buf) {
+        struct posix_header* header =
+          (struct posix_header*) buf; 
+          // In case we need the filename for something
+
+          bitset<8> size_highbits(*(header->size)); 
+
+          assert(size_highbits[0] == 0);
+          int size_of_file = octal_string_to_int(header->size, 11);
+
+          if(size_of_file == 0)
+            return 0;
+
+          char* contents = buf + BLOCKSIZE;
+
+          //std::string filename(header->name);
+
+          GrB_Matrix C;
+          GrB_Matrix_deserialize(
+              &C, 
+              NULL, 
+              (void*) contents, 
+              size_of_file
+              ); // desc
+
+          GrB_Index nrows;
+          GrB_Index ncols;
+          GrB_Index nvals;
+          GrB_Matrix_nrows(&nrows, C);
+          GrB_Matrix_nrows(&ncols, C);
+          GrB_Matrix_nvals(&nvals, C);
+
+          vector<GrB_Index> I(nvals, 0);
+          vector<GrB_Index> J(nvals, 0);
+          vector<uint32_t> V(nvals, 0);
+
+          GrB_Matrix_extractTuples_UINT32(
+            I.data(),
+            J.data(),
+            V.data(),
+            &nvals,
+            C
+          );
+
+          cout << "NNZ: " << nvals << endl;
+
+          GrB_Matrix_free(&C);
+
+          // We will keep this as a multiple of 512 
+          int bytes_parsed = BLOCKSIZE 
+              + divide_and_roundup(size_of_file, BLOCKSIZE) * BLOCKSIZE;
+
+          return bytes_parsed;
+  }
+
+  void read_tarfile(string path) {
+      std::ifstream file(path, std::ios::binary | std::ios::ate);
+      file.seekg(0, file.end);
+      std::streamsize size = file.tellg();
+      file.seekg(0, file.beg);
+
+      std::vector<char> buffer(size);
+
+      cout << "Started File Read" << endl;
+      if (file.read(buffer.data(), size))
+      {
+          cout << "Ended File Read" << endl;
+          bool continue_parsing = true;
+          int position = 0;
+
+          for(int i = 0; i < 64; i++) {
+            int bytes_parsed = read_graphblas_file(buffer.data() + position);
+            position += bytes_parsed;
+          }
+      }
+      file.close();
+  }
+
+  void process_caida_data() {
+    vector<string> tar_list = get_tarfile_list(data_folder);
 
     int bar_shown = 0;
     int files_processed = 0;
     int num_files = tar_list.size();
 
-    progressbar bar(num_files);
+    //progressbar bar(num_files);
 
     #pragma omp parallel for
     for(int i = 0; i < num_files; i++) {
       read_tarfile(tar_list[i]);
+
+      cout << "Read a tarfile!" << endl;
 
       #pragma omp atomic 
       files_processed++;
 
       int threadnum = omp_get_thread_num();
       if(threadnum == 0) {
+        int fp_capture;
         #pragma omp atomic read
-        int fp_capture = files_processed;
-        while(bar_shown < fp_capture) {
-          bar_shown++;
-          bar.update();
-        } 
+        fp_capture = files_processed;
+        //while(bar_shown < fp_capture) {
+          //bar_shown++;
+          //bar.update();
+        //} 
       }
     } 
+  }
+};
 
-    GrB_finalize ();
+int main (int argc, char** argv)
+{
+    string data_folder(argv[1]);
+    CAIDA_Reader reader(data_folder);
 }

@@ -9,6 +9,9 @@ extern "C" {
 #include <bitset>
 #include <cassert>
 #include <filesystem>
+#include <queue>
+#include <omp.h>
+#include "progressbar.hpp"
 
 using namespace std;
 namespace fs = std::filesystem;
@@ -50,6 +53,14 @@ int divide_and_roundup(int x, int y) {
   return 1 + ((x - 1) / y);
 }
 
+/*class CAIDA_Reader {
+    uint64_t total_nnz;
+
+    CAIDA_Reader() {
+
+    }
+};*/
+
 int read_graphblas_file(char* buf) {
       struct posix_header* header =
         (struct posix_header*) buf; 
@@ -65,11 +76,7 @@ int read_graphblas_file(char* buf) {
 
         char* contents = buf + BLOCKSIZE;
 
-        std::string filename(header->name);
-        cout << "Matrix Filename: " << filename << endl;
-        cout << "Matrix Size: " << size_of_file << endl;
-
-        //GrB_Descriptor desc;
+        //std::string filename(header->name);
 
         GrB_Matrix C;
         GrB_Matrix_deserialize(
@@ -107,19 +114,8 @@ int read_graphblas_file(char* buf) {
         return bytes_parsed;
 }
 
-int main (int argc, char** argv)
-{
-
-    /*std::string path = "/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/experimental/graphblas_io/build";
-    for (const auto & entry : fs::directory_iterator(path)) {
-        std::cout << entry.path() << std::endl;
-    }*/
-
-    GrB_init (GrB_NONBLOCKING);
-
-    std::string filename(argv[1]);
-
-    std::ifstream file(filename, std::ios::binary | std::ios::ate);
+void read_tarfile(string path) {
+    std::ifstream file(path, std::ios::binary | std::ios::ate);
     std::streamsize size = file.tellg();
     file.seekg(0, std::ios::beg);
 
@@ -135,6 +131,61 @@ int main (int argc, char** argv)
           position += bytes_parsed;
         }
     }
+}
+
+vector<string> get_tarfile_list(string &base_folder) {
+  queue<fs::path> remaining_folders;
+  fs::path base_path(base_folder);
+  remaining_folders.push(base_path);
+
+  vector<string> tarfile_list;
+
+  while(! remaining_folders.empty()) {
+    fs::path latest = remaining_folders.front();
+    remaining_folders.pop();
+    for (const auto & entry : fs::directory_iterator(latest)) {
+      fs::path entry_path = entry.path();
+      if(entry.is_directory()) {
+        remaining_folders.push(entry_path);
+      }
+      else {
+        tarfile_list.push_back(entry_path.string());
+      }
+    }
+  }
+
+  return tarfile_list;
+} 
+
+int main (int argc, char** argv)
+{
+    GrB_init (GrB_NONBLOCKING);
+    std::string foldername(argv[1]);
+    vector<string> tar_list = get_tarfile_list(foldername);
+
+    int bar_shown = 0;
+    int files_processed = 0;
+    int num_files = tar_list.size();
+
+    progressbar bar(num_files);
+
+    #pragma omp parallel for
+    for(int i = 0; i < num_files; i++) {
+      read_tarfile(tar_list[i]);
+
+      #pragma omp atomic 
+      files_processed++;
+
+      int threadnum = omp_get_thread_num();
+      if(threadnum == 0) {
+        #pragma omp atomic read
+        int fp_capture = files_processed;
+        while(bar_shown < fp_capture) {
+          bar_shown++;
+          bar.update();
+        } 
+      }
+    } 
 
     GrB_finalize ();
 }

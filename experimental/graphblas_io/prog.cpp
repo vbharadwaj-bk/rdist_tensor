@@ -160,7 +160,16 @@ public:
   }
 
   void read_tarfile(string path) {
-      FILE* in_file = fopen(path.c_str(), "rb");
+      //FILE* in_file = fopen(path.c_str(), "rb");
+
+      /*if(size > read_buffer.size()) {
+        read_buffer.resize(size);
+      }
+
+      fread(read_buffer.data(), size, 1, in_file);
+      */
+
+      //fclose(in_file);
 
       struct stat sb;
       stat(path.c_str(), &sb);
@@ -170,23 +179,13 @@ public:
       int fd = open(path.c_str(), O_RDONLY);
       char* data = (char*) mmap((caddr_t) 0, rounded_size, PROT_READ, MAP_SHARED, fd, 0);
 
-      cout << "Read in memory-mapped file!" << endl;
-
-      /*if(size > read_buffer.size()) {
-        read_buffer.resize(size);
-      }
-
-      fread(read_buffer.data(), size, 1, in_file);
-      */
-
       int position = 0;
 
       for(int i = 0; i < 64; i++) {
         int bytes_parsed = read_graphblas_file(data + position);
         position += bytes_parsed;
       }
-
-      fclose(in_file);
+      munmap((caddr_t) data, rounded_size); 
   }
 
   void process_caida_data() {

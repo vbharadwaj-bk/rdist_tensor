@@ -13,6 +13,10 @@ extern "C" {
 #include <omp.h>
 #include <cstdio>
 #include <sys/stat.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <fcntl.h>
 #include "progressbar.hpp"
 
 using namespace std;
@@ -59,13 +63,16 @@ class CAIDA_Reader {
   uint64_t total_nnz;
   string data_folder; 
   vector<char> read_buffer;
+  int pagesize;
 
 public:
   CAIDA_Reader(string data_folder) {
     GrB_init (GrB_NONBLOCKING);
     total_nnz = 0;
     this->data_folder = data_folder;
+    pagesize = getpagesize();
     process_caida_data();
+    cout << "Initialized CAIDA Reader!" << endl;
   }
 
   ~CAIDA_Reader() {
@@ -140,7 +147,8 @@ public:
             C
           );
 
-          //cout << "NNZ: " << nvals << endl;
+          cout << "NNZ: " << nvals << endl;
+          exit(1);
 
           GrB_Matrix_free(&C);
 
@@ -157,16 +165,24 @@ public:
       struct stat sb;
       stat(path.c_str(), &sb);
       int size = sb.st_size;
+      int rounded_size = divide_and_roundup(size, pagesize) * pagesize;
 
-      if(size > read_buffer.size()) {
+      int fd = open(path.c_str(), O_RDONLY);
+      char* data = (char*) mmap((caddr_t) 0, rounded_size, PROT_READ, MAP_SHARED, fd, 0);
+
+      cout << "Read in memory-mapped file!" << endl;
+
+      /*if(size > read_buffer.size()) {
         read_buffer.resize(size);
       }
 
       fread(read_buffer.data(), size, 1, in_file);
+      */
+
       int position = 0;
 
       for(int i = 0; i < 64; i++) {
-        int bytes_parsed = read_graphblas_file(read_buffer.data() + position);
+        int bytes_parsed = read_graphblas_file(data + position);
         position += bytes_parsed;
       }
 

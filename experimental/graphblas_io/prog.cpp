@@ -62,7 +62,6 @@ int divide_and_roundup(int x, int y) {
 class CAIDA_Reader {
   uint64_t total_nnz;
   string data_folder; 
-  vector<char> read_buffer;
   int pagesize;
 
 public:
@@ -72,7 +71,8 @@ public:
     this->data_folder = data_folder;
     pagesize = getpagesize();
     process_caida_data();
-    cout << "Initialized CAIDA Reader!" << endl;
+    cout << "Initialized CAIDA Reader!" << endl; 
+    cout << "Total nonzeros: " << total_nnz << endl;
   }
 
   ~CAIDA_Reader() {
@@ -126,7 +126,7 @@ public:
               NULL, 
               (void*) contents, 
               size_of_file
-              ); // desc
+              ); 
 
           GrB_Index nrows;
           GrB_Index ncols;
@@ -139,6 +139,8 @@ public:
           vector<GrB_Index> J(nvals, 0);
           vector<uint32_t> V(nvals, 0);
 
+          total_nnz += nvals;
+
           GrB_Matrix_extractTuples_UINT32(
             I.data(),
             J.data(),
@@ -147,12 +149,9 @@ public:
             C
           );
 
-          cout << "NNZ: " << nvals << endl;
-          exit(1);
-
           GrB_Matrix_free(&C);
 
-          // We will keep this as a multiple of 512 
+          // Must keep this as a multiple of BLOCKSIZE 
           int bytes_parsed = BLOCKSIZE 
               + divide_and_roundup(size_of_file, BLOCKSIZE) * BLOCKSIZE;
 
@@ -160,32 +159,31 @@ public:
   }
 
   void read_tarfile(string path) {
-      //FILE* in_file = fopen(path.c_str(), "rb");
-
-      /*if(size > read_buffer.size()) {
-        read_buffer.resize(size);
-      }
-
-      fread(read_buffer.data(), size, 1, in_file);
-      */
-
-      //fclose(in_file);
-
       struct stat sb;
       stat(path.c_str(), &sb);
       int size = sb.st_size;
       int rounded_size = divide_and_roundup(size, pagesize) * pagesize;
 
-      int fd = open(path.c_str(), O_RDONLY);
-      char* data = (char*) mmap((caddr_t) 0, rounded_size, PROT_READ, MAP_SHARED, fd, 0);
+      FILE* in_file = fopen(path.c_str(), "rb"); 
+      vector<char> read_buffer(size, 0);
+
+      //cout << "Starting file read!" << endl;
+      fread(read_buffer.data(), size, 1, in_file);
+      //cout << "Ended file read!" << endl;
+
+      //fclose(in_file);
+
+      //int fd = open(path.c_str(), O_RDONLY);
+      //char* data = (char*) mmap((caddr_t) 0, rounded_size, PROT_READ, MAP_SHARED, fd, 0);
 
       int position = 0;
 
       for(int i = 0; i < 64; i++) {
-        int bytes_parsed = read_graphblas_file(data + position);
+        int bytes_parsed = read_graphblas_file(read_buffer.data() + position);
         position += bytes_parsed;
       }
-      munmap((caddr_t) data, rounded_size); 
+      fclose(in_file);
+      //munmap((caddr_t) data, rounded_size); 
   }
 
   void process_caida_data() {
@@ -197,11 +195,13 @@ public:
 
     progressbar bar(num_files);
 
-    #pragma omp parallel for
+    #pragma omp parallel for schedule(dynamic, 1)
     for(int i = 0; i < num_files; i++) {
       read_tarfile(tar_list[i]);
 
-      #pragma omp atomic 
+      //cout << "Read tarfile " << i << endl;
+
+      #pragma omp atomic
       files_processed++;
 
       int threadnum = omp_get_thread_num();

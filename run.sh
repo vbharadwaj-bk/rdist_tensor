@@ -5,14 +5,14 @@
 #SBATCH -t 02:00:00
 
 . modules.sh
-export OMP_NUM_THREADS=4
+export OMP_NUM_THREADS=1
 
 #TENSOR_DIR=$SCRATCH/tensors
 TENSOR_DIR=tensors
 TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
 OUTPUT="data/amazon.out"
-srun -N 1 -u -n 64 python decompose_sparse.py -i $TENSOR  \
-	-g "4,4,4" -iter 5 \
+srun -N 1 -u -n 128 python decompose_sparse.py -i $TENSOR  \
+	-g "8,4,4" -iter 5 \
     -o $OUTPUT -op "exact" \
     -t "25" \
     #-s "131000"

@@ -2,6 +2,7 @@ extern "C" {
   #include <GraphBLAS.h>
 }
 
+#include <algorithm>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -10,7 +11,7 @@ extern "C" {
 #include <cassert>
 #include <filesystem>
 #include <queue>
-#include <omp.h>
+#include <climits>
 #include <cstdio>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -18,11 +19,14 @@ extern "C" {
 #include <sys/mman.h>
 #include <fcntl.h>
 #include "progressbar.hpp"
+#include <omp.h>
+#include <hdf5.h>
 
 using namespace std;
 namespace fs = std::filesystem;
 
 #define BLOCKSIZE 512
+#define BUFFERSIZE 10000000
 
 struct posix_header
 {                              /* byte offset */
@@ -59,49 +63,224 @@ int divide_and_roundup(int x, int y) {
   return 1 + ((x - 1) / y);
 }
 
-class CAIDA_Reader {
-  uint64_t total_nnz;
-  string data_folder; 
-  int pagesize;
+/*
+ * Not multithreaded, since HDF5 is currently not multithreaded.
+ * This  
+ */
+template<typename T>
+class HDF5_Writer {
+  uint32_t threads_writing;
+
+  vector<vector<uint32_t>> idx_buffers; 
+  vector<double> val_buffer;
+  hsize_t buffer_size, buffer_position; 
+
+  hid_t file;
+  hsize_t file_offset;
+
+  hid_t memory_dataspace, file_dataspace;
+
+  hid_t idx_datatype, val_datatype;
+  vector<hid_t> datasets;
 
 public:
-  CAIDA_Reader(string data_folder) {
+    HDF5_Writer(hsize_t array_size,
+                          hsize_t buffer_size, 
+                          string filename
+    ) {
+    file = H5Fcreate(converted_filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    file_dataspace = H5Screate_simple(1, &array_size, NULL); 
+    memory_dataspace = H5Screate_simple(1, &buffer_size, NULL); 
+
+    this->buffer_size = buffer_size;
+
+    for(int i = 0; i < 3; i++) {
+      idx_buffers.emplace_back(buffer_size, 0);
+    }
+    val_buffer.resize(buffer_size);
+
+    buffer_position = 0;
+    file_offset = 0;
+    threads_writing = 0;
+
+    idx_datatype = H5Tcopy(H5T_NATIVE_UINT);
+    val_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
+    for(int i = 0; i < 3; i++) {
+      string datasetname = "MODE_" + std::to_string(i);
+
+      hid_t idx_dataset = H5Dcreate(file, datasetname.c_str(), idx_datatype, file_dataspace,
+                  H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+      datasets.push_back(idx_dataset);
+    }
+
+    hid_t val_dataset = H5Dcreate(file, value_set_name.c_str(), val_datatype, 
+                file_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+    datasets.push_back(val_dataset);
+  }
+
+  void flush_buffer() {
+      hsize_t memory_offset = 0;
+      int status = H5Sselect_hyperslab(memory_dataspace, H5S_SELECT_SET, &memory_offset, NULL, 
+              &buffer_position, NULL);
+      status = H5Sselect_hyperslab(file_dataspace, H5S_SELECT_SET, &file_offset, NULL, 
+              &buffer_position, NULL);
+
+      for(int j = 0; j < dim; j++) {
+          status = H5Dwrite(datasets[j], idx_datatype, memory_dataspace, file_dataspace,
+                  H5P_DEFAULT, idx_buffers[j].data());
+      }
+      status = H5Dwrite(datasets[dim], val_datatype, memory_dataspace, file_dataspace,
+              H5P_DEFAULT, val_buffer.data());
+
+      buffer_position = 0;
+  }
+
+  ~HDF5_Writer() {
+    for(int i = 0; i < datasets.size(); i++) {
+        H5Dclose(datasets[i]);
+    }
+
+    //H5Dclose(max_mode_dataset);
+    //H5Dclose(min_mode_dataset);
+
+    H5Tclose(idx_datatype);
+    H5Tclose(val_datatype); 
+
+    H5Sclose(file_dataspace); 
+    H5Sclose(memory_dataspace); 
+
+    H5Fclose(file)
+  }
+
+  /*
+   * Writes to the buffer; at intervals, flushes the buffer
+   * to disk and resets the position marker. 
+   */
+  uint32_t reserve_for_write(uint32_t space_req) {
+    #pragma omp critical
+    {
+      if(space_req > buffer_size) {
+        assert(false);
+      }
+      if(buffer_position + space_req > buffer_size) {
+        while(threads_writing > 0);
+        flush_buffer();
+      }
+
+      threads_writing++;
+      uint32_t position = buffer_position;
+      buffer_position += space_req;
+
+      return position;
+    }
+  }
+
+  void complete_write() {
+    #pragma omp atomic
+    threads_writing--;
+  }
+};
+
+class CAIDA_Reader {
+  uint64_t total_nnz;
+  int pagesize;
+
+  vector<double> row_nnz_counts, col_nnz_counts;
+  vector<uint32_t> row_compress, col_compress;
+  vector<string> tarfile_list;
+
+  hsize_t nrows, ncols;
+
+  HDF5_Writer* writer;
+
+public:
+  CAIDA_Reader(vector<string> &data_folders) {
     GrB_init (GrB_NONBLOCKING);
     total_nnz = 0;
-    this->data_folder = data_folder;
     pagesize = getpagesize();
-    process_caida_data();
-    cout << "Initialized CAIDA Reader!" << endl; 
+
+    nrows = UINT32_MAX;
+    ncols = UINT32_MAX;
+
+    // Let's begin by computing the rows and columns of the
+    // sparse tensor with the greatest number of nonzeros 
+    row_nnz_counts.resize(nrows);
+    col_nnz_counts.resize(ncols);
+
+    writer = nullptr;
+    process_caida_data(data_folders);
+    cout << "\nInitialized CAIDA Dataset!" << endl; 
     cout << "Total nonzeros: " << total_nnz << endl;
+
+    string output_filename("../../../tensors/caida_data.hdf5")
+    writer = new HDF5_Writer(total_nnz, BUFFERSIZE, output_filename); 
+
+    // The second time around, we write the processed nonzeros to an HDF5 
+    // file
+    process_caida_data(data_folders);
+
+    //write_stats_to_file();
   }
 
   ~CAIDA_Reader() {
+    delete writer;
     GrB_finalize ();
   }
 
-  vector<string> get_tarfile_list(string &base_folder) {
-    queue<fs::path> remaining_folders;
-    fs::path base_path(base_folder);
-    remaining_folders.push(base_path);
+  void compress_zero_elements() {
+    // Sadly, this is not multithreaded 
 
-    vector<string> tarfile_list;
-
-    while(! remaining_folders.empty()) {
-      fs::path latest = remaining_folders.front();
-      remaining_folders.pop();
-      for (const auto & entry : fs::directory_iterator(latest)) {
-        fs::path entry_path = entry.path();
-        if(entry.is_directory()) {
-          remaining_folders.push(entry_path);
-        }
-        else {
-          tarfile_list.push_back(entry_path.string());
-        }
+    uint32_t current = 0; 
+    for(int i = 0; i < row_nnz_counts.size(); i++) {
+      if(row_nnz_counts[i] > 0.0) {
+        current++;
       }
+      row_compress[i] = current; 
     }
 
-    return tarfile_list;
-  } 
+    current = 0; 
+    for(int i = 0; i < col_nnz_counts.size(); i++) {
+      if(col_nnz_counts[i] > 0.0) {
+        current++;
+      }
+      col_compress[i] = current;  
+    }
+  }
+
+  void write_stats_to_file() {
+    string filename("../../../tensors/caida_stats.hdf5");
+
+    string rowset_name("ROW_COUNTS");
+    string colset_name("COL_COUNTS");
+
+    hid_t file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    hid_t count_datatype = H5Tcopy(H5T_NATIVE_DOUBLE);
+
+    hid_t rowct_dataspace = H5Screate_simple(1, &nrows, NULL); 
+    hid_t colct_dataspace = H5Screate_simple(1, &ncols, NULL); 
+
+    hid_t rowct_dataset = H5Dcreate(file, 
+                rowset_name.c_str(), count_datatype, rowct_dataspace,
+                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    hid_t colct_dataset = H5Dcreate(file, 
+                colset_name.c_str(), count_datatype, colct_dataspace,
+                H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+    int status = H5Dwrite(rowct_dataset, count_datatype, H5P_DEFAULT, H5P_DEFAULT,
+            H5P_DEFAULT, row_nnz_counts.data());
+
+    status = H5Dwrite(colct_dataset, count_datatype, H5P_DEFAULT, H5P_DEFAULT,
+            H5P_DEFAULT, col_nnz_counts.data());
+
+    H5Dclose(rowct_dataset);
+    H5Dclose(colct_dataset);
+    H5Sclose(rowct_dataspace);
+    H5Sclose(colct_dataspace);
+    H5Tclose(count_datatype);
+
+    status = H5Fclose(file);
+  }
 
   int read_graphblas_file(char* buf) {
         struct posix_header* header =
@@ -139,6 +318,7 @@ public:
           vector<GrB_Index> J(nvals, 0);
           vector<uint32_t> V(nvals, 0);
 
+          #pragma omp atomic
           total_nnz += nvals;
 
           GrB_Matrix_extractTuples_UINT32(
@@ -148,6 +328,29 @@ public:
             &nvals,
             C
           );
+
+          if(writer == nullptr) {
+            for(int i = 0; i < nvals; i++) {
+              #pragma omp atomic
+              row_nnz_counts[I[i]]++;
+
+              #pragma omp atomic
+              col_nnz_counts[J[i]]++;
+            }
+          }
+          else {
+            hsize_t position = writer->reserve_for_write(nvals);
+
+            for(int i = 0; i < nvals; i++) {
+              writer->idx_buffers[0][i] = I[i];
+              writer->idx_buffers[1][i] = J[i];
+
+              // TODO: Need to add the time component identifier here!
+
+              writer->val_buffer[i] = V[i];
+            }
+            writer->complete_write();
+          }
 
           GrB_Matrix_free(&C);
 
@@ -186,8 +389,37 @@ public:
       //munmap((caddr_t) data, rounded_size); 
   }
 
-  void process_caida_data() {
-    vector<string> tar_list = get_tarfile_list(data_folder);
+  vector<string> get_tarfile_list(vector<string> &data_folders) {
+    queue<fs::path> remaining_folders;
+    fs::path base_path(base_folder);
+
+    for (const auto &it : data_folders) {
+      remaining_folders.push(*it);
+    }
+
+    while(! remaining_folders.empty()) {
+      fs::path latest = remaining_folders.front();
+      remaining_folders.pop();
+      for (const auto & entry : fs::directory_iterator(latest)) {
+        fs::path entry_path = entry.path();
+        if(entry.is_directory()) {
+          remaining_folders.push(entry_path);
+        }
+        else {
+          tarfile_list.push_back(entry_path.string());
+        }
+      }
+    }
+
+    sort(tarfile_list.begin(), tarfile_list.end());
+    auto it = unique(tarfile_list.begin(), tarfile_list.end());
+    tarfile_list.resize(distance(tarfile_list.begin(), it));
+
+    return tarfile_list;
+  } 
+
+  void process_caida_data(vector<string> &data_folders) {
+    vector<string> tar_list = get_tarfile_list(data_folders);
 
     int bar_shown = 0;
     int files_processed = 0;
@@ -198,8 +430,6 @@ public:
     #pragma omp parallel for schedule(dynamic, 1)
     for(int i = 0; i < num_files; i++) {
       read_tarfile(tar_list[i]);
-
-      //cout << "Read tarfile " << i << endl;
 
       #pragma omp atomic
       files_processed++;
@@ -220,6 +450,10 @@ public:
 
 int main (int argc, char** argv)
 {
-    string data_folder(argv[1]);
-    CAIDA_Reader reader(data_folder);
+    vector<string> data_folders;
+    for(int i = 1; i < argc; i++) {
+      data_folders.emplace_back(argv[i]);
+    }
+
+    CAIDA_Reader reader(data_folders);
 }

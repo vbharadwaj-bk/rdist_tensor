@@ -67,8 +67,9 @@ int divide_and_roundup(int x, int y) {
  * Not multithreaded, since HDF5 is currently not multithreaded.
  * This  
  */
-template<typename T>
 class HDF5_Writer {
+public:
+  int dim;
   uint32_t threads_writing;
 
   vector<vector<uint32_t>> idx_buffers; 
@@ -83,12 +84,12 @@ class HDF5_Writer {
   hid_t idx_datatype, val_datatype;
   vector<hid_t> datasets;
 
-public:
     HDF5_Writer(hsize_t array_size,
                           hsize_t buffer_size, 
                           string filename
     ) {
-    file = H5Fcreate(converted_filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    dim = 3;
+    file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     file_dataspace = H5Screate_simple(1, &array_size, NULL); 
     memory_dataspace = H5Screate_simple(1, &buffer_size, NULL); 
 
@@ -112,6 +113,8 @@ public:
                   H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
       datasets.push_back(idx_dataset);
     }
+    
+    string value_set_name = "VALUES";
 
     hid_t val_dataset = H5Dcreate(file, value_set_name.c_str(), val_datatype, 
                 file_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
@@ -149,7 +152,7 @@ public:
     H5Sclose(file_dataspace); 
     H5Sclose(memory_dataspace); 
 
-    H5Fclose(file)
+    H5Fclose(file);
   }
 
   /*
@@ -157,22 +160,29 @@ public:
    * to disk and resets the position marker. 
    */
   uint32_t reserve_for_write(uint32_t space_req) {
+    hsize_t position_capture;
     #pragma omp critical
     {
       if(space_req > buffer_size) {
         assert(false);
       }
       if(buffer_position + space_req > buffer_size) {
-        while(threads_writing > 0);
+        
+        uint32_t thread_capture;
+
+        do {
+          #pragma omp atomic read
+          thread_capture = threads_writing;
+        }
+        while(thread_capture != 0);
         flush_buffer();
       }
 
       threads_writing++;
-      uint32_t position = buffer_position;
+      position_capture = buffer_position;
       buffer_position += space_req;
-
-      return position;
     }
+    return position_capture;
   }
 
   void complete_write() {
@@ -187,7 +197,7 @@ class CAIDA_Reader {
 
   vector<double> row_nnz_counts, col_nnz_counts;
   vector<uint32_t> row_compress, col_compress;
-  vector<string> tarfile_list;
+  vector<string> tar_list;
 
   hsize_t nrows, ncols;
 
@@ -208,16 +218,19 @@ public:
     col_nnz_counts.resize(ncols);
 
     writer = nullptr;
+
+    get_tarfile_list(data_folders);
     process_caida_data(data_folders);
     cout << "\nInitialized CAIDA Dataset!" << endl; 
     cout << "Total nonzeros: " << total_nnz << endl;
 
-    string output_filename("../../../tensors/caida_data.hdf5")
+    string output_filename("../../../tensors/caida_data.hdf5");
     writer = new HDF5_Writer(total_nnz, BUFFERSIZE, output_filename); 
 
     // The second time around, we write the processed nonzeros to an HDF5 
     // file
     process_caida_data(data_folders);
+    writer->flush_buffer();
 
     //write_stats_to_file();
   }
@@ -389,12 +402,12 @@ public:
       //munmap((caddr_t) data, rounded_size); 
   }
 
-  vector<string> get_tarfile_list(vector<string> &data_folders) {
+  void get_tarfile_list(vector<string> &data_folders) {
     queue<fs::path> remaining_folders;
-    fs::path base_path(base_folder);
 
-    for (const auto &it : data_folders) {
-      remaining_folders.push(*it);
+    for (int i = 0; i < data_folders.size(); i++) {
+      fs::path p(data_folders[i]);
+      remaining_folders.push(p);
     }
 
     while(! remaining_folders.empty()) {
@@ -406,21 +419,17 @@ public:
           remaining_folders.push(entry_path);
         }
         else {
-          tarfile_list.push_back(entry_path.string());
+          tar_list.push_back(entry_path.string());
         }
       }
     }
 
-    sort(tarfile_list.begin(), tarfile_list.end());
-    auto it = unique(tarfile_list.begin(), tarfile_list.end());
-    tarfile_list.resize(distance(tarfile_list.begin(), it));
-
-    return tarfile_list;
+    sort(tar_list.begin(), tar_list.end());
+    auto it = unique(tar_list.begin(), tar_list.end());
+    tar_list.resize(distance(tar_list.begin(), it));
   } 
 
   void process_caida_data(vector<string> &data_folders) {
-    vector<string> tar_list = get_tarfile_list(data_folders);
-
     int bar_shown = 0;
     int files_processed = 0;
     int num_files = tar_list.size();

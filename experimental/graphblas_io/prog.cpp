@@ -123,7 +123,7 @@ public:
   }
 
   void flush_buffer() {
-      cout << "Flushing memory buffer to disk..." << endl;
+      cout << "Flushing memory buffer to disk at position " << file_offset << endl;
       hsize_t memory_offset = 0;
       int status = H5Sselect_hyperslab(memory_dataspace, H5S_SELECT_SET, &memory_offset, NULL, 
               &buffer_position, NULL);
@@ -137,6 +137,7 @@ public:
       status = H5Dwrite(datasets[dim], val_datatype, memory_dataspace, file_dataspace,
               H5P_DEFAULT, val_buffer.data());
 
+      file_offset += buffer_position; 
       buffer_position = 0;
   }
 
@@ -172,12 +173,10 @@ public:
         
         uint32_t thread_capture;
 
-        cout << "Entered spin loop..." << endl;
         do {
           thread_capture = threads_writing; 
         }
         while(thread_capture != 0);
-        cout << "Exited spin loop..." << endl;
 
         flush_buffer();
       }
@@ -185,7 +184,6 @@ public:
       threads_writing++;
       position_capture = buffer_position;
       
-      cout << "Captured position " << position_capture << endl;
       buffer_position += space_req;
     }
     return position_capture;
@@ -198,6 +196,7 @@ public:
 
 class CAIDA_Reader {
   uint64_t total_nnz;
+  double total_packet_count;
   int pagesize;
 
   vector<double> row_nnz_counts, col_nnz_counts;
@@ -212,6 +211,7 @@ public:
   CAIDA_Reader(vector<string> &data_folders) {
     GrB_init (GrB_NONBLOCKING);
     total_nnz = 0;
+    total_packet_count = 0;
     pagesize = getpagesize();
 
     nrows = UINT32_MAX;
@@ -234,8 +234,8 @@ public:
 
     // The second time around, we write the processed nonzeros to an HDF5 
     // file
-    process_caida_data(data_folders);
-    writer->flush_buffer();
+    //process_caida_data(data_folders);
+    //writer->flush_buffer();
 
     //write_stats_to_file();
   }
@@ -354,6 +354,9 @@ public:
 
               #pragma omp atomic
               col_nnz_counts[J[i]]++;
+
+              #pragma omp atomic 
+              total_packet_count += V[i];
             }
           }
           else {

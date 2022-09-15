@@ -3,6 +3,7 @@ extern "C" {
 }
 
 #include <algorithm>
+#include <atomic>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -26,7 +27,7 @@ using namespace std;
 namespace fs = std::filesystem;
 
 #define BLOCKSIZE 512
-#define BUFFERSIZE 10000000
+#define BUFFERSIZE 200000000
 
 struct posix_header
 {                              /* byte offset */
@@ -70,7 +71,7 @@ int divide_and_roundup(int x, int y) {
 class HDF5_Writer {
 public:
   int dim;
-  uint32_t threads_writing;
+  atomic_uint32_t threads_writing;
 
   vector<vector<uint32_t>> idx_buffers; 
   vector<double> val_buffer;
@@ -122,6 +123,7 @@ public:
   }
 
   void flush_buffer() {
+      cout << "Flushing memory buffer to disk..." << endl;
       hsize_t memory_offset = 0;
       int status = H5Sselect_hyperslab(memory_dataspace, H5S_SELECT_SET, &memory_offset, NULL, 
               &buffer_position, NULL);
@@ -170,23 +172,26 @@ public:
         
         uint32_t thread_capture;
 
+        cout << "Entered spin loop..." << endl;
         do {
-          #pragma omp atomic read
-          thread_capture = threads_writing;
+          thread_capture = threads_writing; 
         }
         while(thread_capture != 0);
+        cout << "Exited spin loop..." << endl;
+
         flush_buffer();
       }
 
       threads_writing++;
       position_capture = buffer_position;
+      
+      cout << "Captured position " << position_capture << endl;
       buffer_position += space_req;
     }
     return position_capture;
   }
 
   void complete_write() {
-    #pragma omp atomic
     threads_writing--;
   }
 };

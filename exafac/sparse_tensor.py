@@ -66,7 +66,7 @@ class DistSparseTensor:
             print("Loading sparse tensor...")
 
         for i in range(self.dim):
-            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - 1)
+            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 

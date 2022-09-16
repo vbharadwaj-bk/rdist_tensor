@@ -7,14 +7,14 @@
 . modules.sh
 export OMP_NUM_THREADS=1
 
-#TENSOR_DIR=$SCRATCH/tensors
-TENSOR_DIR=tensors
-TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/amazon.out"
-srun -N 1 -u -n 128 python decompose_sparse.py -i $TENSOR  \
-	-g "8,4,4" -iter 5 \
-    -o $OUTPUT -op "exact" \
-    -t "25" \
+TENSOR_DIR=$SCRATCH/tensors
+#TENSOR_DIR=tensors
+#TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
+#OUTPUT="data/amazon.out"
+#srun -N 1 -u -n 128 python decompose_sparse.py -i $TENSOR  \
+#	-g "8,4,4" -iter 5 \
+#    -o $OUTPUT -op "exact" \
+#    -t "25" \
     #-s "131000"
 #gdb --args 
 
@@ -48,3 +48,9 @@ srun -N 1 -u -n 128 python decompose_sparse.py -i $TENSOR  \
 #	-t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000 \
 #	-p "log_count"
 
+TENSOR=$TENSOR_DIR/caida_data.hdf5
+OUTPUT="data/caida.out"
+srun -N 1 -u -n 128 python decompose_sparse.py -i $TENSOR  \
+	-g "8,4,4" -iter 5 \
+    -o $OUTPUT -op "exact" \
+    -t "25" \

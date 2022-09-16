@@ -70,7 +70,7 @@ int divide_and_roundup(int x, int y) {
  */
 class HDF5_Writer {
 public:
-  int dim;
+  hsize_t dim;
   atomic_uint32_t threads_writing;
 
   vector<vector<uint32_t>> idx_buffers; 
@@ -85,14 +85,18 @@ public:
   hid_t idx_datatype, val_datatype;
   vector<hid_t> datasets;
 
-    HDF5_Writer(hsize_t array_size,
-                          hsize_t buffer_size, 
-                          string filename
-    ) {
+  hid_t mode_size_dataspace; 
+  hid_t max_mode_dataset, min_mode_dataset;
+
+  HDF5_Writer(hsize_t array_size,
+                        hsize_t buffer_size, 
+                        string filename
+  ) {
     dim = 3;
     file = H5Fcreate(filename.c_str(), H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     file_dataspace = H5Screate_simple(1, &array_size, NULL); 
     memory_dataspace = H5Screate_simple(1, &buffer_size, NULL); 
+    mode_size_dataspace = H5Screate_simple(1, &dim, NULL);
 
     this->buffer_size = buffer_size;
 
@@ -120,6 +124,31 @@ public:
     hid_t val_dataset = H5Dcreate(file, value_set_name.c_str(), val_datatype, 
                 file_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
     datasets.push_back(val_dataset);
+
+    string max_mode_set = "MAX_MODE_SET";
+    string min_mode_set = "MIN_MODE_SET";
+
+    max_mode_dataset = H5Dcreate(file, max_mode_set.c_str(), idx_datatype, mode_size_dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+
+    min_mode_dataset = H5Dcreate(file, min_mode_set.c_str(), idx_datatype, mode_size_dataspace,
+          H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT); 
+
+  }
+
+  void write_dataset_bounds(uint32_t row_bound, 
+      uint32_t col_bound, 
+      uint32_t time_bound) {
+    // Assumes that the mins are all zero
+
+    vector<uint32_t> mode_maxes = {row_bound, col_bound, time_bound};
+    vector<uint32_t> mode_mins(3, 0); 
+
+    int status = H5Dwrite(max_mode_dataset, idx_datatype, H5P_DEFAULT, H5P_DEFAULT,
+            H5P_DEFAULT, mode_maxes.data());
+
+    status = H5Dwrite(min_mode_dataset, idx_datatype, H5P_DEFAULT, H5P_DEFAULT,
+            H5P_DEFAULT, mode_mins.data());
   }
 
   void flush_buffer() {
@@ -146,14 +175,15 @@ public:
         H5Dclose(datasets[i]);
     }
 
-    //H5Dclose(max_mode_dataset);
-    //H5Dclose(min_mode_dataset);
+    H5Dclose(max_mode_dataset);
+    H5Dclose(min_mode_dataset);
 
     H5Tclose(idx_datatype);
     H5Tclose(val_datatype); 
 
     H5Sclose(file_dataspace); 
     H5Sclose(memory_dataspace); 
+    H5Sclose(mode_size_dataspace); 
 
     H5Fclose(file);
   }
@@ -203,6 +233,8 @@ class CAIDA_Reader {
   vector<uint32_t> row_compress, col_compress;
   vector<string> tar_list;
 
+  uint32_t max_row, max_col;
+
   hsize_t nrows, ncols;
 
   HDF5_Writer* writer;
@@ -222,20 +254,32 @@ public:
     row_nnz_counts.resize(nrows);
     col_nnz_counts.resize(ncols);
 
+    row_compress.resize(nrows);
+    col_compress.resize(ncols);
+
     writer = nullptr;
 
     get_tarfile_list(data_folders);
     process_caida_data(data_folders);
     cout << "\nInitialized CAIDA Dataset!" << endl; 
     cout << "Total nonzeros: " << total_nnz << endl;
+    cout << "Total packet count: " << total_packet_count << endl;
 
-    string output_filename("../../../tensors/caida_data.hdf5");
-    writer = new HDF5_Writer(total_nnz, BUFFERSIZE, output_filename); 
+    string output_filename("/pscratch/sd/v/vbharadw/tensors/caida_data.hdf5");
+    writer = new HDF5_Writer(total_nnz, BUFFERSIZE, output_filename);
+
+    compress_zero_elements();
+
+    writer->write_dataset_bounds(max_row, max_col, 64 * tar_list.size());
+
+    string max_mode_set = "MAX_MODE_SET";
+    string min_mode_set = "MIN_MODE_SET";
+
 
     // The second time around, we write the processed nonzeros to an HDF5 
     // file
-    //process_caida_data(data_folders);
-    //writer->flush_buffer();
+    process_caida_data(data_folders);
+    writer->flush_buffer();
 
     //write_stats_to_file();
   }
@@ -250,23 +294,31 @@ public:
 
     uint32_t current = 0; 
     for(int i = 0; i < row_nnz_counts.size(); i++) {
+      uint32_t capture = current;
       if(row_nnz_counts[i] > 0.0) {
         current++;
       }
-      row_compress[i] = current; 
+      row_compress[i] = capture; 
     }
+
+    max_row = current;
+    cout << "Row Current: " << max_row << endl;
 
     current = 0; 
     for(int i = 0; i < col_nnz_counts.size(); i++) {
+      uint32_t capture = current;
       if(col_nnz_counts[i] > 0.0) {
         current++;
       }
-      col_compress[i] = current;  
+      col_compress[i] = capture;  
     }
+
+    max_col = current;
+    cout << "Col Current: " << max_col << endl;
   }
 
   void write_stats_to_file() {
-    string filename("../../../tensors/caida_stats.hdf5");
+    string filename("/pscratch/sd/v/vbharadw/tensors/caida_stats.hdf5");
 
     string rowset_name("ROW_COUNTS");
     string colset_name("COL_COUNTS");
@@ -300,7 +352,7 @@ public:
     status = H5Fclose(file);
   }
 
-  int read_graphblas_file(char* buf) {
+  int read_graphblas_file(char* buf, int tarfile_idx, int idx_in_tarfile) {
         struct posix_header* header =
           (struct posix_header*) buf; 
           // In case we need the filename for something
@@ -362,13 +414,13 @@ public:
           else {
             hsize_t position = writer->reserve_for_write(nvals);
 
+            uint32_t time_component = tarfile_idx * 64 + idx_in_tarfile; 
+
             for(int i = 0; i < nvals; i++) {
-              writer->idx_buffers[0][i] = I[i];
-              writer->idx_buffers[1][i] = J[i];
-
-              // TODO: Need to add the time component identifier here!
-
-              writer->val_buffer[i] = V[i];
+              writer->idx_buffers[0][position + i] = row_compress[I[i]];
+              writer->idx_buffers[1][position + i] = col_compress[J[i]];
+              writer->idx_buffers[2][position + i] = time_component; 
+              writer->val_buffer[position + i] = V[i];
             }
             writer->complete_write();
           }
@@ -382,7 +434,7 @@ public:
           return bytes_parsed;
   }
 
-  void read_tarfile(string path) {
+  void read_tarfile(string path, int tarfile_idx) {
       struct stat sb;
       stat(path.c_str(), &sb);
       int size = sb.st_size;
@@ -403,7 +455,7 @@ public:
       int position = 0;
 
       for(int i = 0; i < 64; i++) {
-        int bytes_parsed = read_graphblas_file(read_buffer.data() + position);
+        int bytes_parsed = read_graphblas_file(read_buffer.data() + position, tarfile_idx, i);
         position += bytes_parsed;
       }
       fclose(in_file);
@@ -446,7 +498,7 @@ public:
 
     #pragma omp parallel for schedule(dynamic, 1)
     for(int i = 0; i < num_files; i++) {
-      read_tarfile(tar_list[i]);
+      read_tarfile(tar_list[i], i);
 
       #pragma omp atomic
       files_processed++;

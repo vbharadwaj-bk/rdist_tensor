@@ -30,14 +30,17 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		else:
 			all_samples, all_counts, all_probs, all_rows = factor.gathered_samples[mode_to_leave]
 
-		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
-		sample_ids = np.zeros(dist_sample_count, dtype=np.int64)
+		total_count = np.sum(all_counts)
+		inflated_samples = np.zeros(total_count, dtype=np.uint32)
+		sample_ids = np.zeros(total_count, dtype=np.int64)
 
 		# All processors apply a consistent random
-		# permutation to everything they receive 
-
-		rng = default_rng(seed=broadcast_common_seed(grid.comm))
-		perm = rng.permutation(dist_sample_count)
+		# permutation to everything they receive; the permutation should 
+		# be consistent (?) within each slice... technically, though, 
+		# the world that the permutation is consistent across might need 
+		# to change	
+		rng = default_rng(seed=broadcast_common_seed(grid.slices[i]))
+		perm = rng.permutation(total_count)
 
 		inflate_samples_multiply = get_templated_function(tensor_kernels, 
                 "inflate_samples_multiply", 
@@ -119,8 +122,8 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 
 		recv_idx, recv_values = [], []
 
-		sample_nonzeros_redistribute = get_templated_function(nz_filter, 
-                "sample_nonzeros_redistribute", 
+		sample_nonzeros = get_templated_function(nz_filter, 
+                "sample_nonzeros", 
                 [np.uint32, np.double])
 
 		# We will convert the sample indices to a matrix
@@ -147,22 +150,22 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		inflated_sample_ids = [el[unique_indices] for el in inflated_sample_ids]
 
 		start = start_clock() 
-		sample_nonzeros_redistribute(
+		sample_nonzeros(
 			self.ground_truth.slicer, 
 			unique_samples,
 			weights,
-			mode_to_leave,	
-			factor.local_rows_padded,
-			factor.row_order_to_proc, 
+			mode_to_leave,
 			recv_idx,
 			recv_values,
-			self.ground_truth.nonzero_redist)
+			allocate_recv_buffers			
+			)
 
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
-		offset = factor.row_position * factor.local_rows_padded
-		recv_idx[1] -= offset 
+	 	# TODO: Need to compute the offset properly! 
+		#offset = factor.row_position * factor.local_rows_padded
+		#recv_idx[1] -= offset 
 
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Nonzero Filtering + Redistribute")
@@ -191,8 +194,15 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		stop_clock_and_add(start, self.timers, "MTTKRP")
 
 		start = start_clock()
+		mttkrp_reduced = np.zeros_like(factors[mode_to_leave].data)
+		grid.slices[mode_to_leave].Reduce_scatter([result_buffer, MPI.DOUBLE], 
+				[mttkrp_reduced, MPI.DOUBLE])
+		MPI.COMM_WORLD.Barrier()
+		stop_clock_and_add(start, self.timers, "Slice Reduce-Scatter")
+
+		start = start_clock()
 		pinv = la.pinv(gram_prod)
-		factor.data = (result_buffer @ pinv @ np.diag(singular_values ** -1)).copy()	
+		factor.data = (mttkrp_reduced @ pinv @ np.diag(singular_values ** -1)).copy()	
 		factor.normalize_cols()
 
 		MPI.COMM_WORLD.Barrier()
@@ -211,10 +221,10 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock() 
 		if self.reuse_samples:
-			factor.sample_and_gather_rows(factor.leverage_scores, None, 1, 
+			factor.sample_and_gather_rows(factor.leverage_scores, grid.slices[mode_to_leave], 1, 
 				None, self.sample_count)
 		else:
-			factor.sample_and_gather_rows(factor.leverage_scores, None, self.dim, 
+			factor.sample_and_gather_rows(factor.leverage_scores, grid.slices[mode_to_leave], self.dim, 
 				mode_to_leave, self.sample_count)
 	
 		MPI.COMM_WORLD.Barrier()

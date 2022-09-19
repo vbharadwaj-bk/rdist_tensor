@@ -63,8 +63,17 @@ public:
     }*/
 };
 
+/* TODO: Should fill out this class 
+class TensorAlltoallv {
+    virtual void execute_alltoallv(
+        py::list recv_idx_py,
+        py::list recv_values_py
+    ) = 0; 
+};
+*/
+
 template<typename IDX_T, typename VAL_T>
-class SHMEMX_Alltoallv {
+class SHMEMX_Alltoallv : public TensorAlltoallv {
     uint64_t proc_count;
 
     SymArray<Triple<IDX_T, VAL_T>> recv_buffer;

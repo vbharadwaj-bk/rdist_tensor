@@ -293,6 +293,50 @@ COOSparse<IDX_T, VAL_T> sample_hash_tuples(
 }
 
 template<typename IDX_T, typename VAL_T>
+void sample_nonzeros(
+      TensorSlicer<IDX_T, VAL_T> &slicer,
+      py::array_t<IDX_T> sample_mat_py,
+      py::array_t<double> weights_py,
+      int mode_to_leave,
+      py::list recv_idx_py,
+      py::list recv_values_py,
+      py::function allocate_recv_buffers     
+      ) {
+
+    NumpyArray<IDX_T> sample_mat(sample_mat_py); 
+    int dim = sample_mat.info.shape[1];
+
+    COOSparse<IDX_T, VAL_T> gathered;
+
+    gathered = sample_hash_tuples<IDX_T, VAL_T>(
+      slicer, 
+      sample_mat_py,
+      weights_py,
+      mode_to_leave,
+      dim);
+
+    uint64_t gathered_nnz = gathered.rows.size();
+
+    allocate_recv_buffers(2, 
+            gathered_nnz, 
+            recv_idx_py, 
+            recv_values_py,
+            "u32",
+            "double" 
+            );
+
+    NumpyList<IDX_T> recv_idx(recv_idx_py);
+    NumpyList<VAL_T> recv_values(recv_values_py);
+
+    #pragma omp parallel for
+    for(uint i = 0; i < gathered_nnz; i++) {
+        recv_idx.ptrs[0][i] = gathered.rows[i]; 
+        recv_idx.ptrs[1][i] = gathered.cols[i]; 
+        recv_values.ptrs[0][i] = gathered.values[i]; 
+    }
+}
+
+template<typename IDX_T, typename VAL_T>
 void sample_nonzeros_redistribute(
       TensorSlicer<IDX_T, VAL_T> &slicer,
       py::array_t<IDX_T> sample_mat_py,
@@ -379,6 +423,8 @@ PYBIND11_MODULE(filter_nonzeros, m) {
     .def(py::init<py::function>())
     .def("destroy", &SHMEMX_Alltoallv<uint32_t, double>::destroy);
 
+
+  m.def("sample_nonzeros", &sample_nonzeros<uint32_t, double>);
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
   //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }

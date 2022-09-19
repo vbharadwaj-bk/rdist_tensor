@@ -6,13 +6,13 @@ from exafac.common import *
 
 class Grid:
     def __init__(self, proc_count_dims):
-        world_comm = MPI.COMM_WORLD
+        self.world_comm = MPI.COMM_WORLD
         # TODO: May want to perform manual rank reordering here with
         # MPI_Comm_split to order the grid for the best locality
 
-        self.world_size = world_comm.Get_size()
+        self.world_size = self.world_comm.Get_size()
         self.dim = len(proc_count_dims)
-        self.comm = MPI.Intracomm(world_comm).Create_cart(dims=proc_count_dims, reorder=False)
+        self.comm = MPI.Intracomm(self.world_comm).Create_cart(dims=proc_count_dims, reorder=False)
         self.rank = self.comm.Get_rank()
         self.axesLengths = np.array(proc_count_dims, dtype=np.int)
         self.coords = self.comm.Get_coords(self.rank)
@@ -38,7 +38,7 @@ class Grid:
             row_position = cl(self.slices[slice_dim].Get_rank() + \
                 self.coords[slice_dim] * self.slices[slice_dim].Get_size())
 
-            self.row_positions.append(np.array(MPI.COMM_WORLD.allgather(row_position)))
+            self.row_positions.append(np.array(self.world_comm.allgather(row_position)))
 
     def get_prefix_array(self):
         lst = [one_const]

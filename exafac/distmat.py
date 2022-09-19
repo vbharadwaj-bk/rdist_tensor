@@ -168,7 +168,7 @@ class DistMat1D:
 
         sampled_rows = self.data[local_samples]
 
-        # TODO: Need to eliminate the explicit typecasting! 
+        # TODO: Need to enable templated types! 
         all_samples = allgatherv(world, base_idx.astype(np.uint32) + local_samples, MPI.UINT32_T)
         all_counts = allgatherv(world, local_counts, MPI.UINT64_T)
         all_probs = allgatherv(world, local_probs, MPI.DOUBLE)

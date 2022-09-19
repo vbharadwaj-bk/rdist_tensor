@@ -261,6 +261,7 @@ public:
 
     get_tarfile_list(data_folders);
     process_caida_data(data_folders);
+
     cout << "\nInitialized CAIDA Dataset!" << endl; 
     cout << "Total nonzeros: " << total_nnz << endl;
     cout << "Total packet count: " << total_packet_count << endl;

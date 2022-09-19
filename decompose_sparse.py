@@ -49,7 +49,7 @@ if __name__=='__main__':
 
     #from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
-    #from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
+    from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exafac.optim.exact_als import ExactALS
     #from exafac.optim.dist_grid_optimizer import DistributedGridOptimizer
 
@@ -81,7 +81,7 @@ if __name__=='__main__':
     else:
         sample_counts = args.samples.split(",")
 
-    for sample_count in sample_counts: 
+    for sample_count in [int(el) for el in sample_counts]: 
         for trank in [int(el) for el in args.trank.split(",")]:
             gc.collect()
 

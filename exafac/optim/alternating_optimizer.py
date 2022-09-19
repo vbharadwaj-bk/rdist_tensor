@@ -111,7 +111,7 @@ class AlternatingOptimizer:
 			#print(statistics)
 
 		if factor_file is not None:
-			pass
-			#if self.grid.rank == 0:
-			#	print(f"Writing factors to output file {factor_file}")
-			#self.ten_to_optimize.write_to_file(factor_file, metadata=self.info)
+			if self.grid.rank == 0:
+				print(f"Writing factors to output file {factor_file}")
+			self.ten_to_optimize.write_to_file(factor_file, metadata=self.info)
+			#pass

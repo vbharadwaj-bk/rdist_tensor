@@ -58,13 +58,13 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 	return samples, np.exp(weight_prods), inflated_sample_ids, mode_rows
 
-class AccumulatorStationaryOpt1(AlternatingOptimizer):
+class TensorStationaryOpt1(AlternatingOptimizer):
 	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=True):
 		super().__init__(ten_to_optimize, ground_truth)
 		self.sample_count = sample_count
 		self.reuse_samples = reuse_samples
 		self.info['Sample Count'] = self.sample_count
-		self.info["Algorithm Name"] = "Accumulator Stationary Opt1"	
+		self.info["Algorithm Name"] = "Tensor Stationary Opt1"	
 		self.info["Nonzeros Sampled Per Round"] = []
 		self.info["Samples Reused Between Rounds"] = self.reuse_samples
 
@@ -72,8 +72,8 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		'''
 		TODO: Need to time these functions.
 		'''
-		grid = self.ten_to_optimize.grid 
 		ten = self.ten_to_optimize
+		grid = self.ten_to_optimize.grid 
 		for mode in range(ten.dim):
 			factor = ten.factors[mode]	
 			factor.compute_gram_matrix()
@@ -81,14 +81,12 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 			if self.reuse_samples:
 				factor.sample_and_gather_rows(factor.leverage_scores, 
-						grid.world_comm, 
+						grid.slices[mode], 
 						1, None, self.sample_count)
 			else:
 				factor.sample_and_gather_rows(factor.leverage_scores, 
-						grid.world_comm, 
-						self.dim, 
-						mode, 
-						self.sample_count)
+						grid.slices[mode],
+						self.dim, mode, self.sample_count)
 
 	# Computes a distributed MTTKRP of all but one of this 
 	# class's factors with a given dense tensor. Also performs 
@@ -213,10 +211,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock() 
 		if self.reuse_samples:
-			factor.sample_and_gather_rows(factor.leverage_scores, grid.world_comm, 1, 
+			factor.sample_and_gather_rows(factor.leverage_scores, None, 1, 
 				None, self.sample_count)
 		else:
-			factor.sample_and_gather_rows(factor.leverage_scores, grid.world_comm, self.dim, 
+			factor.sample_and_gather_rows(factor.leverage_scores, None, self.dim, 
 				mode_to_leave, self.sample_count)
 	
 		MPI.COMM_WORLD.Barrier()

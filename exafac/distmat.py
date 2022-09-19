@@ -169,10 +169,10 @@ class DistMat1D:
         sampled_rows = self.data[local_samples]
 
         # TODO: Need to eliminate the explicit typecasting! 
-        all_samples = allgatherv(grid.comm, base_idx.astype(np.uint32) + local_samples, MPI.UINT32_T)
-        all_counts = allgatherv(grid.comm, local_counts, MPI.UINT64_T)
-        all_probs = allgatherv(grid.comm, local_probs, MPI.DOUBLE)
-        all_rows = allgatherv(grid.comm, sampled_rows, MPI.DOUBLE)
+        all_samples = allgatherv(world, base_idx.astype(np.uint32) + local_samples, MPI.UINT32_T)
+        all_counts = allgatherv(world, local_counts, MPI.UINT64_T)
+        all_probs = allgatherv(world, local_probs, MPI.DOUBLE)
+        all_rows = allgatherv(world, sampled_rows, MPI.DOUBLE)
 
         return all_samples, all_counts, all_probs, all_rows 
 

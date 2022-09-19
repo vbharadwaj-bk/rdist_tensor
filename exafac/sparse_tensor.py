@@ -110,6 +110,8 @@ class DistSparseTensor:
         for i in range(self.dim):
             idxs = np.array(list(range(self.max_idxs[i])), dtype=np.ulonglong)
             perm = rng.permutation(idxs)
+
+            #if i < self.dim - 1: # TODO: NEED TO ERASE THIS! Let's us do good time analysis
             self.tensor_idxs[i] = perm[self.tensor_idxs[i]]
 
     def redistribute_nonzeros(self, tensor_grid, debug=False):
@@ -159,7 +161,7 @@ class DistSparseTensor:
             self.mat_idxs[:, i] = self.offset_idxs[i]
 
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
-        #self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
         #self.offset_idxs = None
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):

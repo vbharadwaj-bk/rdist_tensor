@@ -100,6 +100,9 @@ class TensorGrid:
                 self.bound_starts.append(coords[grid.coords[i]])
                 self.bound_ends.append(coords[grid.coords[i] + 1])
 
+            self.bound_starts = np.array(self.bound_starts, dtype=np.uint64)
+            self.bound_ends = np.array(self.bound_ends, dtype=np.uint64)
+
 if __name__=='__main__':
     #grid = Grid([3, 3, 3])
     #tGrid = TensorGrid([5, 1, 20], grid=grid)

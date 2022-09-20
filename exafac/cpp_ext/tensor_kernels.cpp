@@ -116,6 +116,7 @@ void inflate_samples_multiply(
     py::array_t<IDX_T> samples_py,
     py::array_t<int64_t> counts_py,
     py::array_t<double> probs_py,
+    py::array_t<uint32_t> row_locs_py,
     py::array_t<IDX_T> inflated_samples_py,
     py::array_t<double> weight_prods_py,
     py::array_t<int64_t> permutation_py,
@@ -124,6 +125,7 @@ void inflate_samples_multiply(
     NumpyArray<IDX_T> samples(samples_py);
     NumpyArray<int64_t> counts(counts_py);
     NumpyArray<double> probs(probs_py);
+    NumpyArray<uint32_t> row_locs(row_locs_py);
     NumpyArray<IDX_T> inflated_samples(inflated_samples_py);
     NumpyArray<double> weight_prods(weight_prods_py);
     NumpyArray<int64_t> permutation(permutation_py);
@@ -140,10 +142,11 @@ void inflate_samples_multiply(
     assert(inflated_sample_count == sample_offsets[num_unique_samples]);
     int64_t* ptr = sample_offsets.data();
 
+    #pragma omp parallel for
     for(uint64_t i = 0; i < num_unique_samples; i++) {
         for(int64_t j = ptr[i]; j < ptr[i+1]; j++) {
             int64_t perm_loc = permutation.ptr[j];
-            sample_ids.ptr[perm_loc] = i;
+            sample_ids.ptr[perm_loc] = row_locs.ptr[i];
             inflated_samples.ptr[perm_loc] = samples.ptr[i];
             weight_prods.ptr[perm_loc] -= 0.5 * log(probs.ptr[i]);
         }
@@ -232,6 +235,43 @@ void spmm_compressed(
 
 }
 
+template<typename IDX_T>
+vector<uint32_t> filter_member_samples(
+        py::array_t<uint64_t> bound_starts_py, 
+        py::array_t<uint64_t> bound_ends_py,
+        int mode_to_leave,
+        py::list coords_py
+) {
+    NumpyList<IDX_T> coords(coords_py);
+    NumpyArray<uint64_t> bound_starts(bound_starts_py);
+    NumpyArray<uint64_t> bound_ends(bound_ends_py);
+
+    vector<uint32_t> result;
+
+    int dim = coords.length + 1;
+    uint32_t nnz = coords.infos[0].shape[0]; 
+
+    for(uint32_t i = 0; i < nnz; i++) {
+        bool is_member = true;
+        for(int j = 0; j < dim; j++) {
+            int offset = j > mode_to_leave ? 1 : 0;
+            if(j != mode_to_leave) {                
+                bool marker = (
+                    (coords.ptrs[j - offset][i] >= bound_starts.ptr[j]) && 
+                        (coords.ptrs[j - offset][i] < bound_ends.ptr[j]) 
+                );
+                is_member = is_member && marker; 
+            }
+        }
+
+        if(is_member) {
+            result.push_back(i);
+        }
+    }
+
+    return result;
+}
+
 PYBIND11_MODULE(tensor_kernels, m) {
     //m.def("sampled_mttkrp", &sampled_mttkrp);
     m.def("spmm_u32_double", &spmm<uint32_t, double>);
@@ -239,6 +279,7 @@ PYBIND11_MODULE(tensor_kernels, m) {
     m.def("spmm_compressed_u32_double", &spmm_compressed<uint32_t, double>);
     m.def("compute_tensor_values_u32", &compute_tensor_values<uint32_t>);
     m.def("inflate_samples_multiply_u32", &inflate_samples_multiply<uint32_t>);
+    m.def("filter_member_samples_u32", &filter_member_samples<uint32_t>);
 }
 
 /*

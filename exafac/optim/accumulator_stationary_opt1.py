@@ -32,6 +32,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 
 		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
 		sample_ids = np.zeros(dist_sample_count, dtype=np.int64)
+		row_locs = np.arange(len(all_samples), dtype=np.uint32)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive 
@@ -44,7 +45,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
                 [np.uint32])
 
 		inflate_samples_multiply(
-				all_samples, all_counts, all_probs, 
+				all_samples, all_counts, all_probs, row_locs,
 				inflated_samples, weight_prods,
 				perm,
 				sample_ids

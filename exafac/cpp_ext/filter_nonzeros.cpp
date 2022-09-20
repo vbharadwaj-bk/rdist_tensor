@@ -411,7 +411,7 @@ void sample_nonzeros_redistribute(
       /*if(nonzero_redist.rank == 0) {
           cout << elapsed << endl;
       }*/
-} 
+}
 
 PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse<uint32_t, double>>(m, "COOSparse");

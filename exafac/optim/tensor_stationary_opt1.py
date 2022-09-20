@@ -1,3 +1,4 @@
+from re import I
 from exafac.distmat import *
 import numpy as np
 import numpy.linalg as la
@@ -11,8 +12,9 @@ import cppimport.import_hook
 import exafac.cpp_ext.tensor_kernels as tensor_kernels 
 import exafac.cpp_ext.filter_nonzeros as nz_filter 
 
-def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, reuse_samples):
+def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, tensor_grid, timers, reuse_samples):
 	start = start_clock() 
+	grid = tensor_grid.grid
 	samples = []
 	inflated_sample_ids = []
 	mode_rows = []
@@ -30,9 +32,17 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		else:
 			all_samples, all_counts, all_probs, all_rows = factor.gathered_samples[mode_to_leave]
 
-		total_count = np.sum(all_counts)
-		inflated_samples = np.zeros(total_count, dtype=np.uint32)
-		sample_ids = np.zeros(total_count, dtype=np.int64)
+
+		total_count = np.sum(dist_sample_count)
+		inflated_samples = np.zeros(dist_sample_count, dtype=np.uint32)
+		sample_ids = np.zeros(dist_sample_count, dtype=np.int64)
+		row_locs = np.arange(len(all_samples), dtype=np.uint32)
+
+		# This hack makes the function less efficient... but okay
+		combined_samples = allgatherv(grid.axes[i], all_samples, MPI.UINT32_T)
+		combined_counts = allgatherv(grid.axes[i], all_counts, MPI.UINT64_T)
+		combined_probs = allgatherv(grid.axes[i], all_probs, MPI.DOUBLE)
+		combined_rowlocs = allgatherv(grid.axes[i], row_locs, MPI.UINT32_T)
 
 		# All processors apply a consistent random
 		# permutation to everything they receive; the permutation should 
@@ -47,7 +57,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
                 [np.uint32])
 
 		inflate_samples_multiply(
-				all_samples, all_counts, all_probs, 
+				combined_samples, combined_counts, combined_probs, combined_rowlocs, 
 				inflated_samples, weight_prods,
 				perm,
 				sample_ids
@@ -56,6 +66,19 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
 		samples.append(inflated_samples)
 		inflated_sample_ids.append(sample_ids)
 		mode_rows.append(all_rows)
+
+	# Now, we will filter out only the samples relevant to this processor 
+
+	filter_member_samples = get_templated_function(tensor_kernels, 
+			"filter_member_samples", 
+			[np.uint32])
+
+	#result = filter_member_samples(tensor_grid.bound_starts,
+	#			tensor_grid.bound_ends, 
+	#			mode_to_leave,
+	#			samples)
+
+	#exit(1)
 
 	stop_clock_and_add(start, timers, "Sample Inflation")
 
@@ -98,6 +121,7 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		factors = self.ten_to_optimize.factors
 		factor = factors[mode_to_leave]
 		grid = self.ten_to_optimize.grid
+		tensor_grid = self.ten_to_optimize.tensor_grid
 		s = self.sample_count 
 
 		dim = len(factors)
@@ -118,7 +142,7 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
 		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
-				mode_to_leave, grid, self.timers, self.reuse_samples)
+				mode_to_leave, tensor_grid, self.timers, self.reuse_samples)
 
 		recv_idx, recv_values = [], []
 

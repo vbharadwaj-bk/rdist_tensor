@@ -424,7 +424,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
     .def("destroy", &SHMEMX_Alltoallv<uint32_t, double>::destroy);
 
 
-  m.def("sample_nonzeros", &sample_nonzeros<uint32_t, double>);
+  m.def("sample_nonzeros_u32_double", &sample_nonzeros<uint32_t, double>);
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);
   //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }

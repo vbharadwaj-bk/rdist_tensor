@@ -116,7 +116,6 @@ void inflate_samples_multiply(
     py::array_t<IDX_T> samples_py,
     py::array_t<int64_t> counts_py,
     py::array_t<double> probs_py,
-    py::array_t<double> rows_py,
     py::array_t<IDX_T> inflated_samples_py,
     py::array_t<double> weight_prods_py,
     py::array_t<int64_t> permutation_py,
@@ -125,7 +124,6 @@ void inflate_samples_multiply(
     NumpyArray<IDX_T> samples(samples_py);
     NumpyArray<int64_t> counts(counts_py);
     NumpyArray<double> probs(probs_py);
-    NumpyArray<double> rows(rows_py);
     NumpyArray<IDX_T> inflated_samples(inflated_samples_py);
     NumpyArray<double> weight_prods(weight_prods_py);
     NumpyArray<int64_t> permutation(permutation_py);

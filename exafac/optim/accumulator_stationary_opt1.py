@@ -44,7 +44,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
                 [np.uint32])
 
 		inflate_samples_multiply(
-				all_samples, all_counts, all_probs, all_rows,
+				all_samples, all_counts, all_probs, 
 				inflated_samples, weight_prods,
 				perm,
 				sample_ids

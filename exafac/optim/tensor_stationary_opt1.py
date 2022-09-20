@@ -47,7 +47,7 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers, 
                 [np.uint32])
 
 		inflate_samples_multiply(
-				all_samples, all_counts, all_probs, all_rows,
+				all_samples, all_counts, all_probs, 
 				inflated_samples, weight_prods,
 				perm,
 				sample_ids
@@ -163,9 +163,8 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
-	 	# TODO: Need to compute the offset properly! 
-		#offset = factor.row_position * factor.local_rows_padded
-		#recv_idx[1] -= offset 
+		offset = self.ground_truth.offsets[mode_to_leave].astype(np.uint32) 
+		recv_idx[1] -= offset 
 
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Nonzero Filtering + Redistribute")
@@ -197,6 +196,7 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		mttkrp_reduced = np.zeros_like(factors[mode_to_leave].data)
 		grid.slices[mode_to_leave].Reduce_scatter([result_buffer, MPI.DOUBLE], 
 				[mttkrp_reduced, MPI.DOUBLE])
+
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Slice Reduce-Scatter")
 

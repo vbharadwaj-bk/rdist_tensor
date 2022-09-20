@@ -12,8 +12,8 @@ FACTOR_DIR=$SCRATCH/factor_files
 #TENSOR_DIR=tensors
 TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
 OUTPUT="data/uber.out"
-srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
-	-g "1,1,1,1" -iter 5 \
+srun -N 1 -u -n 4 python decompose_sparse.py -i $TENSOR  \
+	-g "4,1,1,1" -iter 5 \
     -o $OUTPUT -op "accumulator_stationary" \
     -t "25" \
     -s "131000"

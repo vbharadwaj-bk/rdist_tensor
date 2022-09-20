@@ -49,6 +49,7 @@ if __name__=='__main__':
 
     #from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
     #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
+    from exafac.optim.tensor_stationary_opt1 import TensorStationaryOpt1
     from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exafac.optim.exact_als import ExactALS
     #from exafac.optim.dist_grid_optimizer import DistributedGridOptimizer
@@ -94,7 +95,7 @@ if __name__=='__main__':
                 optimizer = ExactALS(ten_to_optimize, ground_truth)
             elif args.optimizer == 'tensor_stationary':
                 assert(args.samples is not None and sample_count >= 0)
-                optimizer = TensorStationaryOpt0(ten_to_optimize, ground_truth, sample_count)
+                optimizer = TensorStationaryOpt1(ten_to_optimize, ground_truth, sample_count)
             elif args.optimizer == 'accumulator_stationary':
                 assert(args.samples is not None and sample_count >= 0)
                 optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, sample_count)

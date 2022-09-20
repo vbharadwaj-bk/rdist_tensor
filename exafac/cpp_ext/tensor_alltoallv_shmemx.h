@@ -73,7 +73,7 @@ class TensorAlltoallv {
 */
 
 template<typename IDX_T, typename VAL_T>
-class SHMEMX_Alltoallv : public TensorAlltoallv {
+class SHMEMX_Alltoallv {
     uint64_t proc_count;
 
     SymArray<Triple<IDX_T, VAL_T>> recv_buffer;

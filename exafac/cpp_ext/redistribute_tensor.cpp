@@ -51,7 +51,7 @@ void redistribute_nonzeros(
         #pragma omp atomic 
         send_counts[processor]++;
         processor_assignments[i] = processor;
-    }
+    }  
 
     tensor_alltoallv(
 		dim,

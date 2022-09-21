@@ -209,7 +209,6 @@ class DistSparseTensor:
         self.offset_idxs = [self.tensor_idxs[j] 
             + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
 
-        # Compute hashes of the indices that this processor will reference 
         self.mat_idxs = np.zeros((
             len(self.tensor_idxs[0]),
             self.dim
@@ -222,6 +221,7 @@ class DistSparseTensor:
 
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
         self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+
         #self.offset_idxs = None
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):

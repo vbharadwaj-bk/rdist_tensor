@@ -73,9 +73,6 @@ if __name__=='__main__':
     ground_truth.random_permute()
     ground_truth.redistribute_nonzeros(tensor_grid)
 
-    if grid.rank == 0:
-        print("Got to this point!")
-
     #new_grid = Grid([8, 1, 2, 4]) 
     #new_tensor_grid = TensorGrid(ground_truth.tensor_grid.tensor_dims, new_grid)
     #ground_truth.redistribute_nonzeros(new_tensor_grid)
@@ -89,14 +86,8 @@ if __name__=='__main__':
         for trank in [int(el) for el in args.trank.split(",")]:
             gc.collect()
 
-            if grid.rank == 0:
-                print(f"Starting initialization of low rank tensor...")
-
             ten_to_optimize = DistLowRank(tensor_grid, trank) 
             ten_to_optimize.initialize_factors_gaussian() 
-
-            if grid.rank == 0:
-                print(f"Low-rank tensor initialized...")
 
             optimizer = None
             if args.optimizer == 'exact':

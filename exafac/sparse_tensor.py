@@ -38,7 +38,7 @@ def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
 
     lst_values.append(np.empty(count, dtype=str_to_type[val_t]))
 
-def proc_func(start, end, proc_num, m, total_procs, sh_name, filename, modename):
+def proc_func(start, end, proc_num, m, total_procs, sh_name, filename, modename, dtype):
     import h5py
     import numpy as np
     from exafac.common import round_to_nearest
@@ -56,7 +56,7 @@ def proc_func(start, end, proc_num, m, total_procs, sh_name, filename, modename)
     f = h5py.File(filename, 'r')
 
     shm = shared_memory.SharedMemory(name=sh_name)
-    buf = np.ndarray((end - start), dtype=np.uint32, buffer=shm.buf) 
+    buf = np.ndarray((end - start), dtype=dtype, buffer=shm.buf) 
 
     if seg_end > seg_start:
         buf[seg_start:seg_end] = f[modename][glob_start:glob_end] - m
@@ -100,7 +100,7 @@ class DistSparseTensor:
             sh_name = shm.name
 
             args = [(start_nnz, end_nnz, j, self.min_idxs[i], num_procs, sh_name, tensor_file,
-                        f'MODE_{i}')
+                        f'MODE_{i}', np.uint32)
                         for j in range(num_procs)]
 
             with Pool(num_procs) as p:
@@ -114,7 +114,22 @@ class DistSparseTensor:
  
             #self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
 
-        self.values = f['VALUES'][start_nnz:end_nnz]
+        byte_count = (end_nnz - start_nnz) * 8
+        shm = shared_memory.SharedMemory(create=True, size=byte_count)
+        sh_name = shm.name
+
+        args = [(start_nnz, end_nnz, j, 0, num_procs, sh_name, tensor_file,
+                    f'VALUES', np.double)
+                    for j in range(num_procs)]
+
+        with Pool(num_procs) as p:
+            p.starmap(proc_func, args)
+
+        np_buf = np.ndarray((end_nnz - start_nnz), dtype=np.double, buffer=shm.buf)
+        self.values = np_buf.copy()
+
+        shm.close() 
+        shm.unlink()
 
         MPI.COMM_WORLD.Barrier()
         if self.rank == 0:

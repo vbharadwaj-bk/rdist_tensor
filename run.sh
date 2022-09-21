@@ -5,7 +5,7 @@
 #SBATCH -t 02:00:00
 
 . modules.sh
-export OMP_NUM_THREADS=128
+export OMP_NUM_THREADS=1
 
 TENSOR_DIR=$SCRATCH/tensors
 FACTOR_DIR=$SCRATCH/factor_files

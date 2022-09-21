@@ -1,9 +1,8 @@
 import numpy as np
-from numpy.random import default_rng
+import numpy.linalg as la
+import os
 import h5py
 
-import numpy as np
-import numpy.linalg as la
 from exafac.grid import Grid, TensorGrid
 from mpi4py import MPI
 from exafac.common import *
@@ -15,6 +14,7 @@ import exafac.cpp_ext.tensor_kernels as tensor_kernels
 import exafac.cpp_ext.filter_nonzeros as nz_filter
 
 from exafac.sampling import broadcast_common_seed
+from multiprocessing import shared_memory, Pool
 
 class TensorSampler:
     def __init__(self, id):
@@ -37,6 +37,31 @@ def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
         lst_idx.append(np.empty(count, dtype=str_to_type[idx_t]))
 
     lst_values.append(np.empty(count, dtype=str_to_type[val_t]))
+
+def proc_func(start, end, proc_num, m, total_procs, sh_name, filename, modename):
+    import h5py
+    import numpy as np
+    from exafac.common import round_to_nearest
+
+    nnz = end - start
+    nnz_rounded = round_to_nearest(end - start, total_procs) 
+    local_nz_count = nnz_rounded // total_procs
+
+    seg_start = min(local_nz_count * proc_num, nnz)
+    seg_end = min(local_nz_count * (proc_num + 1), nnz)
+
+    glob_start = seg_start + start
+    glob_end = seg_end + start
+
+    f = h5py.File(filename, 'r')
+
+    shm = shared_memory.SharedMemory(name=sh_name)
+    buf = np.ndarray((end - start), dtype=np.uint32, buffer=shm.buf) 
+
+    if seg_end > seg_start:
+        buf[seg_start:seg_end] = f[modename][glob_start:glob_end] - m
+    
+    f.close()
 
 class DistSparseTensor:
     def __init__(self, tensor_file, preprocessing=None):
@@ -65,15 +90,35 @@ class DistSparseTensor:
         if self.rank == 0:
             print("Loading sparse tensor...")
 
+        num_procs = int(os.environ["OMP_NUM_THREADS"])
+
         for i in range(self.dim):
-            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
+            # We use Python multiprocessing to speed up the load, since the HDF5
+            # library is not threaded
+            byte_count = (end_nnz - start_nnz) * 4
+            shm = shared_memory.SharedMemory(create=True, size=byte_count)
+            sh_name = shm.name
+
+            args = [(start_nnz, end_nnz, j, self.min_idxs[i], num_procs, sh_name, tensor_file,
+                        f'MODE_{i}')
+                        for j in range(num_procs)]
+
+            with Pool(num_procs) as p:
+                p.starmap(proc_func, args)
+
+            np_buf = np.ndarray((end_nnz - start_nnz), dtype=np.uint32, buffer=shm.buf) 
+            self.tensor_idxs.append(np_buf.copy())
+
+            shm.close() 
+            shm.unlink()
+ 
+            #self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
 
         self.values = f['VALUES'][start_nnz:end_nnz]
 
         MPI.COMM_WORLD.Barrier()
         if self.rank == 0:
             print("Finished loading sparse tensor...")
-
 
         if preprocessing is not None:
             if preprocessing == "log_count":

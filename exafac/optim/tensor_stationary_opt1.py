@@ -197,7 +197,10 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		# sampling so that repeated rows are combined 
 
 		start = start_clock()
-		result_buffer = np.zeros_like(factor.data)
+
+		slice_size = cl(grid.slices[mode_to_leave].Get_size())
+		buffer_rowct = cl(factor.data.shape[0]) * slice_size
+		result_buffer = np.zeros((buffer_rowct, factor.data.shape[1]), dtype=np.double)
 
 		spmm_compressed = get_templated_function(tensor_kernels, 
                 "spmm_compressed", 

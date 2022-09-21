@@ -62,6 +62,7 @@ def proc_func(start, end, proc_num, m, total_procs, sh_name, filename, modename,
         buf[seg_start:seg_end] = f[modename][glob_start:glob_end] - m
     
     f.close()
+    shm.close()
 
 class DistSparseTensor:
     def __init__(self, tensor_file, preprocessing=None):
@@ -95,41 +96,43 @@ class DistSparseTensor:
         for i in range(self.dim):
             # We use Python multiprocessing to speed up the load, since the HDF5
             # library is not threaded
-            byte_count = (end_nnz - start_nnz) * 4
-            shm = shared_memory.SharedMemory(create=True, size=byte_count)
-            sh_name = shm.name
+            #byte_count = (end_nnz - start_nnz) * 4
+            #shm = shared_memory.SharedMemory(create=True, size=byte_count)
+            #sh_name = shm.name
 
-            args = [(start_nnz, end_nnz, j, self.min_idxs[i], num_procs, sh_name, tensor_file,
-                        f'MODE_{i}', np.uint32)
-                        for j in range(num_procs)]
+            #args = [(start_nnz, end_nnz, j, self.min_idxs[i], num_procs, sh_name, tensor_file,
+            #            f'MODE_{i}', np.uint32)
+            #            for j in range(num_procs)]
 
-            with Pool(num_procs) as p:
-                p.starmap(proc_func, args)
+            #with Pool(num_procs) as p:
+            #    p.starmap(proc_func, args)
 
-            np_buf = np.ndarray((end_nnz - start_nnz), dtype=np.uint32, buffer=shm.buf) 
-            self.tensor_idxs.append(np_buf.copy())
+            #np_buf = np.ndarray((end_nnz - start_nnz), dtype=np.uint32, buffer=shm.buf) 
+            #self.tensor_idxs.append(np_buf.copy())
 
-            shm.close() 
-            shm.unlink()
+            #shm.close() 
+            #shm.unlink()
  
-            #self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
+            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
 
-        byte_count = (end_nnz - start_nnz) * 8
-        shm = shared_memory.SharedMemory(create=True, size=byte_count)
-        sh_name = shm.name
+        #byte_count = (end_nnz - start_nnz) * 8
+        #shm = shared_memory.SharedMemory(create=True, size=byte_count)
+        #sh_name = shm.name
 
-        args = [(start_nnz, end_nnz, j, 0, num_procs, sh_name, tensor_file,
-                    f'VALUES', np.double)
-                    for j in range(num_procs)]
+        #args = [(start_nnz, end_nnz, j, 0, num_procs, sh_name, tensor_file,
+        #            f'VALUES', np.double)
+        #            for j in range(num_procs)]
 
-        with Pool(num_procs) as p:
-            p.starmap(proc_func, args)
+        #with Pool(num_procs) as p:
+        #    p.starmap(proc_func, args)
 
-        np_buf = np.ndarray((end_nnz - start_nnz), dtype=np.double, buffer=shm.buf)
-        self.values = np_buf.copy()
+        #np_buf = np.ndarray((end_nnz - start_nnz), dtype=np.double, buffer=shm.buf)
+        #self.values = np_buf.copy()
 
-        shm.close() 
-        shm.unlink()
+        #shm.close() 
+        #shm.unlink()
+
+        self.values = f['VALUES'][start_nnz:end_nnz]
 
         MPI.COMM_WORLD.Barrier()
         if self.rank == 0:

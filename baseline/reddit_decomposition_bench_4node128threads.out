@@ -1,0 +1,49 @@
+# This output was generated on Perlmutter CPU, 9/22/2022,
+# 4 nodes, 128 threads
+
+****************************************************************
+splatt v2.0.0 built from 6cb8628-master
+
+Tensor information ---------------------------------------------
+FILE=/global/cfs/projectdirs/m1982/vbharadw/binary_tensors/reddit-2015.bin
+DIMS=8211298x176962x8116559 NNZ=4687474081 DENSITY=3.974432e-10
+COORD-STORAGE=139.70GB
+
+MPI information ------------------------------------------------
+DISTRIBUTION=MEDIUM DIMS=2x1x2
+AVG NNZ=1171868520
+MAX NNZ=1172234804  (0.03% diff)
+AVG COMMUNICATION VOL=15443336
+MAX COMMUNICATION VOL=15546976  (0.67% diff)
+
+Factoring ------------------------------------------------------
+NFACTORS=25 MAXITS=50 TOL=1.0e-05 REG=0.0e+00 RANKS=4 THREADS=128 
+CSF-ALLOC=TWOMODE TILE=NO
+CSF-STORAGE=146.92GB FACTOR-STORAGE=5.95GB
+
+  its =   1 (10.792s)  fit = 0.56647  delta = +5.6647e-01
+  its =   2 (10.709s)  fit = 0.68214  delta = +1.1566e-01
+  its =   3 (11.248s)  fit = 0.69969  delta = +1.7548e-02
+  its =   4 (11.210s)  fit = 0.70723  delta = +7.5398e-03
+  its =   5 (11.241s)  fit = 0.71091  delta = +3.6832e-03
+  its =   6 (10.969s)  fit = 0.71391  delta = +3.0036e-03
+  its =   7 (11.217s)  fit = 0.71527  delta = +1.3574e-03
+  its =   8 (10.815s)  fit = 0.71579  delta = +5.1608e-04
+  its =   9 (11.272s)  fit = 0.71597  delta = +1.8755e-04
+  its =  10 (10.686s)  fit = 0.71609  delta = +1.1465e-04
+  its =  11 (11.182s)  fit = 0.71628  delta = +1.8944e-04
+  its =  12 (11.105s)  fit = 0.71713  delta = +8.5055e-04
+  its =  13 (11.490s)  fit = 0.71991  delta = +2.7816e-03
+  its =  14 (11.491s)  fit = 0.72127  delta = +1.3649e-03
+  its =  15 (11.166s)  fit = 0.72149  delta = +2.1984e-04
+  its =  16 (11.573s)  fit = 0.72154  delta = +4.8376e-05
+  its =  17 (10.534s)  fit = 0.72157  delta = +2.3484e-05
+  its =  18 (10.604s)  fit = 0.72158  delta = +1.5130e-05
+  its =  19 (11.433s)  fit = 0.72159  delta = +1.0869e-05
+  its =  20 (10.745s)  fit = 0.72160  delta = +8.3794e-06
+Final fit: 0.72160
+
+Timing information ---------------------------------------------
+  TOTAL               398.661s
+  CPD                 221.481s
+****************************************************************

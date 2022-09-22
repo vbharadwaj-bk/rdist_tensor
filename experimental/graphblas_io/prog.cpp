@@ -266,7 +266,7 @@ public:
     cout << "Total nonzeros: " << total_nnz << endl;
     cout << "Total packet count: " << total_packet_count << endl;
 
-    string output_filename("/pscratch/sd/v/vbharadw/tensors/caida_data.hdf5");
+    string output_filename("/pscratch/sd/v/vbharadw/tensors/caida_large.hdf5");
     writer = new HDF5_Writer(total_nnz, BUFFERSIZE, output_filename);
 
     compress_zero_elements();

@@ -6,7 +6,7 @@
 
 . modules.sh
 export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=$OMP_NUM_THREADS
+export MKL_NUM_THREADS=1
 
 TENSOR_DIR=tensors
 FACTOR_DIR=$SCRATCH/factor_files
@@ -32,7 +32,7 @@ FACTOR_DIR=$SCRATCH/factor_files
 TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
 OUTPUT="data/amazon.out"
 FACTOR_FILE="data/amazon_factors.hdf5"
-srun -u -N 4 -n 256 python decompose_sparse.py -i $TENSOR -g "8,8,4" \
+srun -u -N 4 -n 4 python decompose_sparse.py -i $TENSOR -g "2,2,1" \
     -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
     -s "131000"
 

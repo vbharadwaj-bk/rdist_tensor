@@ -158,8 +158,11 @@ class DistSparseTensor:
         for i in range(self.dim):
             self.mat_idxs[:, i] = self.offset_idxs[i]
 
+        print("Starting construction of a tensor slicer...")
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
         self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
+
+        print("Finished construction of a tensor slicer...")
 
         #self.offset_idxs = None
 

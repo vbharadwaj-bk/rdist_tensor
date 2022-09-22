@@ -1,0 +1,13 @@
+****************************************************************
+splatt v2.0.0 built from 6cb8628-master
+
+Tensor information ---------------------------------------------
+FILE=/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/tensors/reddit-2015.tns
+DIMS=8211298x176962x8116559 NNZ=4687474081 DENSITY=3.974432e-10
+COORD-STORAGE=139.70GB
+
+
+Timing information ---------------------------------------------
+  TOTAL               1652.761s
+  CONVERT             692.721s
+****************************************************************

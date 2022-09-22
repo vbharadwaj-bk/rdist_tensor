@@ -3,4 +3,4 @@ TENSOR_NAME=amazon-reviews
 
 $SPLATT_LOC/splatt cpd \
         $BIN_TENSOR_LOC/$TENSOR_NAME.bin \
-        -r 25 -t 128 
+        -r 25 -t 128 --nowrite 

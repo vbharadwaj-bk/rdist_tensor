@@ -1,0 +1,69 @@
+# This output wasgenerated on Perlmutter CPU, 9/22/2022,
+# 1 node, 128 threads
+
+****************************************************************
+splatt v2.0.0 built from 6cb8628-master
+
+Tensor information ---------------------------------------------
+FILE=/global/cfs/projectdirs/m1982/vbharadw/binary_tensors/amazon-reviews.bin
+DIMS=4821207x1774269x1805187 NNZ=1741809018 DENSITY=1.127984e-10
+COORD-STORAGE=51.91GB
+
+MPI information ------------------------------------------------
+DISTRIBUTION=MEDIUM DIMS=1x1x1
+AVG NNZ=1741809018
+MAX NNZ=1741809018  (0.00% diff)
+AVG COMMUNICATION VOL=0
+MAX COMMUNICATION VOL=0  (0.00% diff)
+
+Factoring ------------------------------------------------------
+NFACTORS=25 MAXITS=50 TOL=1.0e-05 REG=0.0e+00 RANKS=1 THREADS=128 
+CSF-ALLOC=TWOMODE TILE=NO
+CSF-STORAGE=62.87GB FACTOR-STORAGE=1.56GB
+
+  its =   1 (14.958s)  fit = 0.22152  delta = +2.2152e-01
+  its =   2 (14.516s)  fit = 0.33043  delta = +1.0891e-01
+  its =   3 (14.732s)  fit = 0.33651  delta = +6.0800e-03
+  its =   4 (14.884s)  fit = 0.33825  delta = +1.7417e-03
+  its =   5 (14.645s)  fit = 0.33897  delta = +7.1198e-04
+  its =   6 (14.668s)  fit = 0.33936  delta = +3.9745e-04
+  its =   7 (14.713s)  fit = 0.33959  delta = +2.2755e-04
+  its =   8 (14.659s)  fit = 0.33972  delta = +1.2738e-04
+  its =   9 (14.515s)  fit = 0.33979  delta = +7.4850e-05
+  its =  10 (14.539s)  fit = 0.33984  delta = +4.8395e-05
+  its =  11 (14.527s)  fit = 0.33988  delta = +3.4555e-05
+  its =  12 (14.562s)  fit = 0.33990  delta = +2.6890e-05
+  its =  13 (14.467s)  fit = 0.33993  delta = +2.2455e-05
+  its =  14 (14.869s)  fit = 0.33995  delta = +1.9840e-05
+  its =  15 (14.643s)  fit = 0.33996  delta = +1.8317e-05
+  its =  16 (14.681s)  fit = 0.33998  delta = +1.7487e-05
+  its =  17 (14.563s)  fit = 0.34000  delta = +1.7115e-05
+  its =  18 (14.828s)  fit = 0.34002  delta = +1.7056e-05
+  its =  19 (14.847s)  fit = 0.34003  delta = +1.7215e-05
+  its =  20 (14.752s)  fit = 0.34005  delta = +1.7524e-05
+  its =  21 (14.549s)  fit = 0.34007  delta = +1.7931e-05
+  its =  22 (14.380s)  fit = 0.34009  delta = +1.8389e-05
+  its =  23 (14.445s)  fit = 0.34011  delta = +1.8854e-05
+  its =  24 (14.349s)  fit = 0.34012  delta = +1.9285e-05
+  its =  25 (14.354s)  fit = 0.34014  delta = +1.9637e-05
+  its =  26 (14.530s)  fit = 0.34016  delta = +1.9871e-05
+  its =  27 (14.569s)  fit = 0.34018  delta = +1.9951e-05
+  its =  28 (14.462s)  fit = 0.34020  delta = +1.9851e-05
+  its =  29 (14.449s)  fit = 0.34022  delta = +1.9557e-05
+  its =  30 (14.126s)  fit = 0.34024  delta = +1.9066e-05
+  its =  31 (14.263s)  fit = 0.34026  delta = +1.8395e-05
+  its =  32 (14.235s)  fit = 0.34028  delta = +1.7566e-05
+  its =  33 (14.453s)  fit = 0.34030  delta = +1.6617e-05
+  its =  34 (14.338s)  fit = 0.34031  delta = +1.5583e-05
+  its =  35 (14.584s)  fit = 0.34033  delta = +1.4505e-05
+  its =  36 (14.608s)  fit = 0.34034  delta = +1.3417e-05
+  its =  37 (14.597s)  fit = 0.34035  delta = +1.2348e-05
+  its =  38 (14.613s)  fit = 0.34036  delta = +1.1321e-05
+  its =  39 (14.472s)  fit = 0.34037  delta = +1.0354e-05
+  its =  40 (14.615s)  fit = 0.34038  delta = +9.4558e-06
+Final fit: 0.34038
+
+Timing information ---------------------------------------------
+  TOTAL               786.316s
+  CPD                 582.562s
+****************************************************************

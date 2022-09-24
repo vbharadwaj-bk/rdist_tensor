@@ -82,16 +82,18 @@ if __name__=='__main__':
     else:
         sample_counts = args.samples.split(",")
 
-    for sample_count in [int(el) for el in sample_counts]: 
+    for sample_count in [el for el in sample_counts]: 
         for trank in [int(el) for el in args.trank.split(",")]:
             gc.collect()
+
+            if sample_count is not None:
+                sample_count = int(sample_count)
 
             ten_to_optimize = DistLowRank(tensor_grid, trank) 
             ten_to_optimize.initialize_factors_gaussian() 
 
             optimizer = None
             if args.optimizer == 'exact':
-                assert(args.samples is None)
                 optimizer = ExactALS(ten_to_optimize, ground_truth)
             elif args.optimizer == 'tensor_stationary':
                 assert(args.samples is not None and sample_count >= 0)

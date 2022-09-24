@@ -6,7 +6,6 @@
 
 . modules.sh
 export OMP_NUM_THREADS=1
-export MKL_NUM_THREADS=1
 
 TENSOR_DIR=tensors
 FACTOR_DIR=$SCRATCH/factor_files

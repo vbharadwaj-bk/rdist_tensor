@@ -2,6 +2,7 @@ import numpy as np
 import json
 import os
 import h5py
+import re
 
 def get_experiments(filename):
     f = open(filename, 'r')
@@ -44,3 +45,40 @@ def load_factors_from_file(filename):
                 factors[key] = f[key][:]
 
     return factors
+
+def read_splatt_trace(filename):
+    '''
+    Returns a list of times taken for each iteration of SPLATT
+    '''
+    p = re.compile('.*\((.+s)\).*')
+    
+    iteration_times = []
+
+    with open(filename, 'r') as f:
+        lines = f.readlines()
+
+        for line in lines:
+            m = p.match(line)
+
+            if m is not None:
+                iteration_times.append(float(m.group(1)[:-1]))
+
+    return iteration_times
+
+def dummy():
+    ax,fig=plt.subplots()
+
+    bar_width = 0.35
+    ngroups=1
+    index = np.arange(ngroups)
+    plt.bar(index, [normalized_time_exact_amazon], bar_width, color='g', label='Exact ALS (Ours)')
+    plt.bar(index + bar_width, [normalized_time_splatt_amazon], bar_width, color='y', label='SPLATT')
+    plt.bar(index + 2 * bar_width, [total_time_sketched_amazon], bar_width, color='purple', label='Lev. Scores, s=131k')
+
+    plt.xticks(index + bar_width, ['Amazon, 15 Iter.'])
+    plt.ylabel("Runtime (s)")
+
+    plt.xlim(-1,2)
+    #plt.set_xticklabels( ('Amazon, 15 Iter.'))
+
+    plt.legend()

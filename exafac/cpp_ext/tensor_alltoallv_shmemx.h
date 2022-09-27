@@ -16,52 +16,6 @@
 using namespace std;
 namespace py = pybind11;
 
-template<typename T>
-class SymArray {
-public:
-    T* ptr;
-    uint64_t size;
-
-    SymArray() {
-        ptr = nullptr;
-        size = 0;
-    }
-
-    SymArray(uint64_t n_elements) { 
-        size = n_elements;
-        ptr = (T*) shmem_malloc(sizeof(T) * size);
-        memset(ptr, 0x00, sizeof(T) * n_elements);
-    }
-
-    void reallocate(uint64_t n_elements) {
-        size = n_elements;
-        if(ptr == nullptr) {
-            ptr = (T*) shmem_malloc(sizeof(T) * size);
-        }
-        else {
-            ptr = (T*) shmem_realloc(ptr, sizeof(T) * size);
-        }
-    }
-
-    constexpr T& operator[](std::size_t idx) {
-        return ptr[idx];
-    }
-
-    void fill(T value) {
-        std::fill(ptr, ptr + size, value);
-    }
-
-    void destroy() {
-        if(ptr != nullptr) {
-            shmem_free(ptr);
-            ptr = nullptr;
-        }
-    }
-
-    /*~SymArray() {
-        destroy();
-    }*/
-};
 
 /* TODO: Should fill out this class 
 class TensorAlltoallv {
@@ -76,23 +30,33 @@ template<typename IDX_T, typename VAL_T>
 class SHMEMX_Alltoallv {
     uint64_t proc_count;
 
-    SymArray<Triple<IDX_T, VAL_T>> recv_buffer;
-    SymArray<uint64_t> recv_counts;
-    SymArray<uint64_t> recv_offsets;
-    SymArray<int64_t> pSync;
+    Comm_Buffer<Triple<IDX_T, VAL_T>> recv_buffer;
+    Comm_Buffer<uint64_t> recv_counts;
+    Comm_Buffer<uint64_t> recv_offsets;
+    Comm_Buffer<int64_t> pSync;
 
 public:
     int rank;
     uint64_t total_received_coords;
-    SymArray<Triple<IDX_T, VAL_T>> send_buffer;
-    SymArray<uint64_t> send_counts;
-    SymArray<uint64_t> send_offsets;
-    SymArray<uint64_t> running_offsets;
+    Comm_Buffer<Triple<IDX_T, VAL_T>> send_buffer;
+    Comm_Buffer<uint64_t> send_counts;
+    Comm_Buffer<uint64_t> send_offsets;
+    Comm_Buffer<uint64_t> running_offsets;
+
+    Buffer_Type mode;
 
     py::function allocate_recv_buffers;
-    SHMEMX_Alltoallv(py::function allocate_recv_buffers) 
+    SHMEMX_Alltoallv(py::function allocate_recv_buffers, int mode) 
     {
-        shmem_init();
+        if(mode == 0) {
+            this->mode = REGULAR;
+        }
+        else if(mode == 1) {
+            this->mode = SHMEM;
+            pSync.reallocate(_SHMEM_ALLTOALL_SYNC_SIZE);
+            shmem_init();
+        }
+
         this->allocate_recv_buffers = allocate_recv_buffers;
         proc_count = shmem_n_pes();
         MPI_Comm_rank(MPI_COMM_WORLD, &rank); 
@@ -102,7 +66,6 @@ public:
         recv_counts.reallocate(proc_count);
         recv_offsets.reallocate(proc_count);
         running_offsets.reallocate(proc_count);
-        pSync.reallocate(_SHMEM_ALLTOALL_SYNC_SIZE);
 
         pSync.fill(_SHMEM_SYNC_VALUE); 
         shmem_barrier_all();
@@ -118,7 +81,9 @@ public:
         send_buffer.destroy();
         recv_buffer.destroy();
 
-        shmem_finalize();
+        if(this->mode == SHMEM) {
+            shmem_finalize();
+        }
     }
 
     // This assumes the send buffer, send counts, and
@@ -147,7 +112,7 @@ public:
                 );
 
         if(max_nnz_recv > recv_buffer.size) {
-            recv_buffer.reallocate(max_nnz_recv);
+            recv_buffer.reallocate(max_nnz_recv, this->mode);
         }
 
         for(uint i = 0; i < proc_count; i++) {

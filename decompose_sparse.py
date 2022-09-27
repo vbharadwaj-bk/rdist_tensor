@@ -121,9 +121,7 @@ if __name__=='__main__':
                     epoch_interval=args.epoch_iter)
 
             if grid.rank == 0:
-                print(f"Finished tensor decomposition...")
-
-    ground_truth.nonzero_redist.destroy()
+                print(f"Finished tensor decomposition...") 
     
     if grid.rank == 0:
         print("Finalized SHMEM...")

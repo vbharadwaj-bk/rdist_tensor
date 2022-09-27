@@ -9,11 +9,11 @@ export OMP_NUM_THREADS=1
 
 TENSOR_DIR=tensors
 FACTOR_DIR=$SCRATCH/factor_files
-#TENSOR_DIR=tensors
-#TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
+TENSOR_DIR=tensors
+TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
 #OUTPUT="data/uber.out"
-#srun -N 1 -u -n 1 python decompose_sparse.py -i $TENSOR  \
-#	-g "1,1,1,1" -iter 25 \
+#srun -N 1 -u -n 2 python decompose_sparse.py -i $TENSOR  \
+#	-g "1,2,1,1" -iter 25 \
 #    -o $OUTPUT -op "accumulator_stationary" \
 #    -t "25" \
 #    -s "131000"
@@ -31,7 +31,7 @@ FACTOR_DIR=$SCRATCH/factor_files
 TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
 OUTPUT="data/amazon.out"
 FACTOR_FILE="data/amazon_factors.hdf5"
-srun -u -N 4 -n 4 python decompose_sparse.py -i $TENSOR -g "2,2,1" \
+srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" \
     -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
     -s "131000"
 

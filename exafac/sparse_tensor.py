@@ -89,9 +89,7 @@ class DistSparseTensor:
 
         # TODO: Eventually, will support more than these two datatypes 
         self.idx_dtype=np.uint32
-        self.val_dtype=np.double
-
-        self.nonzero_redist = nz_filter.SHMEMX_Alltoallv(allocate_recv_buffers)
+        self.val_dtype=np.double 
 
         # Make a copy of the original set of nonzeros
         #self.tensor_idxs_backup = [el.copy() for el in self.tensor_idxs]

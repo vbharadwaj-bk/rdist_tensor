@@ -149,7 +149,8 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		inflated_sample_ids = [el[unique_indices] for el in inflated_sample_ids]
 
-		start = start_clock() 
+		start = start_clock()
+
 		sample_nonzeros_redistribute(
 			self.ground_truth.slicer, 
 			unique_samples,
@@ -159,7 +160,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			factor.row_order_to_proc, 
 			recv_idx,
 			recv_values,
-			self.ground_truth.nonzero_redist)
+			allocate_recv_buffers)
 
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	

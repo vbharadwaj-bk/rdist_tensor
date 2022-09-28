@@ -75,6 +75,9 @@ class AlternatingOptimizer:
 		loss_iterations	= []
 		loss_values	= []
 
+		pi = 3                # Same variable meaning as CP-ARLS-LEV 
+		tol = 1e-5
+
 		self.initial_setup()
 
 		for	iter in	range(max_iterations):
@@ -91,10 +94,14 @@ class AlternatingOptimizer:
 					print("Estimated Fit after iteration {}: {}".format(iter, loss)) 
 
 				# Stopping condition 
-				if len(loss_values) >= 2 and loss_values[-1] < loss_values[-2]: 
-					if grid.rank == 0:
-						print(f"Loss failed to decrease after {iter} iterations. Stopping...")
-					break
+				if len(loss_values) > pi: 
+					recent_max_fit = np.max(loss_values[-pi:])
+					old_max_fit = np.max(loss_values[:-pi])
+
+					if recent_max_fit <= old_max_fit + tol:
+						if grid.rank == 0:
+							print(f"Loss failed to decrease after {iter} iterations. Stopping...")
+						break
 
 			# Optimize each factor while keeping the others constant	
 			for	mode_to_optimize in	range(self.dim):

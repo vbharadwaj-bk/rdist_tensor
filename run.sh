@@ -7,7 +7,7 @@
 . modules.sh
 export OMP_NUM_THREADS=1
 
-TENSOR_DIR=tensors
+TENSOR_DIR=$SCRATCH/tensors
 FACTOR_DIR=$SCRATCH/factor_files
 #TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
 #OUTPUT="data/uber.out"
@@ -38,8 +38,8 @@ TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
 OUTPUT="data/reddit.out"
 #FACTOR_FILE="data/reddit_factors.hdf5"
 srun -N 4 -n 512 -u python decompose_sparse.py -i $TENSOR -g "8,8,8" \
-	-t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -s 131000 \
-	-p "log_count" #-f $FACTOR_FILE
+	-t 25 -iter 60 -o $OUTPUT -op "accumulator_stationary" -s 151072 \
+	-p "log_count" -rs 55
 
 #TENSOR=$TENSOR_DIR/tensors/enron.tns_converted.hdf5
 #OUTPUT="data/enron.out"

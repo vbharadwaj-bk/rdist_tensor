@@ -6,7 +6,7 @@ import numpy.linalg	as la
 import json
 
 import cppimport.import_hook
-
+import os
 from datetime import datetime
 
 class AlternatingOptimizer:
@@ -67,6 +67,16 @@ class AlternatingOptimizer:
 		now = datetime.now()
 		self.info["Experiment Time"] = now.strftime("%d/%m/%Y %H:%M:%S")
 		self.info["Epoch Interval"] = epoch_interval 
+		self.info["Random Seed"] = get_init_seed()
+
+		env_variables = ["OMP_NUM_THREADS", "MKL_NUM_THREADS"]
+
+		for var in env_variables:
+			if var in os.enivron:
+				self.info[var] = os.environ[var]
+			else:
+				self.info[var] = None 
+
 
 		low_rank_ten = self.ten_to_optimize
 		ground_truth = self.ground_truth

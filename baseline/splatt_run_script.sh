@@ -1,4 +1,4 @@
-TENSOR_NAME=amazon-reviews
+TENSOR_NAME=uber
 #TENSOR_NAME=reddit-2015
 
 #$SPLATT_LOC/splatt cpd \

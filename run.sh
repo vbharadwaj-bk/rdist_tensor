@@ -32,14 +32,20 @@ FACTOR_DIR=$SCRATCH/factor_files
 #FACTOR_FILE="data/amazon_factors.hdf5"
 #srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" \
 #    -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
-#    -s "131000"
+#    -s "250072" -rs 22343
 
-TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
-OUTPUT="data/reddit.out"
+TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
+OUTPUT="data/amazon.out"
+FACTOR_FILE="data/amazon_factors.hdf5"
+srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" \
+    -t "25" -iter 500 -o $OUTPUT -op "exact"
+
+#TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
+#OUTPUT="data/reddit.out"
 #FACTOR_FILE="data/reddit_factors.hdf5"
-srun -N 4 -n 512 -u python decompose_sparse.py -i $TENSOR -g "8,8,8" \
-	-t 25 -iter 60 -o $OUTPUT -op "accumulator_stationary" -s 131072 \
-	-p "log_count" -rs 55
+#srun -N 4 -n 512 -u python decompose_sparse.py -i $TENSOR -g "8,8,8" \
+#	-t 25 -iter 80 -o $OUTPUT -op "accumulator_stationary" -s 131072 \
+#	-p "log_count" -rs 55
 
 #TENSOR=$TENSOR_DIR/tensors/enron.tns_converted.hdf5
 #OUTPUT="data/enron.out"

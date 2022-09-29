@@ -7,11 +7,18 @@ from exafac.common import *
 
 from numpy.random import default_rng
 
+__seed = None 
 __seed_rng = None 
 
 def initialize_seed_generator(seed):
 	global __seed_rng
+	global __seed
 	__seed_rng = default_rng(seed=seed)
+	__seed = seed
+
+def get_init_seed():
+	global __seed
+	return __seed
 
 def get_random_seed():
 	global __seed_rng

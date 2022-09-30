@@ -32,6 +32,8 @@ class HashedTensorTuples(TensorSampler):
         self.slicer = nz_filter.TensorSlicer(mat_idxs, values)
 
 def allocate_recv_buffers(dim, count, lst_idx, lst_values, idx_t, val_t):
+    lst_idx.clear()
+    lst_values.clear()
     for i in range(dim):
         lst_idx.append(np.empty(count, dtype=str_to_type[idx_t]))
 

@@ -377,7 +377,6 @@ void sample_nonzeros_redistribute(
       int* assignment_ptr = processor_assignments.data();
       vector<uint64_t> send_counts(proc_count, 0);
 
-      #pragma omp parallel for
       for(uint64_t i = 0; i < nnz; i++) {
           int processor = row_order_to_proc.ptr[col_ptr[i] / row_divisor];
           assignment_ptr[i] = processor; 
@@ -396,7 +395,7 @@ void sample_nonzeros_redistribute(
           recv_values_py, 
           allocate_recv_buffers 
           );
-} 
+}
 
 PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse<uint32_t, double>>(m, "COOSparse");

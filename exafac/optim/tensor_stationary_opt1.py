@@ -95,9 +95,6 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		self.info["Samples Reused Between Rounds"] = self.reuse_samples
 
 	def initial_setup(self):
-		'''
-		TODO: Need to time these functions.
-		'''
 		ten = self.ten_to_optimize
 		grid = self.ten_to_optimize.grid 
 		for mode in range(ten.dim):

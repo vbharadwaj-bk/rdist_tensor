@@ -20,6 +20,7 @@ if __name__=='__main__':
     parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
     parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
+    parser.add_argument("--reuse", help="Whether or not to reuse samples between optimization rounds", action=argparse.BooleanOptionalAction)
 
     args = None
     try:
@@ -97,10 +98,10 @@ if __name__=='__main__':
                 optimizer = ExactALS(ten_to_optimize, ground_truth)
             elif args.optimizer == 'tensor_stationary':
                 assert(args.samples is not None and sample_count >= 0)
-                optimizer = TensorStationaryOpt1(ten_to_optimize, ground_truth, sample_count)
+                optimizer = TensorStationaryOpt1(ten_to_optimize, ground_truth, sample_count, reuse_samples=args.reuse)
             elif args.optimizer == 'accumulator_stationary':
                 assert(args.samples is not None and sample_count >= 0)
-                optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, sample_count)
+                optimizer = AccumulatorStationaryOpt1(ten_to_optimize, ground_truth, sample_count, reuse_samples=args.reuse)
             elif args.optimizer == 'generic_grid':
                 assert(args.samples is not None and sample_count >= 0)
                 optimizer = DistributedGridOptimizer(ten_to_optimize, ground_truth, sample_count, None, None)

@@ -7,23 +7,36 @@ FACTOR_DIR=$SCRATCH/factor_files
 # [ 189907, 1240003,  734272, 1215049, 1222111, 1225969, 1721519,
 #        263888, 1578654,  918989]
 
+#TENSOR=$TENSOR_DIR/uber.tns_converted.hdf5
+#OUTPUT="data/baseline_runs/uber.out"
+#for SEED in 189907 1240003 734272 1215049 1222111
+#do
+#    srun -u -N 1 -n 1 python decompose_sparse.py -i $TENSOR -g "1,1,1,1" \
+#        -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
+#        --no-reuse -s "131072" -rs $SEED 
+#done
+
 TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/baseline_runs/amazon.out"
+OUTPUT="data/baseline_runs/amazon_noreuse.out"
 for SEED in 189907 1240003 734272 1215049 1222111
 do
     srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "16,4,8" \
         -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
-        -s "131072" -rs $SEED
+        --no-reuse -s "131072" -rs $SEED 
 done
+
+#TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
+#OUTPUT="data/baseline_runs/reddit.out"
+#for SEED in 189907 1240003 734272 1215049 1222111
+#do
+#    srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "16,4,8" \
+#        -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
+#        -s "131072" -rs $SEED -p "log_count" 
+#done
 
 #TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
 #OUTPUT="data/baseline_runs/amazon.out"
 #srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "16,4,4" \
-#    -t "25" -iter 30 -o $OUTPUT -op "exact"
-
-#TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
-#OUTPUT="data/baseline_runs/reddit.out"
-#srun -u -N 4 -n 256 python decompose_sparse.py -i $TENSOR -g "16,1,16" \
 #    -t "25" -iter 30 -o $OUTPUT -op "exact"
 
 #TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5

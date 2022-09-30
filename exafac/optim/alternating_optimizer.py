@@ -72,10 +72,10 @@ class AlternatingOptimizer:
 		env_variables = ["OMP_NUM_THREADS", "MKL_NUM_THREADS"]
 
 		for var in env_variables:
-			if var in os.enivron:
+			if var in os.environ:
 				self.info[var] = os.environ[var]
 			else:
-				self.info[var] = None 
+				self.info[var] = "UNSET" 
 
 
 		low_rank_ten = self.ten_to_optimize

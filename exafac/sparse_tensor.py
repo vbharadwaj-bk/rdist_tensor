@@ -147,22 +147,26 @@ class DistSparseTensor:
         self.offset_idxs = [self.tensor_idxs[j] 
             + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
 
-        self.mat_idxs = np.zeros((
-            len(self.tensor_idxs[0]),
-            self.dim
-            ),
-            dtype=self.tensor_idxs[0].dtype
-        )
+        #self.mat_idxs = np.zeros((
+        #    len(self.tensor_idxs[0]),
+        #    self.dim
+        #    ),
+        #    dtype=self.tensor_idxs[0].dtype
+        #)
 
-        for i in range(self.dim):
-            self.mat_idxs[:, i] = self.offset_idxs[i]
+        #for i in range(self.dim):
+        #    self.mat_idxs[:, i] = self.offset_idxs[i]
 
         #print("Starting construction of a tensor slicer...")
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)
-        self.slicer = nz_filter.TensorSlicer(self.mat_idxs, self.values)
-        #print("Finished construction of a tensor slicer...")
 
-        #self.offset_idxs = None
+        row_divisors = np.zeros(self.dim, dtype=np.int)
+        for i in range(self.dim):
+            rows = tensor_grid.tensor_dims[i] 
+            row_divisors[i] = round_to_nearest_np_arr(rows, grid.world_size)
+
+        self.slicer = nz_filter.TensorSlicer(self.offset_idxs, self.values,
+                tensor_grid.grid.row_positions, row_divisors)
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 

@@ -156,16 +156,48 @@ class TensorSlicer {
 public:
   vector<HashIdxLookup<IDX_T, VAL_T>> lookups;
 
-  TensorSlicer(py::array_t<IDX_T> idxs_py, py::array_t<VAL_T> vals_py) {
-    NumpyArray<IDX_T> idxs(idxs_py);
+  TensorSlicer(py::list idxs_py, py::array_t<VAL_T> vals_py,
+    py::list row_order_to_procs_py, py::array_t<int> row_divisors_py) {
+    NumpyList<IDX_T> idxs(idxs_py);
     NumpyArray<VAL_T> vals(vals_py);
+    NumpyArray<int> row_divisors(row_divisors_py);
+    NumpyList<int> row_order_to_procs(row_order_to_procs_py);
+    uint64_t proc_count = row_order_to_procs.infos[0].shape[0];
 
-    int dim = idxs.info.shape[1];
+    int dim = idxs.length;
     uint64_t nnz = vals.info.shape[0];
 
-    for(int i = 0; i < dim; i++) {
-      lookups.emplace_back(dim, i, idxs.ptr, vals.ptr, nnz);
+    vector<int> processor_assignments(nnz, 0);
+    int* assignment_ptr = processor_assignments.data();
+    vector<uint64_t> send_counts(proc_count, 0);
+
+    for(int j = 0; j < dim; j++) {
+      int row_divisor = row_divisors.ptr[j];
+      for(uint64_t i = 0; i < nnz; i++) {
+          int processor = row_order_to_procs.ptrs[j][idxs.ptrs[j][i] / row_divisor];
+          assignment_ptr[i] = processor; 
+          send_counts[processor]++;
+      } 
+
+      vector<IDX_T> recv_idxs;
+      vector<VAL_T> recv_values; 
+      tensor_alltoallv_vector_result(
+          dim,
+          proc_count,
+          nnz,
+          idxs,
+          vals,
+          processor_assignments,
+          send_counts,
+          recv_idxs,
+          recv_values
+          );
+
+      lookups.emplace_back(dim, j, recv_idxs.data(), recv_values.data(), 
+          recv_values.size());
     }
+    cout << "Finished fast tensor lookup!" << endl;
+    exit(1); 
   }
 
   void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
@@ -401,7 +433,7 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   py::class_<COOSparse<uint32_t, double>>(m, "COOSparse");
 
   py::class_<TensorSlicer<uint32_t, double>>(m, "TensorSlicer")
-    .def(py::init<py::array_t<uint32_t>, py::array_t<double>>());
+    .def(py::init<py::list, py::array_t<double>, py::list, py::array_t<int>>());
 
   m.def("sample_nonzeros_u32_double", &sample_nonzeros<uint32_t, double>);
   m.def("sample_nonzeros_redistribute_u32_double", &sample_nonzeros_redistribute<uint32_t, double>);

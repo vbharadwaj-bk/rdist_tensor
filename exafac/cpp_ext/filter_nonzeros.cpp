@@ -106,6 +106,8 @@ public:
   TupleHasher<IDX_T> hasher;
   TupleEqual<IDX_T> equality_checker;
 
+  vector<IDX_T> idx_copies;
+
   HashIdxLookup(int dim, int mode_to_leave, IDX_T* idx_ptr, VAL_T* val_ptr, uint64_t nnz) :
     hasher(mode_to_leave, dim), equality_checker(mode_to_leave, dim) {
 
@@ -127,9 +129,13 @@ public:
 
       uint64_t bucket;
       if(res == lookup_table->end()) {
+        uint64_t offset = idx_copies.size();
+        for(int j = 0; j < dim; j++) {
+          idx_copies.push_back(idx[j]);
+        }
         bucket = num_buckets++;
         storage.emplace_back();
-        lookup_table->insert(make_pair(idx, bucket));
+        lookup_table->insert(make_pair(idx_copies.data() + offset, bucket));
       }
       else {
         bucket = res->second; 
@@ -167,12 +173,13 @@ public:
     int dim = idxs.length;
     uint64_t nnz = vals.info.shape[0];
 
-    vector<int> processor_assignments(nnz, 0);
-    int* assignment_ptr = processor_assignments.data();
-    vector<uint64_t> send_counts(proc_count, 0);
-
     for(int j = 0; j < dim; j++) {
+      vector<int> processor_assignments(nnz, 0);
+      int* assignment_ptr = processor_assignments.data();
+      vector<uint64_t> send_counts(proc_count, 0);
+
       int row_divisor = row_divisors.ptr[j];
+
       for(uint64_t i = 0; i < nnz; i++) {
           int processor = row_order_to_procs.ptrs[j][idxs.ptrs[j][i] / row_divisor];
           assignment_ptr[i] = processor; 
@@ -196,8 +203,6 @@ public:
       lookups.emplace_back(dim, j, recv_idxs.data(), recv_values.data(), 
           recv_values.size());
     }
-    cout << "Finished fast tensor lookup!" << endl;
-    exit(1); 
   }
 
   void lookup_and_append(IDX_T r_idx, double weight, IDX_T* buf, int mode_to_leave, COOSparse<IDX_T, VAL_T> &res) {
@@ -443,8 +448,8 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-fopenmp', '-O3', '-finline-limit=1000', '-march=native']
-cfg['extra_link_args'] = ['-openmp', '-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
+cfg['extra_compile_args'] = ['-fopenmp', '-g', '-finline-limit=1000', '-march=native']
+cfg['extra_link_args'] = ['-openmp', '-g', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
 cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
 cfg['libraries'] = ['cuckoofilter']
 %>

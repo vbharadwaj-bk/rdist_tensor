@@ -122,8 +122,8 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		recv_idx, recv_values = [], []
 
-		sample_nonzeros_redistribute = get_templated_function(nz_filter, 
-                "sample_nonzeros_redistribute", 
+		sample_nonzeros = get_templated_function(nz_filter, 
+                "sample_nonzeros", 
                 [np.uint32, np.double])
 
 		# We will convert the sample indices to a matrix
@@ -151,16 +151,15 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock()
 
-		sample_nonzeros_redistribute(
+		sample_nonzeros(
 			self.ground_truth.slicer, 
 			unique_samples,
 			weights,
-			mode_to_leave,	
-			factor.local_rows_padded,
-			factor.row_order_to_proc, 
+			mode_to_leave,
 			recv_idx,
 			recv_values,
-			allocate_recv_buffers)
+			allocate_recv_buffers			
+			)
 
 		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	

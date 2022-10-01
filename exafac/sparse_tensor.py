@@ -163,7 +163,7 @@ class DistSparseTensor:
         row_divisors = np.zeros(self.dim, dtype=np.int)
         for i in range(self.dim):
             rows = tensor_grid.tensor_dims[i] 
-            row_divisors[i] = round_to_nearest_np_arr(rows, grid.world_size)
+            row_divisors[i] = round_to_nearest_np_arr(rows, grid.world_size) // grid.world_size
 
         self.slicer = nz_filter.TensorSlicer(self.offset_idxs, self.values,
                 tensor_grid.grid.row_positions, row_divisors)

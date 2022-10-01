@@ -129,13 +129,9 @@ public:
 
       uint64_t bucket;
       if(res == lookup_table->end()) {
-        uint64_t offset = idx_copies.size();
-        for(int j = 0; j < dim; j++) {
-          idx_copies.push_back(idx[j]);
-        }
         bucket = num_buckets++;
         storage.emplace_back();
-        lookup_table->insert(make_pair(idx_copies.data() + offset, bucket));
+        lookup_table->insert(make_pair(idx, bucket));
       }
       else {
         bucket = res->second; 
@@ -162,6 +158,9 @@ class TensorSlicer {
 public:
   vector<HashIdxLookup<IDX_T, VAL_T>> lookups;
 
+  vector<vector<IDX_T>> recv_idxs;
+  vector<vector<VAL_T>> recv_values;
+
   TensorSlicer(py::list idxs_py, py::array_t<VAL_T> vals_py,
     py::list row_order_to_procs_py, py::array_t<int> row_divisors_py) {
     NumpyList<IDX_T> idxs(idxs_py);
@@ -184,10 +183,10 @@ public:
           int processor = row_order_to_procs.ptrs[j][idxs.ptrs[j][i] / row_divisor];
           assignment_ptr[i] = processor; 
           send_counts[processor]++;
-      } 
+      }
 
-      vector<IDX_T> recv_idxs;
-      vector<VAL_T> recv_values; 
+      recv_idxs.emplace_back();
+      recv_values.emplace_back();
       tensor_alltoallv_vector_result(
           dim,
           proc_count,
@@ -196,12 +195,14 @@ public:
           vals,
           processor_assignments,
           send_counts,
-          recv_idxs,
-          recv_values
+          recv_idxs[j],
+          recv_values[j]
           );
 
-      lookups.emplace_back(dim, j, recv_idxs.data(), recv_values.data(), 
-          recv_values.size());
+      lookups.emplace_back(dim, j, 
+          recv_idxs[j].data(), 
+          recv_values[j].data(), 
+          recv_values[j].size());
     }
   }
 

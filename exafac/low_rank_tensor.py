@@ -70,7 +70,7 @@ class DistLowRank:
     def get_singular_values(self):
         return chain_multiply_buffers([factor.col_norms for factor in self.factors])
 
-    def compute_tensor_values(self, idxs):
+    def compute_tensor_values(self, idxs, offsets):
         '''
         Calls into the C++ layer to compute the value of the low rank tensor
         at specific indices
@@ -81,7 +81,7 @@ class DistLowRank:
         compute_tensor_values = get_templated_function(tensor_kernels, 
                 "compute_tensor_values", 
                 [np.uint32])
-        compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, result)
+        compute_tensor_values(gathered_matrices, self.get_singular_values(), idxs, offsets, result)
         return result
 
     def norm(self):
@@ -99,7 +99,7 @@ class DistLowRank:
         return self.compute_exact_fit(ground_truth)
 
     def compute_exact_fit(self, ground_truth):
-        approx_values = self.compute_tensor_values(ground_truth.tensor_idxs)
+        approx_values = self.compute_tensor_values(ground_truth.offset_idxs, ground_truth.offsets)
         approx_normsq = self.norm() ** 2
         gt_normsq = ground_truth.tensor_norm ** 2 
         inner_prod = np.dot(approx_values, ground_truth.values) 
@@ -127,7 +127,7 @@ class DistLowRank:
             rng = np.random.default_rng(seed=get_random_seed()) 
 
             # Compute the loss on the nonzeros 
-            lr_values = self.compute_tensor_values(ground_truth.tensor_idxs) 
+            lr_values = self.compute_tensor_values(ground_truth.tensor_idxs, ground_truth.offsets) 
             nonzero_loss = get_norm_distributed(ground_truth.values - lr_values, self.grid.comm)
 
             #return nonzero_loss

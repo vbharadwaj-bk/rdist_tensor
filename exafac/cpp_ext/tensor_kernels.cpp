@@ -77,10 +77,12 @@ void compute_tensor_values(
         py::list factors_py,
         py::array_t<double> singular_values_py,
         py::list idxs_py,
+        py::array_t<IDX_T> offsets_py,
         py::array_t<double> result_py) {
     NumpyList<double> factors(factors_py);
     NumpyArray<double> singular_values(singular_values_py);
     NumpyList<IDX_T> idxs(idxs_py);
+    NumpyArray<IDX_T> offsets(offsets_py);
     NumpyArray<double> result(result_py);
 
     uint64_t nnz = idxs.infos[0].shape[0];
@@ -96,7 +98,8 @@ void compute_tensor_values(
         #pragma omp for
         for(uint64_t i = 0; i < nnz; i++) {
             for(int j = 0; j < factors.length; j++) {
-                base_ptrs[j] = factors.ptrs[j] + idxs.ptrs[j][i] * cols;
+                base_ptrs[j] = factors.ptrs[j] 
+                    + (idxs.ptrs[j][i] - offsets.ptr[j]) * cols;
             } 
             double value = 0.0;
             for(uint64_t k = 0; k < cols; k++) {

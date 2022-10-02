@@ -187,6 +187,13 @@ public:
 
       recv_idxs.emplace_back();
       recv_values.emplace_back();
+
+      int rank;
+      MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+      if(rank == 0) {
+        cout << "Started alltoallv..." << endl;
+      }
+
       tensor_alltoallv_vector_result(
           dim,
           proc_count,
@@ -198,6 +205,10 @@ public:
           recv_idxs[j],
           recv_values[j]
           );
+
+      if(rank == 0) {
+        cout << "Finished alltoallv..." << endl;
+      }
 
       lookups.emplace_back(dim, j, 
           recv_idxs[j].data(), 

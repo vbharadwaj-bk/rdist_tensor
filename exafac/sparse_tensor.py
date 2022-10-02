@@ -87,16 +87,15 @@ class DistSparseTensor:
         world_comm.Allreduce([local_norm, MPI.DOUBLE], [result, MPI.DOUBLE]) 
         self.tensor_norm = np.sqrt(result.item())
 
-        self.offsets = np.zeros(self.dim, dtype=np.uint64)
-
         # TODO: Eventually, will support more than these two datatypes 
         self.idx_dtype=np.uint32
-        self.val_dtype=np.double 
+        self.val_dtype=np.double
+
+        self.offsets = np.zeros(self.dim, dtype=np.uint64) 
 
         # Make a copy of the original set of nonzeros
         #self.tensor_idxs_backup = [el.copy() for el in self.tensor_idxs]
         #self.values_backup = self.values.copy() 
-
 
     def random_permute(self):
         '''
@@ -138,14 +137,18 @@ class DistSparseTensor:
 
         for j in range(self.dim):
             self.offsets[j] = self.tensor_grid.start_coords[j][grid.coords[j]]
-            self.tensor_idxs[j] -= self.offsets[j] 
+            #self.tensor_idxs[j] -= self.offsets[j] 
+
+        self.offsets = np.array(self.offsets, dtype=np.uint32)
 
         # TODO: Need to add the index filter back in!
         #self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.01)
 
         # TODO: This takes up a lot of extra space! Should amortize away 
-        self.offset_idxs = [self.tensor_idxs[j] 
-            + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
+        #self.offset_idxs = [self.tensor_idxs[j] 
+        #    + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
+
+        self.offset_idxs = self.tensor_idxs
 
         #self.mat_idxs = np.zeros((
         #    len(self.tensor_idxs[0]),

@@ -123,6 +123,3 @@ if __name__=='__main__':
 
             if grid.rank == 0:
                 print(f"Finished tensor decomposition...") 
-    
-    if grid.rank == 0:
-        print("Finalized SHMEM...")

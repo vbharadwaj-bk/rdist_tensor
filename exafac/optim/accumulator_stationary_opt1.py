@@ -165,7 +165,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
 		offset = factor.row_position * factor.local_rows_padded
-		recv_idx[1] -= offset 
+		recv_idx[1] -= offset
 
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Nonzero Filtering + Redistribute")

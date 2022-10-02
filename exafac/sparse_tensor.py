@@ -166,7 +166,7 @@ class DistSparseTensor:
             row_divisors[i] = round_to_nearest_np_arr(rows, grid.world_size) // grid.world_size
 
         self.slicer = nz_filter.TensorSlicer(self.offset_idxs, self.values,
-                tensor_grid.grid.row_positions, row_divisors)
+                tensor_grid.grid.row_order_to_procs, row_divisors)
 
     def sampled_mttkrp(self, mode, factors, sampled_idxs, sampled_lhs, sampled_rhs, weights):
         factors[mode] *= 0.0 

@@ -449,8 +449,8 @@ PYBIND11_MODULE(filter_nonzeros, m) {
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-fopenmp', '-g', '-finline-limit=1000', '-march=native']
-cfg['extra_link_args'] = ['-openmp', '-g', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
+cfg['extra_compile_args'] = ['-fopenmp', '-O3', '-finline-limit=1000', '-march=native']
+cfg['extra_link_args'] = ['-openmp', '-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
 cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
 cfg['libraries'] = ['cuckoofilter']
 %>

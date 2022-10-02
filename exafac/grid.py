@@ -33,12 +33,20 @@ class Grid:
         # so that teams along each slice can participate in all-gather / reduce-scatter
         # operations.  
         self.row_positions = []
+        self.row_order_to_procs = []
 
         for slice_dim in range(self.dim):
             row_position = cl(self.slices[slice_dim].Get_rank() + \
                 self.coords[slice_dim] * self.slices[slice_dim].Get_size())
 
             self.row_positions.append(np.array(self.world_comm.allgather(row_position)))
+            
+            row_order_to_proc = np.zeros(self.world_size, dtype=np.int)
+
+            for i in range(self.world_size):
+                row_order_to_proc[self.row_positions[-1][i]] = i 
+
+            self.row_order_to_procs.append(row_order_to_proc)
 
     def get_prefix_array(self):
         lst = [one_const]

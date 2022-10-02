@@ -77,7 +77,6 @@ class AlternatingOptimizer:
 			else:
 				self.info[var] = "UNSET" 
 
-
 		low_rank_ten = self.ten_to_optimize
 		ground_truth = self.ground_truth
 		grid = low_rank_ten.grid

@@ -92,9 +92,10 @@ class AlternatingOptimizer:
 		for	iter in	range(max_iterations):
 			if grid.rank == 0:
 				print(f"Starting iteration {iter}...")
-			if (epoch_interval != 0 and iter % epoch_interval == 0) \
+			if ((epoch_interval != 0 and iter % epoch_interval == 0) \
 					or iter == 0 \
-					or iter == max_iterations - 1:
+					or iter == max_iterations - 1) \
+					and False:
 				loss = low_rank_ten.compute_loss(ground_truth)
 				loss_iterations.append(iter)
 				loss_values.append(loss.item())

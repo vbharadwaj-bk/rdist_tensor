@@ -144,21 +144,7 @@ class DistSparseTensor:
         # TODO: Need to add the index filter back in!
         #self.idx_filter = bf.IndexFilter(self.tensor_idxs, 0.01)
 
-        # TODO: This takes up a lot of extra space! Should amortize away 
-        #self.offset_idxs = [self.tensor_idxs[j] 
-        #    + self.offsets[j].astype(np.uint32) for j in range(self.dim)]
-
         self.offset_idxs = self.tensor_idxs
-
-        #self.mat_idxs = np.zeros((
-        #    len(self.tensor_idxs[0]),
-        #    self.dim
-        #    ),
-        #    dtype=self.tensor_idxs[0].dtype
-        #)
-
-        #for i in range(self.dim):
-        #    self.mat_idxs[:, i] = self.offset_idxs[i]
 
         #print("Starting construction of a tensor slicer...")
         #self.sampler = HashedSampleSet(self.mat_idxs, self.offsets, self.values)

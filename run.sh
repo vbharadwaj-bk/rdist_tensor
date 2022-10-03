@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -N 8
+#SBATCH -N 16
 #SBATCH -C cpu 
 #SBATCH -q regular 
-#SBATCH -t 02:00:00
+#SBATCH -t 00:10:00
 
 . modules.sh
 export OMP_NUM_THREADS=1
@@ -34,18 +34,17 @@ FACTOR_DIR=$SCRATCH/factor_files
 #    -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
 #    -s "250072" -rs 22343
 
-TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/amazon.out"
-FACTOR_FILE="data/amazon_factors.hdf5"
-srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" \
-    -t "25" -iter 500 -o $OUTPUT -op "exact"
+#TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
+#OUTPUT="data/amazon.out"
+#FACTOR_FILE="data/amazon_factors.hdf5"
+#srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "8,8,8" \
+#    -t "25" -iter 500 -o $OUTPUT -op "exact"
 
-#TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
-#OUTPUT="data/reddit.out"
-#FACTOR_FILE="data/reddit_factors.hdf5"
-#srun -N 4 -n 512 -u python decompose_sparse.py -i $TENSOR -g "8,8,8" \
-#	-t 25 -iter 80 -o $OUTPUT -op "accumulator_stationary" -s 131072 \
-#	-p "log_count" -rs 55
+TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5
+OUTPUT="data/scaling_runs/reddit_tensor_stationary.out"
+FACTOR_FILE="data/reddit_factors.hdf5"
+srun -N 16 -n 2048 -u python decompose_sparse.py -i $TENSOR -g "32,2,32" \
+	-t 50 -iter 50 -o $OUTPUT -op "tensor_stationary" -p "log_count" -rs 55 -s 150000 
 
 #TENSOR=$TENSOR_DIR/tensors/enron.tns_converted.hdf5
 #OUTPUT="data/enron.out"

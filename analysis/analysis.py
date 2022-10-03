@@ -11,18 +11,17 @@ def get_experiments(filename):
     return json.loads(lines)
 
 # data is a list of dictionaries, all of which must have the same keys. 
-def make_stacked_barchart(ax, x_positions, width, data, keys, tick_labels, vertical=True):
+def make_stacked_barchart(ax, x_positions, width, data, keys, tick_labels, colors, vertical=True):
     num_bars = len(data)
-    #colors = ['green', 'goldenrod', 'slateblue', 'pink', 'brown']
 
     bar_edges = np.zeros(num_bars)
     for i in range(len(keys)):
         bar_data = np.array([data[j][keys[i]] for j in range(num_bars)]) 
 
         if vertical:
-            ax.bar(x_positions, bar_data, width, bottom=bar_edges, edgecolor='black', label=keys[i])
+            ax.bar(x_positions, bar_data, width, bottom=bar_edges, edgecolor='black', label=keys[i], color=colors[i])
         else:
-            ax.barh(x_positions, bar_data, width, left=bar_edges, edgecolor='black', label=keys[i])
+            ax.barh(x_positions, bar_data, width, left=bar_edges, edgecolor='black', label=keys[i], color=colors[i])
 
         bar_edges += bar_data
 

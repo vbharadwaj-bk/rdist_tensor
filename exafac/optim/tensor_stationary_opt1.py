@@ -69,9 +69,9 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, tensor_grid, t
 
 	# Now, we will filter out only the samples relevant to this processor 
 
-	filter_member_samples = get_templated_function(tensor_kernels, 
-			"filter_member_samples", 
-			[np.uint32])
+	#filter_member_samples = get_templated_function(tensor_kernels, 
+	#		"filter_member_samples", 
+	#		[np.uint32])
 
 	#result = filter_member_samples(tensor_grid.bound_starts,
 	#			tensor_grid.bound_ends, 
@@ -137,6 +137,7 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
+		start = start_clock() 
 
 		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
 				mode_to_leave, tensor_grid, self.timers, self.reuse_samples)
@@ -170,7 +171,6 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 
 		inflated_sample_ids = [el[unique_indices] for el in inflated_sample_ids]
 
-		start = start_clock() 
 		sample_nonzeros(
 			self.ground_truth.slicer, 
 			unique_samples,
@@ -181,7 +181,7 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 			allocate_recv_buffers			
 			)
 
-		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
+		#total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
 		offset = self.ground_truth.offsets[mode_to_leave].astype(np.uint32) 
@@ -202,6 +202,10 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 		spmm_compressed = get_templated_function(tensor_kernels, 
                 "spmm_compressed", 
                 [np.uint32, np.double])
+		
+		#total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
+		#if grid.rank == 0:
+		#	print(f"Nonzeros sampled: {total_nnz_sampled}")	
 
 		spmm_compressed(
 			inflated_sample_ids,
@@ -234,10 +238,12 @@ class TensorStationaryOpt1(AlternatingOptimizer):
 
 		start = start_clock()
 		factor.compute_gram_matrix()
+		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Gram Matrix Computation")
 
 		start = start_clock() 
 		factor.compute_leverage_scores()
+		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "Leverage Score Computation")
 
 		# Gather up samples here for future ALS iterations 

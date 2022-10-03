@@ -120,6 +120,7 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		sample_idxs, weights, inflated_sample_ids, mode_rows = gather_samples_lhs(factors, s, 
 				mode_to_leave, grid, self.timers, self.reuse_samples)
 
+		start = start_clock()
 		recv_idx, recv_values = [], []
 
 		sample_nonzeros_redistribute = get_templated_function(nz_filter, 
@@ -149,8 +150,6 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 
 		inflated_sample_ids = [el[unique_indices] for el in inflated_sample_ids]
 
-		start = start_clock()
-
 		sample_nonzeros_redistribute(
 			self.ground_truth.slicer, 
 			unique_samples,
@@ -162,7 +161,10 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 			recv_values,
 			allocate_recv_buffers)
 
-		total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
+		#total_nnz_sampled = grid.comm.allreduce(len(recv_idx[0]))
+		#if grid.rank == 0:
+		#	print(f"Nonzeros sampled: {total_nnz_sampled}")	
+
 		#self.info["Nonzeros Sampled Per Round"].append(total_nnz_sampled)	
 
 		offset = factor.row_position * factor.local_rows_padded

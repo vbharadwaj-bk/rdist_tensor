@@ -21,6 +21,7 @@ if __name__=='__main__':
     parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
     parser.add_argument("--reuse", help="Whether or not to reuse samples between optimization rounds", action=argparse.BooleanOptionalAction)
+    parser.add_argument("-pre_optim", help="# of Exact ALS iterations to run before sketching (for CAIDA tensors)", required=False, type=int, default=0)
 
     args = None
     try:
@@ -116,10 +117,22 @@ if __name__=='__main__':
             #ten_to_optimize.grid = new_grid
             #ten_to_optimize.tensor_grid = new_tensor_grid
 
+            pre_info = None
+            if args.pre_optim > 0:
+                pre_optim = ExactALS(ten_to_optimize, ground_truth)
+                if grid.rank == 0:
+                    print("Starting pre-optimization...")
+                pre_optim.fit(output_file=None, factor_file=None, 
+                    max_iterations=args.pre_optim,epoch_interval=1,
+                    early_stop=False)
+                pre_info = pre_optim.info
+
             optimizer.fit(output_file=args.output,
                     factor_file = args.factor_file,
                     max_iterations=args.iter, 
-                    epoch_interval=args.epoch_iter)
+                    epoch_interval=args.epoch_iter,
+                    start_iter=args.pre_optim,
+                    pre_info=pre_info)
 
             if grid.rank == 0:
                 print(f"Finished tensor decomposition...") 

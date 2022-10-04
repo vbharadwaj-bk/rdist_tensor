@@ -58,11 +58,13 @@ class AlternatingOptimizer:
 		for key in self.timers:
 			self.timers[key] = 0.0
 
-	def	fit(self, max_iterations, output_file, factor_file=None, epoch_interval=5):
+	def	fit(self, max_iterations, output_file, factor_file=None, epoch_interval=5,
+		early_stop=True, start_iter=0, pre_info=None):
 		assert(epoch_interval>= 0)
 
 		self.zero_timers()
-		self.info["Max Iteration Count"] = max_iterations 
+		self.info["Max Iteration Count"] = max_iterations
+		self.info["Pre-optimizer Statistics"] = pre_info
 
 		now = datetime.now()
 		self.info["Experiment Time"] = now.strftime("%d/%m/%Y %H:%M:%S")
@@ -77,7 +79,6 @@ class AlternatingOptimizer:
 			else:
 				self.info[var] = "UNSET" 
 
-
 		low_rank_ten = self.ten_to_optimize
 		ground_truth = self.ground_truth
 		grid = low_rank_ten.grid
@@ -90,7 +91,7 @@ class AlternatingOptimizer:
 
 		self.initial_setup()
 
-		for	iter in	range(max_iterations):
+		for	iter in	range(start_iter, max_iterations):
 			if grid.rank == 0:
 				print(f"Starting iteration {iter}...")
 			if (epoch_interval != 0 and iter % epoch_interval == 0) \
@@ -108,7 +109,7 @@ class AlternatingOptimizer:
 					recent_max_fit = np.max(loss_values[-pi:])
 					old_max_fit = np.max(loss_values[:-pi])
 
-					if recent_max_fit <= old_max_fit + tol:
+					if recent_max_fit <= old_max_fit + tol and early_stop:
 						if grid.rank == 0:
 							print(f"Loss failed to decrease after {iter} iterations. Stopping...")
 						break
@@ -120,7 +121,7 @@ class AlternatingOptimizer:
 		self.info["Loss Iterations"] = loss_iterations	
 		self.info["Loss Values"] = loss_values	
 
-		if self.grid.rank == 0:
+		if self.grid.rank == 0 and output_file is not None:
 			f =	open(output_file, 'a')
 			json_obj = json.dumps(self.info, indent=4)
 			f.write(json_obj + ",\n")

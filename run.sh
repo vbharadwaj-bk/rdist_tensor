@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -N 32
+#SBATCH -N 8
 #SBATCH -C cpu 
-#SBATCH -q regular 
-#SBATCH -t 00:12:00
+#SBATCH -q debug 
+#SBATCH -t 00:05:00
 
 . modules.sh
 export OMP_NUM_THREADS=1
@@ -54,10 +54,16 @@ FACTOR_DIR=$SCRATCH/factor_files
 #	-t 25 -iter 15 -o $OUTPUT -op "accumulator_stationary" -f $FACTOR_FILE -s 131000 \
 #	-p "log_count"
 
-TENSOR=$TENSOR_DIR/caida_small.hdf5
-OUTPUT="data/scaling_runs/caida_small_as.out"
-FACTOR_FILE=$FACTOR_DIR/caida_factors.hdf5
+
+# OUTPUT="data/scaling_runs/caida_medium_tensor_stationary.out"
+# FACTOR_FILE=$FACTOR_DIR/caida_factors.hdf5
+
+TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
+OUTPUT="data/scaling_runs/amazon.out"
+
 srun -N 4 -u -n 512 python decompose_sparse.py -i $TENSOR  \
-	-g "16,16,2" -iter 50 \
-    -o $OUTPUT -op "exact" -t "15" -p "log_count" #\
-	#-s "80000" -pre_optim 1
+	-g "16,4,8" -iter 50 \
+    -o $OUTPUT -op "accumulator_stationary" -t "50" \
+	-s "150000" #-pre_optim 1 
+
+# -p "log_count"

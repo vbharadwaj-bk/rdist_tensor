@@ -132,7 +132,8 @@ if __name__=='__main__':
                     max_iterations=args.iter, 
                     epoch_interval=args.epoch_iter,
                     start_iter=args.pre_optim,
-                    pre_info=pre_info)
+                    pre_info=pre_info,
+                    early_stop=False)
 
             if grid.rank == 0:
                 print(f"Finished tensor decomposition...") 

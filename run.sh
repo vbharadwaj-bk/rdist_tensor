@@ -1,8 +1,8 @@
 #!/bin/bash
-#SBATCH -N 8
+#SBATCH -N 16
 #SBATCH -C cpu 
-#SBATCH -q debug 
-#SBATCH -t 00:05:00
+#SBATCH -q regular 
+#SBATCH -t 00:10:00
 
 . modules.sh
 export OMP_NUM_THREADS=1
@@ -59,11 +59,12 @@ FACTOR_DIR=$SCRATCH/factor_files
 # FACTOR_FILE=$FACTOR_DIR/caida_factors.hdf5
 
 TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/scaling_runs/amazon.out"
+OUTPUT="data/amazon.out"
 
 srun -N 4 -u -n 512 python decompose_sparse.py -i $TENSOR  \
-	-g "16,4,8" -iter 50 \
-    -o $OUTPUT -op "accumulator_stationary" -t "50" \
-	-s "150000" #-pre_optim 1 
-
-# -p "log_count"
+	-g "8,8,8" -iter 65 \
+    -o $OUTPUT -op "exact" -t "25" 
+	
+	#-p "log_count"	
+	#\
+	#--no-reuse -s 150000 -p "log_count"

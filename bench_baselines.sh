@@ -17,12 +17,12 @@ FACTOR_DIR=$SCRATCH/factor_files
 #done
 
 TENSOR=$TENSOR_DIR/amazon-reviews.tns_converted.hdf5
-OUTPUT="data/baseline_runs/amazon_noreuse.out"
+OUTPUT="data/baseline_runs/amazon_exact.out"
 for SEED in 189907 1240003 734272 1215049 1222111
 do
     srun -u -N 4 -n 512 python decompose_sparse.py -i $TENSOR -g "16,4,8" \
         -t "25" -iter 500 -o $OUTPUT -op "accumulator_stationary" \
-        --no-reuse -s "131072" -rs $SEED 
+        -s "131072" -rs $SEED 
 done
 
 #TENSOR=$TENSOR_DIR/reddit-2015.tns_converted.hdf5

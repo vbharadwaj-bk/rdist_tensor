@@ -26,3 +26,4 @@ slurm*
 !data/.empty
 !tensors/.empty
 !tensors/frostt_tensors.txt
+!visualization/chart_generator.ipynb

@@ -1,34 +1,12 @@
 import os, subprocess, tempfile
-from multiprocessing import Process 
-from rpc_utilities import *
-import rpyc
-from rpyc.utils.server import OneShotServer 
+from multiprocessing import Process
+from multiprocessing.connection import Client, Listener
 import time
+
+from rpc_utilities import *
 
 RPC_OUT_PORT=18633
 RPC_IN_PORT=18632
-
-class Controller_Service(rpyc.Service):
-    def __init__(self):
-        self.root_hostname = None
-
-    def on_connect(self, conn):
-        pass
-
-    def on_disconnect(self, conn):
-        pass
-
-    def exposed_set_root_hostname(self, hostname): 
-        print(f"Root is running on {hostname}")
-        self.root_hostname = hostname
-
-def start_controller_service():
-    ctrl_hostname, _ = run_shell_cmd("hostname") 
-    ctrl_hostname = ctrl_hostname.rstrip("\n")
-
-    controller = Controller_Service()
-    t = OneShotServer(controller, hostname=ctrl_hostname, port=RPC_IN_PORT)
-    t.start()
 
 def exafac_start_function(node_count, proc_count, isolate_controller=False):
     nodes = parse_nodelist(os.environ['SLURM_NODELIST'])
@@ -52,19 +30,24 @@ def exafac_start_function(node_count, proc_count, isolate_controller=False):
 
 class Exafac:
     def __init__(self):
-        self.controller_service = Process(target=start_controller_service)
-        self.exafac = Process(target=exafac_start_function, args=(1, 1))
-
-        self.controller_service.start()
-        time.sleep(1) 
+        self.exafac = Process(target=exafac_start_function, args=(1, 4))
         self.exafac.start()
-        self.controller_service.join()
 
-        #c = rpyc.connect("host", port)
-        #c.root
-        #print(c.root.get_answer())
-        #c.close()
-        #self.server.join()
+        ctrl_hostname, _ = run_shell_cmd("hostname") 
+        ctrl_hostname = ctrl_hostname.rstrip("\n")
+
+        self.listener = Listener((ctrl_hostname, RPC_IN_PORT))
+        self.from_exafac = self.listener.accept()
+        root_hostname = self.from_exafac.recv()
+        print(f"Exafac rank 0 is running on {root_hostname}...")
+        time.sleep(1)
+        self.to_exafac = Client((root_hostname, RPC_OUT_PORT))
+
+    def send_commands(self):
+        for i in range(4):
+            self.to_exafac.send(["execute", 50])
 
 if __name__=="__main__":
     cpals = Exafac()
+    cpals.send_commands()
+    

@@ -1,38 +1,35 @@
 # Requires rpyc as a dependency
-import rpyc
-from multiprocessing import Pool, Queue, Lock, Process
-from rpyc.utils.server import OneShotServer 
+from multiprocessing.connection import Client, Listener
+from re import I
+
 from rpc_utilities import *
 import sys
-import subprocess
+from mpi4py import MPI
 
-class Exafac_Server(rpyc.Service):
-    def on_connect(self, conn):
-        # code that runs when a connection is created
-        # (to init the service, if needed)
-        pass
+class Exafac_Server:
+    def __init__(self, ctrl_hostname, ctrl_port, server_port):
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
 
-    def on_disconnect(self, conn):
-        # code that runs after the connection has already closed
-        # (to finalize the service, if needed)
-        pass
+        if rank == 0:
+            hostname, _ = run_shell_cmd("hostname") 
+            hostname = hostname.rstrip("\n")
 
-    def exposed_get_answer(self): # this is an exposed method
-        return 42
+            self.to_controller = Client((ctrl_hostname, ctrl_port))
+            self.to_controller.send(hostname)
+            self.listener = Listener((hostname, server_port))
+            self.from_controller = self.listener.accept()
+ 
+            #cmd = self.from_controller.recv()
 
-    exposed_the_real_answer_though = 43     # an exposed attribute
-
-    def get_question(self):  # while this method is not exposed
-        return "what is the airspeed velocity of an unladen swallow?"
+        comm.Barrier()
+        for i in range(4):
+            if rank == 0:
+                cmd = self.from_controller.recv() 
+            else:
+                cmd = None
+            cmd = comm.bcast(cmd, root=0)
+            print(f"Rank {rank} got command {cmd}")
 
 if __name__ == "__main__":
-    ctrl_hostname, ctrl_port, server_port = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
-    hostname, _ = run_shell_cmd("hostname") 
-    hostname = hostname.rstrip("\n")
-
-    c = rpyc.connect(ctrl_hostname, ctrl_port)
-    c.root.set_root_hostname(hostname)
-    c.close()
-
-    t = OneShotServer(Exafac_Server, hostname=hostname, port=int(server_port)) 
-    t.start()
+    server = Exafac_Server(sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))

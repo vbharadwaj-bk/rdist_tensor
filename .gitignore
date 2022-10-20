@@ -23,6 +23,7 @@ GraphBLAS
 oneTBB
 analysis/figures/*
 slurm*
+factor_outputs/*
 !data/.empty
 !tensors/.empty
 !tensors/frostt_tensors.txt

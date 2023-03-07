@@ -2,6 +2,7 @@ import os, subprocess, tempfile
 from multiprocessing import Process
 from multiprocessing.connection import Client, Listener
 import time
+import argparse
 
 from rpc_utilities import *
 
@@ -30,7 +31,7 @@ def exafac_start_function(node_count, proc_count, isolate_controller=False):
 
 class Exafac:
     def __init__(self):
-        self.exafac = Process(target=exafac_start_function, args=(1, 4))
+        self.exafac = Process(target=exafac_start_function, args=(1, 64))
         self.exafac.start()
 
         ctrl_hostname, _ = run_shell_cmd("hostname") 
@@ -43,11 +44,33 @@ class Exafac:
         time.sleep(1)
         self.to_exafac = Client((root_hostname, RPC_OUT_PORT))
 
-    def send_commands(self):
-        for i in range(4):
-            self.to_exafac.send(["execute", 50])
+    def send_command(self, type, payload):
+        self.to_exafac.send({"type": type, "payload" : payload})
+
+def parse_argument_list():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-i','--input', type=str, help='HDF5 of Input Tensor', required=True)
+    parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=str)
+    parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=str)
+    parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
+    parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
+    parser.add_argument("-o", "--output", help="Output file to print benchmark statistics", required=True)
+    parser.add_argument('-g','--grid', type=str, help='Grid Shape (Comma separated)', required=True)
+    parser.add_argument('-op','--optimizer', type=str, help='Optimizer to use for tensor decomposition', required=False, default='exact')
+    parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
+    parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)
+    parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
+    parser.add_argument("--reuse", help="Whether or not to reuse samples between optimization rounds", action=argparse.BooleanOptionalAction)
+    parser.add_argument("-pre_optim", help="# of Exact ALS iterations to run before sketching (for CAIDA tensors)", required=False, type=int, default=0)
+    
+    return parser.parse_args()
 
 if __name__=="__main__":
+    args = parse_argument_list()
     cpals = Exafac()
-    cpals.send_commands()
-    
+    cpals.send_command("initialize", args)
+    cpals.send_command("terminate", args)
+
+    sample_count = None
+    cpals.send_command("run_iteration", {"samples": sample_count})
+    cpals.send_command("compute_fit", {})

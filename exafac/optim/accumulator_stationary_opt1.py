@@ -193,8 +193,12 @@ class AccumulatorStationaryOpt1(AlternatingOptimizer):
 		MPI.COMM_WORLD.Barrier()
 		stop_clock_and_add(start, self.timers, "MTTKRP")
 
+		# TODO: Should multiply by the pseudo-inverse of the
+		# collected rows instead!
+
 		start = start_clock()
 		pinv = la.pinv(gram_prod)
+        #self.grid.comm.Allreduce(MPI.IN_PLACE, normsq_cols)
 		factor.data = (result_buffer @ pinv @ np.diag(singular_values ** -1)).copy()	
 		factor.normalize_cols()
 

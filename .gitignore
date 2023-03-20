@@ -21,6 +21,12 @@ sparsehash-c11
 libcuckoofilter.a
 GraphBLAS
 oneTBB
+
+analysis/figures/*
+baseline/outputs/*
+factor_outputs/*
+slurm_traces/*
+
 !data/.empty
 !tensors/.empty
 !tensors/frostt_tensors.txt

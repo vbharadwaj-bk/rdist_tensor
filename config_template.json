@@ -1,0 +1,10 @@
+{
+	"required_compile_args": ["--std=c++2a", "-fopenmp", "-Ofast", "-march=native"],
+	"required_link_args": ["-fopenmp", "-Ofast"],
+	"blas_include_flags": ["-I/YOUR/PATH/TO/OpenBLAS_install/include"], 
+	"blas_link_flags": ["-L/YOUR_PATH/TO/OpenBLAS_install/lib", "-lopenblas"],
+	"tbb_include_flags": [], 
+	"tbb_link_flags": [],
+	"extra_compile_args": [],
+	"extra_link_args": []
+}

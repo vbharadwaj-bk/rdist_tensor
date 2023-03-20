@@ -12,7 +12,7 @@ OUTPUT="data/baseline_runs/uber.out"
 for SEED in 189909 # 1240003 734272 1215049 1222111
 do
     srun -u -N 1 -n 64 python decompose_sparse.py -i $TENSOR -g "4,1,4,4" \
-        -t "100" -iter 40 -o $OUTPUT -op "accumulator_stationary" \
+        -t "25" -iter 40 -o $OUTPUT -op "accumulator_stationary" \
         --no-reuse -s "65536" -e 5 -rs $SEED 
 done
 

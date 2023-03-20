@@ -30,3 +30,6 @@ slurm_traces/*
 !data/.empty
 !tensors/.empty
 !tensors/frostt_tensors.txt
+
+config.json
+env.sh

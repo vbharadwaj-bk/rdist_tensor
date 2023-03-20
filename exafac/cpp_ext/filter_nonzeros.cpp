@@ -457,12 +457,45 @@ PYBIND11_MODULE(filter_nonzeros, m) {
   //m.def("sample_nonzeros_redistribute_u64_double", &sample_nonzeros_redistribute<uint64_t, double>);
 }
 
+
 /*
 <%
 setup_pybind11(cfg)
-cfg['extra_compile_args'] = ['-fopenmp', '-O3', '-finline-limit=1000', '-march=native']
-cfg['extra_link_args'] = ['-openmp', '-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
-cfg['dependencies'] = ['common.h', 'tensor_alltoallv.h', 'hashing.h', 'cuckoofilter/src/cuckoofilter.h', 'fks_hash.hpp', 'primality.hpp']
+# cfg['extra_compile_args'] = ['-fopenmp', '-O3', '-finline-limit=1000', '-march=native']
+# cfg['extra_link_args'] = ['-openmp', '-O3', '-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter']
+
+import json
+config = None
+with open('config.json', 'r') as config_file:
+    config = json.load(config_file)
+# Required compiler flags 
+compile_args=config['required_compile_args']
+link_args=config['required_link_args']
+
+# Add extra flags for the BLAS and LAPACK 
+for lst in [config["blas_include_flags"], 
+            config["tbb_include_flags"], 
+            config["extra_compile_args"]]:
+    compile_args.extend(lst)
+for lst in [config["blas_link_flags"], 
+            config["tbb_link_flags"], 
+            config["extra_link_args"]]:
+    link_args.extend(lst)
+
+link_args.append('-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter')
+
+print(f"Compiling C++ extensions with {compile_args}")
+print(f"Linking C++ extensions with {link_args}")
+cfg['extra_compile_args'] = compile_args 
+cfg['extra_link_args'] = link_args 
+cfg['dependencies'] = [ 'common.h', 
+                        'tensor_alltoallv.h', 
+                        'hashing.h', 
+                        'cuckoofilter/src/cuckoofilter.h', 
+                        'fks_hash.hpp', 
+                        'primality.hpp', 
+                        '../../config.json' 
+                        ]
 cfg['libraries'] = ['cuckoofilter']
 %>
 */

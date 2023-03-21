@@ -20,12 +20,16 @@
 #include <iostream>
 #include <vector>
 
+#include <execution>
+
 #include "common.h"
 #include "hashing.h"
 #include "sparsehash/dense_hash_map"
 #include "cuckoofilter/src/cuckoofilter.h"
 #include "tensor_alltoallv.h"
 #include "fks_hash.hpp"
+
+#include "sort_lookup.hpp"
 
 using namespace std;
 using namespace cuckoofilter;
@@ -156,7 +160,7 @@ public:
 template<typename IDX_T, typename VAL_T>
 class TensorSlicer {
 public:
-  vector<HashIdxLookup<IDX_T, VAL_T>> lookups;
+  vector<SortIdxLookup<IDX_T, VAL_T>> lookups;
 
   vector<vector<IDX_T>> recv_idxs;
   vector<vector<VAL_T>> recv_values;
@@ -472,6 +476,8 @@ with open('config.json', 'r') as config_file:
 compile_args=config['required_compile_args']
 link_args=config['required_link_args']
 
+link_args.append('-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter')
+
 # Add extra flags for the BLAS and LAPACK 
 for lst in [config["blas_include_flags"], 
             config["tbb_include_flags"], 
@@ -481,8 +487,6 @@ for lst in [config["blas_link_flags"],
             config["tbb_link_flags"], 
             config["extra_link_args"]]:
     link_args.extend(lst)
-
-link_args.append('-L/global/cfs/projectdirs/m1982/vbharadw/rdist_tensor/exafac/cpp_ext/cuckoofilter')
 
 print(f"Compiling C++ extensions with {compile_args}")
 print(f"Linking C++ extensions with {link_args}")
@@ -496,6 +500,6 @@ cfg['dependencies'] = [ 'common.h',
                         'primality.hpp', 
                         '../../config.json' 
                         ]
-cfg['libraries'] = ['cuckoofilter']
+cfg['libraries'] = ['cuckoofilter', 'tbb']
 %>
 */

@@ -1,4 +1,4 @@
-. modules.sh
+. env.sh
 export OMP_NUM_THREADS=1
 
 TENSOR_DIR=tensors

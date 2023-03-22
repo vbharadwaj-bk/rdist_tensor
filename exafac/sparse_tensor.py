@@ -122,6 +122,8 @@ class DistSparseTensor:
 
         recv_buffers = []
         recv_values = []
+        
+        print("Starting redistribution...")
 
         redistribute_nonzeros = get_templated_function(rd, "redistribute_nonzeros", 
                 [self.idx_dtype, self.val_dtype])

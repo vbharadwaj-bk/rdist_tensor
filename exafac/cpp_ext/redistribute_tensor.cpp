@@ -41,6 +41,8 @@ void redistribute_nonzeros(
     vector<uint64_t> send_counts(proc_count, 0);
     vector<int> processor_assignments(nnz, -1);
 
+    cout << "Starting redistribute counter..." << endl;
+
     #pragma omp parallel for
     for(uint64_t i = 0; i < nnz; i++) {
         uint64_t processor = 0;
@@ -52,6 +54,8 @@ void redistribute_nonzeros(
         send_counts[processor]++;
         processor_assignments[i] = processor;
     }  
+
+    cout << "Ended..." << endl;
 
     tensor_alltoallv(
 		dim,

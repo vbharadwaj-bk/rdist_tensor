@@ -238,13 +238,61 @@ void spmm_compressed(
 
 }
 
+
+/*template<typename IDX_T, typename VAL_T>
+void compute_gram_matrix(
+        py::list inflated_sample_ids_py,
+        py::list mode_rows_py,
+        py::array_t<double> weights_py,
+        py::array_t<double> result_py
+        ) {
+    NumpyList<int64_t> inflated_sample_ids(inflated_sample_ids_py);
+    NumpyList<double> mode_rows(mode_rows_py);
+    NumpyArray<double> weights(weights_py);
+    NumpyArray<double> result(result_py);
+    int r = result.info.shape[1];
+    uint64_t nnz = rhs_rows.info.shape[0];
+    int dim_m1 = mode_rows.length; 
+
+    IDX_T* row_ptr = rhs_rows.ptr;
+    IDX_T* col_ptr = rhs_cols.ptr;
+    VAL_T* val_ptr = rhs_values.ptr;
+
+    vector<double> accumulator_row(r, 1.0);
+    double* accum_ptr = accumulator_row.data(); 
+
+    #pragma omp for
+    for(uint64_t i = 0; i < ; i++) {
+        // We perform a transpose here
+        IDX_T row = col_ptr[i];
+        IDX_T col = row_ptr[i];
+        VAL_T value = val_ptr[i];
+
+        std::fill(accum_ptr, accum_ptr + r, value * weights.ptr[col]);
+        for(int k = 0; k < dim_m1; k++) {
+            double* row_ptr =
+                mode_rows.ptrs[k] + (inflated_sample_ids.ptrs[k][col] * r);
+            for(int j = 0; j < r; j++) {
+                accum_ptr[j] *= row_ptr[j]; 
+            } 
+        }
+
+        for(int j = 0; j < r; j++) {
+            #pragma omp atomic 
+            result.ptr[row * r + j] += accum_ptr[j];
+        }        
+    }
+}
+
+}*/
+
+
 template<typename IDX_T>
 vector<uint32_t> filter_member_samples(
         py::array_t<uint64_t> bound_starts_py, 
         py::array_t<uint64_t> bound_ends_py,
         int mode_to_leave,
-        py::list coords_py
-) {
+        py::list coords_py) {
     NumpyList<IDX_T> coords(coords_py);
     NumpyArray<uint64_t> bound_starts(bound_starts_py);
     NumpyArray<uint64_t> bound_ends(bound_ends_py);
@@ -274,6 +322,7 @@ vector<uint32_t> filter_member_samples(
 
     return result;
 }
+
 
 PYBIND11_MODULE(tensor_kernels, m) {
     //m.def("sampled_mttkrp", &sampled_mttkrp);

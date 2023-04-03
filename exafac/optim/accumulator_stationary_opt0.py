@@ -56,13 +56,13 @@ def gather_samples_lhs(factors, dist_sample_count, mode_to_leave, grid, timers):
 		weight_prods -= 0.5 * np.log(all_probs) 
 		lhs_buffer *= all_rows
 
-		stop_clock_and_add(start, timers, "LHS Assembly")
+		#stop_clock_and_add(start, timers, "LHS Assembly")
 
 	return samples, np.exp(weight_prods), lhs_buffer	
 
 
 class AccumulatorStationaryOpt0(AlternatingOptimizer):
-	def __init__(self, ten_to_optimize, ground_truth, sample_count):
+	def __init__(self, ten_to_optimize, ground_truth, sample_count, reuse_samples=False):
 		super().__init__(ten_to_optimize, ground_truth)
 		self.sample_count = sample_count
 		self.info['Sample Count'] = self.sample_count
@@ -72,7 +72,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 	def initial_setup(self):
 		# Initial allgather of tensor factors 
 		for mode in range(self.ten_to_optimize.dim):
-			self.ten_to_optimize.factors[mode].allgather_factor()
+			#self.ten_to_optimize.factors[mode].allgather_factor()
 			self.ten_to_optimize.factors[mode].compute_gram_matrix()
 			self.ten_to_optimize.factors[mode].compute_leverage_scores()
 
@@ -112,7 +112,7 @@ class AccumulatorStationaryOpt0(AlternatingOptimizer):
 				+ self.ground_truth.offsets[j] for j in range(self.dim)]
 
 		start = start_clock() 
-		nz_filter.sample_nonzeros_redistribute(
+		nz_filter.sample_nonzeros_redistribute_u32_double(
 			offset_idxs, 
 			self.ground_truth.values, 
 			sample_idxs,

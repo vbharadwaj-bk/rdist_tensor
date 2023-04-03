@@ -48,8 +48,8 @@ if __name__=='__main__':
     from exafac.sparse_tensor import *
     from exafac.sampling import *
 
-    #from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
-    #from accumulator_stationary_opt0 import AccumulatorStationaryOpt0
+    from exafac.optim.tensor_stationary_opt0 import TensorStationaryOpt0
+    from exafac.optim.accumulator_stationary_opt0 import AccumulatorStationaryOpt0
     from exafac.optim.tensor_stationary_opt1 import TensorStationaryOpt1
     from exafac.optim.accumulator_stationary_opt1 import AccumulatorStationaryOpt1
     from exafac.optim.exact_als import ExactALS

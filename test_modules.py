@@ -8,7 +8,7 @@ import cppimport.import_hook
 def test_grid():
     from exafac.cpp_ext.py_module import Grid 
 
-    proc_dims = np.array([1, 1, 1], dtype=np.int32)
+    proc_dims = np.array([2, 2, 2], dtype=np.int32)
     grid = Grid(proc_dims)
 
 if __name__=='__main__':

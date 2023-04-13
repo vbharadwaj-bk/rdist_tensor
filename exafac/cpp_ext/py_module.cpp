@@ -17,6 +17,8 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<py::array_t<int>>());
     py::class_<TensorGrid>(m, "TensorGrid")
         .def(py::init<py::array_t<int>, Grid&>());
+    py::class_<DistMat1D>(m, "DistMat1D")
+        .def(py::init<uint64_t, TensorGrid&, uint64_t>());
 }
 
 /*

@@ -6,10 +6,11 @@ import cppimport
 import cppimport.import_hook
 
 def test_grid():
-    from exafac.cpp_ext.py_module import Grid 
+    from exafac.cpp_ext.py_module import Grid, TensorGrid
 
     proc_dims = np.array([2, 2, 2], dtype=np.int32)
     grid = Grid(proc_dims)
+    tensor_grid = TensorGrid([300, 201, 105], grid)
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()

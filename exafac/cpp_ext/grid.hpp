@@ -56,14 +56,18 @@ public:
         MPI_Comm_rank(world, &rank);
         MPI_Comm_size(world, &world_size);
 
+        int proc_count = std::accumulate(proc_dims(), proc_dims(dim), 1, 
+                std::multiplies<int>());
+
+        if(proc_count != world_size) {
+            throw std::runtime_error("The number of MPI ranks does not match "
+                "the number of processes specified by the grid.");
+        }
+
         // These two arrays are dummy variables that are not used 
         Buffer<int> dims({(uint64_t) dim});
         Buffer<int> periods({(uint64_t) dim});
         MPI_Cart_get(world, dim, dims(), periods(), coords());
-
-        //for(int i = 0; i < dim; i++) {
-        //    cout << coords[i] << endl;
-        //}
 
         for(int i = 0; i < dim; i++) {
             Buffer<int> remain_dims({(uint64_t) dim});
@@ -92,14 +96,66 @@ public:
                 row_positions[slice_dim].data(),
                 1,
                 MPI_INT,
-                world
+                world 
                 );
 
-            cout << "[";
-            for(int i = 0; i < row_positions[slice_dim].size(); i++) {
-                cout << row_positions[slice_dim][i] << " ";
+            row_order_to_procs.emplace_back(world_size, 0);
+
+            for(int i = 0; i < world_size; i++) {
+                row_order_to_procs[slice_dim][row_positions[slice_dim][i]] = i;
             }
-            cout << "]" << endl;
+        }
+    }
+
+    void get_prefix_array(Buffer<int> &prefix_array) {
+        prefix_array[0] = 1;
+        for(int i = 1; i < dim; i++) {
+            prefix_array[i] = 
+                prefix_array[i-1] * proc_dims[dim -1 - i];
+        }
+        std::reverse(prefix_array(), prefix_array(dim));
+    }
+};
+
+class __attribute__((visibility("hidden"))) TensorGrid {
+/*
+* Partitions a Cartesian domain among a grid of processors. 
+*/
+public:
+    Buffer<int> tensor_dims;
+    Grid &grid;
+
+    vector<int> padded_row_counts;
+
+    vector<vector<int>> start_coords;
+    vector<int> bound_starts, bound_ends;
+
+    TensorGrid(py::array_t<int> tensor_d, Grid &g)
+    :
+    tensor_dims(tensor_d),
+    grid(g)
+    {
+        for(int i = 0; i < grid.dim; i++) {
+            int dim = tensor_dims[i];
+            int proc_count = grid.proc_dims[i];
+
+            int padded_row_count = (int) round_to_nearest_integer((uint64_t) dim, 
+                    (uint64_t) grid.world_size) / proc_count; 
+            padded_row_counts.push_back(padded_row_count);
+
+            start_coords.emplace_back();
+            for(int j = 0; j < dim; j += padded_row_count) {
+                start_coords[i].push_back(j);
+            }
+
+            while(start_coords[i].size() < (uint64_t) proc_count) {
+                start_coords[i].push_back(dim);
+            }
+
+            bound_starts.push_back(start_coords[i][grid.coords[i]]);
+            bound_ends.push_back(start_coords[i][grid.coords[i] + 1]);
         }
     }
 };
+
+

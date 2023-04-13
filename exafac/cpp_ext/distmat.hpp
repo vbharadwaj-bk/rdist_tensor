@@ -4,6 +4,85 @@
 
 using namespace std;
 
-class DistributedMatrix {
+class __attribute__((visibility("hidden"))) DistMat1D {
+public:
+    uint64_t cols;
+    TensorGrid grid;
+    uint64_t slice_dim;
+    uint64_t rows;
 
+    uint64_t padded_rows;
+    uint64_t row_position;
+
+    uint64_t true_row_count;
+
+    unique_ptr<Buffer<double>> data;
+
+    Buffer<uint64_t> proc_to_row_order;
+    Buffer<uint64_t> row_order_to_proc;
+
+    DistMat1D(uint64_t cols, 
+        TensorGrid &grid, uint64_t slice_dim) 
+        : 
+        grid(grid),
+        proc_to_row_order({grid.world_size}),
+        row_order_to_proc({grid.world_size}) 
+        {
+        this->slice_dim = slice_dim;
+        this->cols = cols; 
+        this->rows = tensor_grid.tensor_dims[slice_dim];
+
+        padded_rows = grid.padded_row_counts[slice_dim];
+        row_position = grid.row_positions[slice_dim][grid.rank];
+
+        if(row_position * padded_rows > rows) {
+            true_row_count = 0;
+        } else {
+            true_row_count = min(padded_rows, rows - row_position * padded_rows);
+        }
+        data.reset(new Buffer<double>({true_row_count * cols}));
+
+        MPI_Allgather(&row_position,
+            1,
+            MPI_UINT64_T,
+            proc_to_row_order(),
+            1,
+            MPI_UINT64_T,
+            grid.world 
+            );
+
+        for(int i = 0; i < grid.world_size; i++) {
+            row_order_to_proc[proc_to_row_order[i]] = i;
+        }
+    }
+
+    void compute_gram_matrix(Buffer<double> &gram) {
+        if (true_row_count == 0) {
+            std::fill(gram(), gram(cols * cols), 0.0);
+        } else {
+            cblas_dgemm(CblasColMajor,
+                CblasTrans,
+                CblasNoTrans,
+                cols,
+                cols,
+                true_row_count,
+                1.0,
+                data(),
+                true_row_count,
+                data(),
+                true_row_count,
+                0.0,
+                gram(),
+                cols
+                );
+
+            MPI_Allreduce(MPI_IN_PLACE,
+                gram(),
+                cols * cols,
+                MPI_DOUBLE,
+                MPI_SUM,
+                grid.world
+                );
+        }
+    }
 };

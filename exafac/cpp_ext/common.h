@@ -212,6 +212,10 @@ void prefix_sum_ptr(T * values, T * offsets, uint64_t size) {
     }
 }
 
+uint64_t round_to_nearest_integer(uint64_t n, uint64_t m) {
+    return (n + m) / m * m;
+}
+
 //#pragma GCC visibility push(hidden)
 template<typename T>
 class __attribute__((visibility("hidden"))) Buffer {

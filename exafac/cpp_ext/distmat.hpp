@@ -1,13 +1,16 @@
 #pragma once
 
 #include <iostream>
+#include <cblas.h>
+#include <lapacke.h>
 
 using namespace std;
 
 class __attribute__((visibility("hidden"))) DistMat1D {
 public:
     uint64_t cols;
-    TensorGrid grid;
+    TensorGrid &tensor_grid;
+    Grid &grid; 
     uint64_t slice_dim;
     uint64_t rows;
 
@@ -22,17 +25,19 @@ public:
     Buffer<uint64_t> row_order_to_proc;
 
     DistMat1D(uint64_t cols, 
-        TensorGrid &grid, uint64_t slice_dim) 
+        TensorGrid &tensor_grid, uint64_t slice_dim) 
         : 
-        grid(grid),
-        proc_to_row_order({grid.world_size}),
-        row_order_to_proc({grid.world_size}) 
+        tensor_grid(tensor_grid),
+        grid(tensor_grid.grid),
+        proc_to_row_order({(uint64_t) grid.world_size}),
+        row_order_to_proc({(uint64_t) grid.world_size}) 
         {
+
         this->slice_dim = slice_dim;
         this->cols = cols; 
         this->rows = tensor_grid.tensor_dims[slice_dim];
 
-        padded_rows = grid.padded_row_counts[slice_dim];
+        padded_rows = tensor_grid.padded_row_counts[slice_dim];
         row_position = grid.row_positions[slice_dim][grid.rank];
 
         if(row_position * padded_rows > rows) {
@@ -57,6 +62,7 @@ public:
     }
 
     void compute_gram_matrix(Buffer<double> &gram) {
+        Buffer<double> &data = *(this->data);
         if (true_row_count == 0) {
             std::fill(gram(), gram(cols * cols), 0.0);
         } else {

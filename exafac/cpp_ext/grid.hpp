@@ -130,10 +130,13 @@ public:
     vector<vector<int>> start_coords;
     vector<int> bound_starts, bound_ends;
 
+    int dim;
+
     TensorGrid(py::array_t<int> tensor_d, Grid &g)
     :
     tensor_dims(tensor_d),
-    grid(g)
+    grid(g),
+    dim(g.dim)
     {
         for(int i = 0; i < grid.dim; i++) {
             int dim = tensor_dims[i];

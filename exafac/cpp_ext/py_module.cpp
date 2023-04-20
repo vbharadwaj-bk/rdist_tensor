@@ -50,7 +50,6 @@ rpath_options=[f'-Wl,-rpath,{config["blas_link_path"]}:{config["tbb_link_path"]}
 
 for lst in [blas_include_path,
             tbb_include_path,
-            blas_link_path,
             config["extra_compile_args"]
             ]:
     compile_args.extend(lst)
@@ -65,8 +64,8 @@ for lst in [blas_link_path,
 
 print(f"Compiling C++ extensions with {compile_args}")
 print(f"Linking C++ extensions with {link_args}")
-#cfg['extra_compile_args'] = compile_args 
-#cfg['extra_link_args'] = link_args 
+cfg['extra_compile_args'] = compile_args 
+cfg['extra_link_args'] = link_args 
 cfg['dependencies'] = [ 'common.h', 
                         'grid.hpp', 
                         '../../config.json' 

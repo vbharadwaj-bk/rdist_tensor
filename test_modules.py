@@ -12,6 +12,7 @@ def test_grid():
     grid = Grid(proc_dims)
     tensor_grid = TensorGrid([300, 201, 105], grid)
     low_rank_tensor = LowRankTensor(25, tensor_grid)
+    low_rank_tensor.compute_gram_matrices()
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()

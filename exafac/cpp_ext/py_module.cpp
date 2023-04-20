@@ -67,7 +67,9 @@ print(f"Linking C++ extensions with {link_args}")
 cfg['extra_compile_args'] = compile_args 
 cfg['extra_link_args'] = link_args 
 cfg['dependencies'] = [ 'common.h', 
-                        'grid.hpp', 
+                        'grid.hpp',
+                        'distmat.hpp',
+                        'low_rank_tensor.hpp', 
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

@@ -4,6 +4,9 @@
 #include <cblas.h>
 #include <lapacke.h>
 
+#include "grid.hpp"
+#include "common.hpp"
+
 using namespace std;
 
 class __attribute__((visibility("hidden"))) DistMat1D {
@@ -66,7 +69,7 @@ public:
         if (true_row_count == 0) {
             std::fill(gram(), gram(cols * cols), 0.0);
         } else {
-            cblas_dgemm(CblasColMajor,
+            cblas_dgemm(CblasRowMajor,
                 CblasTrans,
                 CblasNoTrans,
                 cols,
@@ -81,14 +84,14 @@ public:
                 gram(),
                 cols
                 );
-
-            MPI_Allreduce(MPI_IN_PLACE,
-                gram(),
-                cols * cols,
-                MPI_DOUBLE,
-                MPI_SUM,
-                grid.world
-                );
         }
+
+        MPI_Allreduce(MPI_IN_PLACE,
+            gram(),
+            cols * cols,
+            MPI_DOUBLE,
+            MPI_SUM,
+            grid.world
+            );
     }
 };

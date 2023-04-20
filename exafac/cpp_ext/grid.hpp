@@ -131,12 +131,14 @@ public:
     vector<int> bound_starts, bound_ends;
 
     int dim;
+    int rank;
 
     TensorGrid(py::array_t<int> tensor_d, Grid &g)
     :
     tensor_dims(tensor_d),
     grid(g),
-    dim(g.dim)
+    dim(g.dim),
+    rank(g.rank)
     {
         for(int i = 0; i < grid.dim; i++) {
             int dim = tensor_dims[i];

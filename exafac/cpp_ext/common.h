@@ -298,6 +298,33 @@ public:
         return ptr[offset];
     }
 
+    void print() {
+        if(shape.size() == 1) {
+            cout << "[ " << endl;
+            for(uint64_t i = 0; i < shape[0]; i++) {
+                cout << ptr[i] << " ";
+            }
+            cout << "]" << endl;
+            return;
+        }
+        else if(shape.size() == 2) {
+            for(uint64_t i = 0; i < shape[0]; i++) {
+                cout << "[ ";
+                for(uint64_t j = 0; j < shape[1]; j++) {
+                    cout << ptr[i * shape[1] + j] << " ";
+                }
+                cout << "]" << endl; 
+            }
+        }
+        else {
+            cout << "Cannot print buffer with shape: ";
+            for(uint64_t i : shape) {
+                cout << i << " ";
+            }
+            cout << endl;
+        }
+    }
+
     ~Buffer() {}
 };
 

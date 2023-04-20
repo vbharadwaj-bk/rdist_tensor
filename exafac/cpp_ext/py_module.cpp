@@ -26,7 +26,7 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<uint64_t, TensorGrid&, uint64_t>());
     py::class_<LowRankTensor>(m, "LowRankTensor")
         .def(py::init<uint64_t, TensorGrid&>())
-        .def("compute_gram_matrices", &LowRankTensor::compute_gram_matrices);
+        .def("test_gram_matrix_computation", &LowRankTensor::test_gram_matrix_computation);
 }
 
 /*

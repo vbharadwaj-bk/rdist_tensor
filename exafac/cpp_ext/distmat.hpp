@@ -3,9 +3,10 @@
 #include <iostream>
 #include <cblas.h>
 #include <lapacke.h>
+#include <cmath>
 
 #include "grid.hpp"
-#include "common.hpp"
+#include "common.h"
 
 using namespace std;
 
@@ -77,15 +78,15 @@ public:
                 true_row_count,
                 1.0,
                 data(),
-                true_row_count,
+                cols,
                 data(),
-                true_row_count,
+                cols,
                 0.0,
                 gram(),
                 cols
                 );
         }
-
+        
         MPI_Allreduce(MPI_IN_PLACE,
             gram(),
             cols * cols,
@@ -93,5 +94,14 @@ public:
             MPI_SUM,
             grid.world
             );
+    }
+
+    void initialize_deterministic() {
+        Buffer<double> &data = *(this->data);
+        for(uint64_t i = 0; i < true_row_count; i++) {
+            for(uint64_t j = 0; j < cols; j++) {
+                data[i * cols + j] = (double) cos((i + row_position * padded_rows) * cols + j);
+            }
+        }
     }
 };

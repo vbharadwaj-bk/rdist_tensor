@@ -21,11 +21,15 @@ public:
         } 
     }
 
-    void compute_gram_matrices() {
+    void test_gram_matrix_computation() {
         Buffer<double> gram_matrix({rank, rank});
         for(int i = 0; i < tensor_grid.dim; i++) {
+            factors[i].initialize_deterministic();
             factors[i].compute_gram_matrix(gram_matrix);
+            if(tensor_grid.grid.rank == 0) {
+                cout << "Gram matrix for factor " << i << endl;
+                gram_matrix.print();
+            }
         }
-        cout << "Gram matrices computed" << endl;
     }
 };

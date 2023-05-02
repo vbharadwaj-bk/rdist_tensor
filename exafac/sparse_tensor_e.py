@@ -30,7 +30,7 @@ class DistSparseTensorE:
         start_nnz = min(local_nnz_ct * self.rank, self.nnz)
         end_nnz = min(local_nnz_ct * (self.rank + 1), self.nnz)
 
-        self.tensor_idxs = np.zeros((local_nnz_ct, self.dim), dtype=np.uint32)
+        self.tensor_idxs = np.zeros((end_nnz-start_nnz, self.dim), dtype=np.uint32)
 
         if self.rank == 0:
             print("Loading sparse tensor...")

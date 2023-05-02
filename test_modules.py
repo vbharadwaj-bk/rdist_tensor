@@ -9,7 +9,7 @@ def test_grid():
     from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor
     from exafac.sparse_tensor_e import DistSparseTensorE
 
-    proc_dims = np.array([1, 1, 1], dtype=np.int32)
+    proc_dims = np.array([2, 2, 1], dtype=np.int32)
     grid = Grid(proc_dims)
     tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
     #low_rank_tensor = LowRankTensor(5, tensor.tensor_grid)

@@ -75,7 +75,8 @@ cfg['extra_link_args'] = link_args
 cfg['dependencies'] = [ 'common.h', 
                         'grid.hpp',
                         'distmat.hpp',
-                        'low_rank_tensor.hpp', 
+                        'low_rank_tensor.hpp',
+                        'sparse_tensor.hpp',
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

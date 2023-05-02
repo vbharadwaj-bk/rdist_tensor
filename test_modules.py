@@ -11,11 +11,9 @@ def test_grid():
 
     proc_dims = np.array([1, 1, 1], dtype=np.int32)
     grid = Grid(proc_dims)
-    tensor_grid = TensorGrid([300, 201, 105], grid)
-    low_rank_tensor = LowRankTensor(5, tensor_grid)
-    low_rank_tensor.test_gram_matrix_computation()
-
-    tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5') 
+    tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
+    #low_rank_tensor = LowRankTensor(5, tensor.tensor_grid)
+    #low_rank_tensor.test_gram_matrix_computation()
 
 
 if __name__=='__main__':

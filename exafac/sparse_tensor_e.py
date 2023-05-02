@@ -3,14 +3,14 @@ import numpy.linalg as la
 import os
 import h5py
 
-from exafac.grid import Grid, TensorGrid
+from exafac.cpp_ext.py_module import Grid, TensorGrid, SparseTensor
 from mpi4py import MPI
 from exafac.common import * 
 
 import cppimport.import_hook
 
 class DistSparseTensorE:
-    def __init__(self, filename):
+    def __init__(self, filename, grid, preprocessing="None"):
         f = h5py.File(filename, 'r')
         world_comm = MPI.COMM_WORLD
         self.world_size = world_comm.Get_size()
@@ -19,6 +19,7 @@ class DistSparseTensorE:
         self.max_idxs = f['MAX_MODE_SET'][:]
         self.min_idxs = f['MIN_MODE_SET'][:]
         self.dim = len(self.max_idxs)
+        self.tensor_dims = np.array(self.max_idxs - self.min_idxs + 1, dtype=np.int32)
 
         # The tensor must have at least one mode
         self.nnz = len(f['MODE_0']) 
@@ -29,18 +30,27 @@ class DistSparseTensorE:
         start_nnz = min(local_nnz_ct * self.rank, self.nnz)
         end_nnz = min(local_nnz_ct * (self.rank + 1), self.nnz)
 
-        self.tensor_idxs = []
+        self.tensor_idxs = np.zeros((local_nnz_ct, self.dim), dtype=np.uint32)
 
         if self.rank == 0:
             print("Loading sparse tensor...")
 
         for i in range(self.dim): 
-            self.tensor_idxs.append(f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
+            self.tensor_idxs[:, i] = (f[f'MODE_{i}'][start_nnz:end_nnz] - self.min_idxs[i])
 
+        # Assumption: all values are double format
         self.values = f['VALUES'][start_nnz:end_nnz]
+        self.tensor_grid = TensorGrid(self.tensor_dims, grid)
+
+        self.sparse_tensor = SparseTensor(
+                self.tensor_grid, 
+                self.tensor_idxs, 
+                self.values,
+                preprocessing 
+                )
 
         MPI.COMM_WORLD.Barrier()
         if self.rank == 0:
-            print("Finished loading sparse tensor...")
+            print("Finished constructing sparse tensor...")
 
 

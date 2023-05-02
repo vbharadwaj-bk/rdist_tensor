@@ -45,6 +45,7 @@ public:
     void check_tensor_invariants() {
         // Sum up all the values
         double sum = 0;
+
         #pragma omp parallel for reduction(+:sum)
         for(uint64_t i = 0; i < this->values.shape[0]; i++) {
             sum += this->values[i];
@@ -82,9 +83,12 @@ public:
         }
 
         for(uint64_t i = 0; i < proc_count; i++) {
-            #pragma omp atomic
+            #pragma omp atomic 
             send_counts[i] += send_counts_local[i];
         }
 }
+
+        uint64_t total_send_counts = std::accumulate(send_counts.begin(), send_counts.end(), 0);
+        cout << "Total send counts: " << total_send_counts << endl;
     }
 };

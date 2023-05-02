@@ -13,6 +13,7 @@
 #include "grid.hpp"
 #include "distmat.hpp"
 #include "low_rank_tensor.hpp"
+#include "sparse_tensor.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -27,6 +28,11 @@ PYBIND11_MODULE(py_module, m) {
     py::class_<LowRankTensor>(m, "LowRankTensor")
         .def(py::init<uint64_t, TensorGrid&>())
         .def("test_gram_matrix_computation", &LowRankTensor::test_gram_matrix_computation);
+    py::class_<SparseTensor>(m, "SparseTensor")
+        .def(py::init<TensorGrid&, 
+            py::array_t<uint32_t>, 
+            py::array_t<double>, 
+            std::string>());
 }
 
 /*

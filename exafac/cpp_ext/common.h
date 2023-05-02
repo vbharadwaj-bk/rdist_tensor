@@ -238,18 +238,34 @@ public:
     {}
     Buffer& operator=(const Buffer& other) = default;
 
-    Buffer(py::array_t<T> arr_py) {
+    Buffer(py::array_t<T> arr_py, bool copy) {
         info = arr_py.request();
-        ptr = static_cast<T*>(info.ptr);
 
         if(info.ndim == 2) {
             dim0 = info.shape[0];
             dim1 = info.shape[1];
         }
 
+        uint64_t buffer_size = 1;
         for(int64_t i = 0; i < info.ndim; i++) {
             shape.push_back(info.shape[i]);
+            buffer_size *= info.shape[i];
         }
+
+        if(! copy) {
+            ptr = static_cast<T*>(info.ptr);
+        }
+        else {
+            managed_ptr.reset(new T[buffer_size]);
+            ptr = managed_ptr.get();
+            std::copy(static_cast<T*>(info.ptr), static_cast<T*>(info.ptr) + info.size, ptr);
+        }
+    }
+
+    Buffer(py::array_t<T> arr_py) :
+        Buffer(arr_py, false)
+    {
+        // Default behavior is a thin alias of the C++ array 
     }
 
     Buffer(initializer_list<uint64_t> args) {

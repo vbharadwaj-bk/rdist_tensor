@@ -94,14 +94,12 @@ def allgatherv(world, local_buffer, mpi_dtype):
 type_to_str = {
 	np.uint32: "u32",
 	np.uint64: "u64",
-	np.float: "float",
 	np.double: "double"
 } 
 
 str_to_type = {
 	"u32": np.uint32,
 	"u64": np.uint64,
-	"float": np.float,
 	"double": np.double 
 } 
 

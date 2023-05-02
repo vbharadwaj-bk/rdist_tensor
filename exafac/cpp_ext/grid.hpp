@@ -32,7 +32,7 @@ public:
     vector<vector<int>> row_order_to_procs;
 
     Grid(py::array_t<int> proc_dims_py) :
-        proc_dims(proc_dims_py),
+        proc_dims(proc_dims_py, true),
         dim((int) proc_dims.shape[0]),
         coords({(uint64_t) dim})
         {

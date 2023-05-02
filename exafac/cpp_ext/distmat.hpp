@@ -104,4 +104,8 @@ public:
             }
         }
     }
+
+    void initialize_gaussian_random() {
+        // TODO: Implement!
+    }
 };

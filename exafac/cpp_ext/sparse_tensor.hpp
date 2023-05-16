@@ -40,6 +40,7 @@ public:
 
         check_tensor_invariants();
         redistribute_to_grid(tensor_grid);
+        check_tensor_invariants();
     }
 
     void check_tensor_invariants() {
@@ -61,7 +62,10 @@ public:
     }
 
     void redistribute_to_grid(TensorGrid &tensor_grid) {
-        Buffer<int> prefix({tensor_grid.dim}); 
+        uint64_t nnz = indices.shape[0];
+        uint64_t proc_count = tensor_grid.grid.world_size;
+
+        Buffer<int> prefix({(uint64_t) tensor_grid.dim}); 
         tensor_grid.grid.get_prefix_array(prefix);
 
         vector<uint64_t> send_counts(proc_count, 0);
@@ -73,13 +77,13 @@ public:
 
         #pragma omp for
         for(uint64_t i = 0; i < nnz; i++) {
-            uint64_t processor = 0;
-            for(int j = 0; j < dim; j++) {
-                processor += prefix.[j] * (indices[i * dim + j] / tensor_grid.padded_row_counts[j]); 
+            uint64_t target_proc = 0;
+            for(uint64_t j = 0; j < dim; j++) {
+                target_proc += prefix[j] * (indices[i * dim + j] / tensor_grid.padded_row_counts[j]); 
             }
 
-            send_counts_local[processor]++;
-            processor_assignments[i] = processor;
+            send_counts_local[target_proc]++;
+            processor_assignments[i] = target_proc; 
         }
 
         for(uint64_t i = 0; i < proc_count; i++) {
@@ -87,8 +91,5 @@ public:
             send_counts[i] += send_counts_local[i];
         }
 }
-
-        uint64_t total_send_counts = std::accumulate(send_counts.begin(), send_counts.end(), 0);
-        cout << "Total send counts: " << total_send_counts << endl;
     }
 };

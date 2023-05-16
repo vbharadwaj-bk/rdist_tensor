@@ -20,7 +20,8 @@ namespace py = pybind11;
 
 PYBIND11_MODULE(py_module, m) {
     py::class_<Grid>(m, "Grid")
-        .def(py::init<py::array_t<int>>());
+        .def(py::init<py::array_t<int>>())
+        .def("get_dimension", &Grid::get_dimension);
     py::class_<TensorGrid>(m, "TensorGrid")
         .def(py::init<py::array_t<int>, Grid&>());
     py::class_<DistMat1D>(m, "DistMat1D")

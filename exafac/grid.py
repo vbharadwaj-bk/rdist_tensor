@@ -14,7 +14,7 @@ class Grid:
         self.dim = len(proc_count_dims)
         self.comm = MPI.Intracomm(self.world_comm).Create_cart(dims=proc_count_dims, reorder=False)
         self.rank = self.comm.Get_rank()
-        self.axesLengths = np.array(proc_count_dims, dtype=np.int)
+        self.axesLengths = np.array(proc_count_dims, dtype=np.int32)
         self.coords = self.comm.Get_coords(self.rank)
 
         self.axes = []
@@ -41,7 +41,7 @@ class Grid:
 
             self.row_positions.append(np.array(self.world_comm.allgather(row_position)))
             
-            row_order_to_proc = np.zeros(self.world_size, dtype=np.int)
+            row_order_to_proc = np.zeros(self.world_size, dtype=np.int32)
 
             for i in range(self.world_size):
                 row_order_to_proc[self.row_positions[-1][i]] = i 
@@ -54,7 +54,7 @@ class Grid:
             lst.append(lst[-1] * self.axesLengths[-1-i])
 
         lst.reverse()
-        return np.array(lst, dtype=np.int)
+        return np.array(lst, dtype=np.int32)
 
     def test_prefix_array(self):
         prefix_array = self.get_prefix_array()

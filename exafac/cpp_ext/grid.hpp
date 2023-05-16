@@ -107,11 +107,15 @@ public:
         }
     }
 
+    int get_dimension() {
+        return dim;
+    }
+
     void get_prefix_array(Buffer<int> &prefix_array) {
         prefix_array[0] = 1;
         for(int i = 1; i < dim; i++) {
             prefix_array[i] = 
-                prefix_array[i-1] * proc_dims[dim -1 - i];
+                prefix_array[i-1] * proc_dims[dim - i];
         }
         std::reverse(prefix_array(), prefix_array(dim));
     }

@@ -5,16 +5,35 @@ import gc
 import cppimport
 import cppimport.import_hook
 
+def test_prefixes(axes):
+    lst = [1]
+    for i in range(len(axes) - 1):
+        lst.append(lst[-1] * axes[-1-i])
+        print(axes[-1-i-1])
+
+    lst.reverse()
+    return np.array(lst, dtype=np.int32)
+
+
 def test_grid():
     from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor
     from exafac.sparse_tensor_e import DistSparseTensorE
+    from exafac.grid import Grid as GridPy
+    from exafac.grid import TensorGrid as TensorGridPy
 
-    proc_dims = np.array([2, 2, 1], dtype=np.int32)
+    dims = [3, 2, 1, 1]
+    proc_dims = np.array(dims, dtype=np.int32)
+
+    #print(test_prefixes(dims))
+    #exit(1)
+
     grid = Grid(proc_dims)
-    tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
-    #low_rank_tensor = LowRankTensor(5, tensor.tensor_grid)
-    #low_rank_tensor.test_gram_matrix_computation()
 
+    test = GridPy(dims)
+
+    tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
+    low_rank_tensor = LowRankTensor(5, tensor.tensor_grid)
+    #low_rank_tensor.test_gram_matrix_computation()
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()

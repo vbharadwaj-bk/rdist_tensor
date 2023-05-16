@@ -21,6 +21,9 @@ class DistSparseTensorE:
         self.dim = len(self.max_idxs)
         self.tensor_dims = np.array(self.max_idxs - self.min_idxs + 1, dtype=np.int32)
 
+        if grid.get_dimension() != self.dim:
+            raise ValueError("Grid dimension must match tensor dimension")
+
         # The tensor must have at least one mode
         self.nnz = len(f['MODE_0']) 
 

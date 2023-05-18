@@ -264,12 +264,25 @@ public:
     {}
     Buffer& operator=(const Buffer& other) = default;
 
+    void steal_resources(Buffer& other) {
+        info = std::move(other.info); 
+        managed_ptr = std::move(other.managed_ptr);
+        ptr = other.ptr;
+        dim0 = other.dim0;
+        dim1 = other.dim1;
+        shape = other.shape;
+    }
+
     Buffer(py::array_t<T> arr_py, bool copy) {
         info = arr_py.request();
 
         if(info.ndim == 2) {
             dim0 = info.shape[0];
             dim1 = info.shape[1];
+        }
+        else if(info.ndim == 1) {
+            dim0 = info.shape[0];
+            dim1 = 1;
         }
 
         uint64_t buffer_size = 1;

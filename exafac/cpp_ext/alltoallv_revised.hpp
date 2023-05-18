@@ -8,9 +8,10 @@ template<typename VAL_T>
 void alltoallv_matrix_rows(
         Buffer<VAL_T> &send_buffer,
 		Buffer<int> &processor_assignments,
-		Buffer<uint64_t> &send_counts,
+		Buffer<uint64_t> &send_counts_input,
         unique_ptr<Buffer<VAL_T>> &recv_buffer
         ) {
+
     int rank, world_size_i;
     uint64_t world_size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -18,14 +19,23 @@ void alltoallv_matrix_rows(
     world_size = world_size_i;
 
     uint64_t rows = send_buffer.shape[0];
-    uint64_t cols = send_buffer.shape[1];
+    uint64_t cols;
+    if(send_buffer.shape.size() == 2) {
+        cols = send_buffer.shape[1];
+    }
+    else {
+        cols = 1;
+    }
 
+    Buffer<uint64_t> send_counts({world_size});
     Buffer<uint64_t> send_offsets({world_size});
     Buffer<uint64_t> recv_counts({world_size});
     Buffer<uint64_t> recv_offsets({world_size});
     Buffer<uint64_t> running_offsets({world_size});
 
-    MPI_Datatype mpi_dtype = get_MPI_dtype<VAL_T>();  
+    std::copy(send_counts_input(), 
+            send_counts_input(world_size), 
+            send_counts());
 
     MPI_Alltoall(send_counts(), 
                 1, MPI_UINT64_T, 
@@ -36,7 +46,7 @@ void alltoallv_matrix_rows(
     uint64_t total_send_rows = 
 				std::accumulate(send_counts(), send_counts(world_size), 0);
     uint64_t total_received_rows = 
-				std::accumulate(recv_counts(), recv_counts(), 0);
+				std::accumulate(recv_counts(), recv_counts(world_size), 0);
     recv_buffer.reset(new Buffer<VAL_T>({total_received_rows, cols}));
 
     std::exclusive_scan(send_counts(), send_counts(world_size), send_offsets(), 0);
@@ -53,7 +63,7 @@ void alltoallv_matrix_rows(
         #pragma omp atomic capture 
         idx = running_offsets[owner]++;
 
-        std::copy(send_buffer(i, 0), send_buffer(i, cols), pack_buffer(idx, 0));
+        std::copy(send_buffer(i * cols), send_buffer((i + 1) * cols), pack_buffer(idx, 0));
     }
 
     for(uint64_t i = 0; i < world_size; i++) {
@@ -88,7 +98,32 @@ void alltoallv_matrix_rows(
         } 
     }
 
-    /*MPI_Alltoallv(send_buffer(), 
+    /*cout << "Rank " << rank << " send counts: ";
+    for(uint64_t i = 0; i < world_size; i++) {
+        cout << send_counts[i] << " ";
+    }
+    cout << endl;
+
+    cout << "Rank " << rank << " recv counts: ";
+    for(uint64_t i = 0; i < world_size; i++) {
+        cout << recv_counts[i] << " ";
+    }
+    cout << endl;
+
+    cout << "Rank " << rank << " send offsets: ";
+    for(uint64_t i = 0; i < world_size; i++) {
+        cout << send_offsets[i] << " ";
+    }
+    cout << endl;
+
+    cout << "Rank " << rank << " recv offsets: ";
+    for(uint64_t i = 0; i < world_size; i++) {
+        cout << recv_offsets[i] << " ";
+    }
+    cout << endl;*/
+
+    MPI_Datatype mpi_dtype = get_MPI_dtype<VAL_T>();
+    MPI_Alltoallv(send_buffer(), 
                     send_counts_dcast(), 
                     send_offsets_dcast(), 
                     mpi_dtype,
@@ -97,5 +132,5 @@ void alltoallv_matrix_rows(
                     recv_offsets_dcast(), 
                     mpi_dtype, 
                     MPI_COMM_WORLD 
-                    );*/
+                    );
 }

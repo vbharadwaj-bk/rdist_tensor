@@ -95,11 +95,21 @@ public:
 }
 
         unique_ptr<Buffer<uint32_t>> recv_idxs;
+        unique_ptr<Buffer<double>> recv_values;
         alltoallv_matrix_rows(
             indices,
             processor_assignments,
             send_counts,
             recv_idxs
         );
+        alltoallv_matrix_rows(
+            values,
+            processor_assignments,
+            send_counts,
+            recv_values
+        );
+
+        indices.steal_resources(*recv_idxs);
+        values.steal_resources(*recv_values);
     }
 };

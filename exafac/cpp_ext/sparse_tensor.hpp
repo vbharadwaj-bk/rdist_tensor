@@ -2,6 +2,7 @@
 #include <string>
 
 #include "common.h"
+#include "alltoallv_revised.hpp"
 
 using namespace std;
 
@@ -68,8 +69,9 @@ public:
         Buffer<int> prefix({(uint64_t) tensor_grid.dim}); 
         tensor_grid.grid.get_prefix_array(prefix);
 
-        vector<uint64_t> send_counts(proc_count, 0);
-        vector<int> processor_assignments(nnz, -1); 
+        Buffer<uint64_t> send_counts({proc_count});
+        std::fill(send_counts(), send_counts(proc_count), 0);
+        Buffer<int> processor_assignments({nnz}); 
 
         #pragma omp parallel
 {
@@ -91,5 +93,13 @@ public:
             send_counts[i] += send_counts_local[i];
         }
 }
+
+        unique_ptr<Buffer<uint32_t>> recv_idxs;
+        alltoallv_matrix_rows(
+            indices,
+            processor_assignments,
+            send_counts,
+            recv_idxs
+        );
     }
 };

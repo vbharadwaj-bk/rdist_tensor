@@ -172,17 +172,6 @@ void tensor_alltoallv_vector_result(
     MPI_Datatype MPI_IDX_T, MPI_VAL_T;
     DEFINE_MPI_DATATYPES();
 
-    string idx_t_str, val_t_str;
-    if(MPI_IDX_T == MPI_UINT64_T) 
-        idx_t_str = "u64";
-    else 
-        idx_t_str = "u32"; 
-
-    if(MPI_VAL_T == MPI_DOUBLE) 
-        val_t_str = "double";
-    else 
-        val_t_str = "float"; 
-
     vector<uint64_t> recv_counts(proc_count, 0);
 
     vector<uint64_t> send_offsets;

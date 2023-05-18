@@ -24,6 +24,32 @@
 using namespace std;
 namespace py = pybind11;
 
+template<typename TYPE_T>
+MPI_Datatype get_MPI_dtype() {
+    if(std::is_same<TYPE_T, uint32_t>::value) {
+        return MPI_UINT32_T;
+    }
+    else if(std::is_same<TYPE_T, uint64_t>::value) {
+        return MPI_UINT64_T;
+    }
+    else if(std::is_same<TYPE_T, int32_t>::value) {
+        return MPI_INT32_T;
+    }
+    else if(std::is_same<TYPE_T, int64_t>::value) {
+        return MPI_INT64_T;
+    }
+    else if(std::is_same<TYPE_T, float>::value) {
+        return MPI_FLOAT;
+    }
+    else if(std::is_same<TYPE_T, double>::value) {
+        return MPI_DOUBLE;
+    }
+    else {
+        cout << "Unknown MPI datatype" << endl;
+        exit(1);
+    }
+}
+
 #define DEFINE_MPI_DATATYPES() ({\
     if(std::is_same<IDX_T, uint32_t>::value)\
         MPI_IDX_T = MPI_UINT32_T;\

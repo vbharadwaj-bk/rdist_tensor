@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 
+#include "sort_lookup.hpp"
 #include "common.h"
 #include "alltoallv_revised.hpp"
 
@@ -14,6 +15,8 @@ public:
     std::string preprocessing;
     uint64_t dim;
     Buffer<uint64_t> offsets;
+
+    vector<SortIdxLookup<uint32_t, double>> sort_idx_lookups;
 
     /*
     * To avoid a compile-time dependence on the HDF-5 library,
@@ -53,7 +56,11 @@ public:
             for(uint64_t j = 0; j < dim; j++) {
                 indices[i * dim + j] -= offsets[j];
             }
-        } 
+        }
+
+        for(uint64_t i = 0; i < dim; i++) {
+            sort_idx_lookups.emplace_back(dim, i, indices(), values(), indices.shape[0]);
+        }
     }
 
     void check_tensor_invariants() {

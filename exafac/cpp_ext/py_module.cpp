@@ -14,6 +14,7 @@
 #include "distmat.hpp"
 #include "low_rank_tensor.hpp"
 #include "sparse_tensor.hpp"
+#include "exact_als.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -34,6 +35,9 @@ PYBIND11_MODULE(py_module, m) {
             py::array_t<uint32_t>, 
             py::array_t<double>, 
             std::string>());
+    py::class_<ExactALS>(m, "ExactALS")
+        .def(py::init<SparseTensor&, LowRankTensor&>());
+    
 }
 
 /*
@@ -79,6 +83,8 @@ cfg['dependencies'] = [ 'common.h',
                         'distmat.hpp',
                         'low_rank_tensor.hpp',
                         'sparse_tensor.hpp',
+                        'sort_lookup.hpp',
+                        'exact_als.hpp',
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

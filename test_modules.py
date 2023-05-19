@@ -16,7 +16,7 @@ def test_prefixes(axes):
 
 
 def test_grid():
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS
     from exafac.sparse_tensor_e import DistSparseTensorE
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
@@ -31,8 +31,10 @@ def test_grid():
 
     test = GridPy(dims)
 
-    tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
-    low_rank_tensor = LowRankTensor(5, tensor.tensor_grid)
+    sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
+    low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)
+    exact_als = ExactALS(sparse_tensor, low_rank_tensor) 
+
     #low_rank_tensor.test_gram_matrix_computation()
 
 if __name__=='__main__':

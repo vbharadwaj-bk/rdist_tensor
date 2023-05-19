@@ -6,11 +6,11 @@
 
 using namespace std;
 
-class Exact_ALS {
+class __attribute__((visibility("hidden"))) ExactALS {
     SparseTensor &ground_truth;
     LowRankTensor &low_rank_tensor;
 public:
-    TensorStationary(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
+    ExactALS(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
     ground_truth(ground_truth),
     low_rank_tensor(low_rank_tensor)

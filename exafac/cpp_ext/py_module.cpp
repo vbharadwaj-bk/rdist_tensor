@@ -2,6 +2,8 @@
 #include <iostream>
 #include <mpi.h>
 
+#include <algorithm>
+#include <execution>
 #include <cblas.h>
 #include <lapacke.h>
 

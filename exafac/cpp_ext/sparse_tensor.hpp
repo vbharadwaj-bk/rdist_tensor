@@ -18,7 +18,7 @@ public:
     uint64_t dim;
     Buffer<uint64_t> offsets;
 
-    //vector<SortIdxLookup<uint32_t, double>> sort_idx_lookups;
+    vector<unique_ptr<SortIdxLookup<uint32_t, double>>> lookups;
 
     /*
     * To avoid a compile-time dependence on the HDF-5 library,
@@ -60,9 +60,12 @@ public:
             }
         }
 
-        //for(uint64_t i = 0; i < dim; i++) {
-        //    sort_idx_lookups.emplace_back(dim, i, indices(), values(), indices.shape[0]);
-        //}
+        for(uint64_t i = 0; i < dim; i++) {
+            lookups.emplace_back(
+                make_unique<SortIdxLookup<uint32_t, double>>(
+                    dim, i, indices(), values(), indices.shape[0]
+                )); 
+        }
     }
 
     void check_tensor_invariants() {

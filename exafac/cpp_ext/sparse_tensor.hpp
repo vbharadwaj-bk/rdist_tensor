@@ -13,35 +13,72 @@ public:
     Buffer<double> values;
     std::string preprocessing;
     uint64_t dim;
+    Buffer<uint64_t> offsets;
 
     /*
     * To avoid a compile-time dependence on the HDF-5 library,
     * an instance of SparseTensor is tied to a Python file
-    * that calls the HDF5 library. This allows a flexible
-    *  
-
+    * that calls the HDF5 library. 
     */
     SparseTensor(
         TensorGrid &tensor_grid,
-        py::array_t<uint32_t> indices,
-        py::array_t<double> values, 
+        py::array_t<uint32_t> indices_py,
+        py::array_t<double> values_py, 
         std::string preprocessing) :
             tensor_grid(tensor_grid),
-            indices(indices, true), 
-            values(values, true), 
+            indices(indices_py, true), 
+            values(values_py, true), 
             preprocessing(preprocessing),
-            dim(tensor_grid.dim) 
+            dim(tensor_grid.dim),
+            offsets({dim}) 
             { 
         if(preprocessing == "log_count") {
             #pragma omp parallel for
-            for(uint64_t i = 0; i < this->values.shape[0]; i++) {
-                this->values[i] = log(this->values[i] + 1);
+            for(uint64_t i = 0; i < values.shape[0]; i++) {
+                this->values[i] = log(values[i] + 1);
             }
         }
 
         check_tensor_invariants();
         redistribute_to_grid(tensor_grid);
         check_tensor_invariants();
+
+        for(uint64_t i = 0; i < dim; i++) {
+            offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
+        }
+
+        // Print the offsets for each rank
+
+        cout << "Offsets for rank " << tensor_grid.grid.rank << " "; 
+        for(uint64_t i = 0; i < dim; i++) {
+            cout << offsets[i] << " ";
+        }
+        cout << endl;
+
+
+        //#pragma omp parallel for
+        for(uint64_t i = 0; i < indices.shape[0]; i++) {
+            //bool oob = false;
+
+            for(uint64_t j = 0; j < dim; j++) {
+                indices[i * dim + j] -= offsets[j];
+                /*if(indices[i * dim + j] < offsets[j]) {
+                    oob = true;
+                }*/
+            }
+            /*if(oob) {
+                if(tensor_grid.rank == 1) {
+                    cout << "Out of bounds for rank " << tensor_grid.grid.rank << ": "; 
+                    for(uint64_t j = 0; j < dim; j++) {
+                        cout << "(  " << 
+                        indices[i * dim + j] << ", "
+                        << offsets[j] << ") "; 
+                    }
+                    cout << endl;
+                }
+            }
+            exit(1);*/
+        } 
     }
 
     void check_tensor_invariants() {
@@ -73,17 +110,17 @@ public:
         std::fill(send_counts(), send_counts(proc_count), 0);
         Buffer<int> processor_assignments({nnz}); 
 
-        #pragma omp parallel
+        //#pragma omp parallel
 {
         vector<uint64_t> send_counts_local(proc_count, 0);
 
-        #pragma omp for
+        //#pragma omp for
         for(uint64_t i = 0; i < nnz; i++) {
             uint64_t target_proc = 0;
             for(uint64_t j = 0; j < dim; j++) {
                 target_proc += prefix[j] * (indices[i * dim + j] / tensor_grid.padded_row_counts[j]); 
             }
-
+            
             send_counts_local[target_proc]++;
             processor_assignments[i] = target_proc; 
         }

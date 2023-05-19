@@ -47,37 +47,12 @@ public:
             offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
         }
 
-        // Print the offsets for each rank
-
-        cout << "Offsets for rank " << tensor_grid.grid.rank << " "; 
-        for(uint64_t i = 0; i < dim; i++) {
-            cout << offsets[i] << " ";
-        }
-        cout << endl;
-
 
         //#pragma omp parallel for
         for(uint64_t i = 0; i < indices.shape[0]; i++) {
-            //bool oob = false;
-
             for(uint64_t j = 0; j < dim; j++) {
                 indices[i * dim + j] -= offsets[j];
-                /*if(indices[i * dim + j] < offsets[j]) {
-                    oob = true;
-                }*/
             }
-            /*if(oob) {
-                if(tensor_grid.rank == 1) {
-                    cout << "Out of bounds for rank " << tensor_grid.grid.rank << ": "; 
-                    for(uint64_t j = 0; j < dim; j++) {
-                        cout << "(  " << 
-                        indices[i * dim + j] << ", "
-                        << offsets[j] << ") "; 
-                    }
-                    cout << endl;
-                }
-            }
-            exit(1);*/
         } 
     }
 

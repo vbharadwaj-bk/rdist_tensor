@@ -157,7 +157,7 @@ public:
                 start_coords[i].push_back(j);
             }
 
-            while(start_coords[i].size() < (uint64_t) proc_count) {
+            while(start_coords[i].size() < (uint64_t) proc_count + 1) {
                 start_coords[i].push_back(dim);
             }
 

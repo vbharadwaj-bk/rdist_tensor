@@ -63,18 +63,7 @@ void alltoallv_matrix_rows(
         #pragma omp atomic capture 
         idx = running_offsets[owner]++;
 
-        std::copy(send_buffer(i * cols), send_buffer((i + 1) * cols), pack_buffer(idx, 0));
-  
-        // Check for the value (19, 13, 657, 711) in send_buffer and print idx
-        if(send_buffer[i * cols] == 19 && send_buffer[i * cols + 1] == 13 && send_buffer[i * cols + 2] == 657 && send_buffer[i * cols + 3] == 711) {
-            cout << "Rank " << rank << " has (19, 13, 657, 711) at index " << idx << endl;
-            cout << "Send count is " << send_counts[0] << endl;
-            cout << "Ending offset is " << send_offsets[1] << endl;
-        } 
-    }
-
-    if(rank == 0) {
-        cout << "Running offset for processor 0 is " << running_offsets[0] << endl;
+        std::copy(send_buffer(i * cols), send_buffer((i + 1) * cols), pack_buffer(idx, 0)); 
     }
 
     for(uint64_t i = 0; i < world_size; i++) {

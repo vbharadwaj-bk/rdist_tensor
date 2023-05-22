@@ -164,47 +164,6 @@ public:
 	}
 };
 
-//-----------------------------------------------------------------------------
-// MurmurHash2, by Austin Appleby
-
-// Note - This code makes a few assumptions about how your machine behaves -
-
-// 1. We can read a 4-byte value from any address without crashing
-// 2. sizeof(int) == 4
-
-// And it has a few limitations -
-
-// 1. It will not work incrementally.
-// 2. It will not produce the same results on little-endian and big-endian
-//    machines.
-
-// TODO: Need to add a hash function for other sizes as well! 
-
-inline uint64_t murmurhash2_fast (uint32_t k1, uint64_t seed )
-{
-  const uint32_t m = 0x5bd1e995;
-  const int r = 24;
-
-  const int len = 4;
-
-  uint32_t h1 = uint32_t(seed) ^ len;
-  uint32_t h2 = uint32_t(seed >> 32);
-
-  k1 *= m; k1 ^= k1 >> r; k1 *= m;
-  h1 *= m; h1 ^= k1;
-
-  h1 ^= h2 >> 18; h1 *= m;
-  h2 ^= h1 >> 22; h2 *= m;
-  h1 ^= h2 >> 17; h1 *= m;
-  h2 ^= h1 >> 19; h2 *= m;
-
-  uint64_t h = h1;
-
-  h = (h << 32) | h2;
-
-  return h;
-} 
-
 typedef chrono::time_point<std::chrono::steady_clock> my_timer_t; 
 
 my_timer_t start_clock() {
@@ -499,4 +458,28 @@ double ATB_chain_prod_sum(
     Buffer<double> result({R_A, R_B});
     ATB_chain_prod(A, B, sigma_A, sigma_B, result, -1);
     return std::accumulate(result(), result(R_A * R_B), 0.0); 
+}
+
+void chain_had_prod(
+        vector<Buffer<double>> &A,
+        Buffer<double> &result,
+        int exclude) {
+
+        uint64_t R_A = A[0].shape[0];
+        uint64_t R_B = A[0].shape[1];
+
+        #pragma omp parallel 
+{
+        for(uint64_t k = 0; k < A.size(); k++) {
+                if(((int) k) != exclude) {
+                    #pragma omp for collapse(2)
+                    for(uint64_t i = 0; i < R_A; i++) {
+                            for(uint64_t j = 0; j < R_B; j++) {
+                                    result[i * R_B + j] *= A[i * R_B + j];
+                            }
+                    }
+                }
+        }
+}
+
 }

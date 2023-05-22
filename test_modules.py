@@ -34,8 +34,8 @@ def test_grid():
     sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
     low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)
     exact_als = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    exact_als.execute_ALS_round()
 
-    #low_rank_tensor.test_gram_matrix_computation()
 
 if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()

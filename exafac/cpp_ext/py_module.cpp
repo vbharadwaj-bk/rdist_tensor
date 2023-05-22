@@ -38,8 +38,8 @@ PYBIND11_MODULE(py_module, m) {
             py::array_t<double>, 
             std::string>());
     py::class_<ExactALS>(m, "ExactALS")
-        .def(py::init<SparseTensor&, LowRankTensor&>());
-    
+        .def(py::init<SparseTensor&, LowRankTensor&>())
+        .def("execute_ALS_round", &ExactALS::execute_ALS_round); 
 }
 
 /*

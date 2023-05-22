@@ -49,7 +49,7 @@ public:
         } else {
             true_row_count = min(padded_rows, rows - row_position * padded_rows);
         }
-        data.reset(new Buffer<double>({true_row_count * cols}));
+        data.reset(new Buffer<double>({padded_rows, cols}));
 
         MPI_Allgather(&row_position,
             1,

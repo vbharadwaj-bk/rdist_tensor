@@ -8,14 +8,17 @@
 using namespace std;
 
 class __attribute__((visibility("hidden"))) LowRankTensor {
+public:
     uint64_t rank;
+    Buffer<double> sigma;
     vector<DistMat1D> factors;
     TensorGrid &tensor_grid;
-public:
     LowRankTensor(uint64_t rank, TensorGrid &tensor_grid) :
         rank(rank),
+        sigma({rank}),
         tensor_grid(tensor_grid) {
 
+        std::fill(sigma(), sigma(rank), 1.0);
         for(int i = 0; i < tensor_grid.dim; i++) {
             factors.emplace_back(rank, tensor_grid, i);
         } 

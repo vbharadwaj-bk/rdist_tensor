@@ -98,11 +98,15 @@ public:
 
     void initialize_deterministic() {
         Buffer<double> &data = *(this->data);
+        /*cout << "Rank " << grid.rank << " offset is " << row_position * padded_rows 
+        << " with true row count " << true_row_count << endl;*/
+
         for(uint64_t i = 0; i < true_row_count; i++) {
             for(uint64_t j = 0; j < cols; j++) {
                 data[i * cols + j] = (double) cos((i + row_position * padded_rows) * cols + j);
             }
         }
+        //MPI_Barrier(grid.world);
     }
 
     void initialize_gaussian_random() {

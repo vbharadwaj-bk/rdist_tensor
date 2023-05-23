@@ -102,7 +102,7 @@ public:
                 grid.slices[i]
             );
 
-            if(i == 0) {
+            /*if(i == 0) {
                 for(int k = 0; k < grid.world_size; k++) {
                     if(grid.rank == k) {
                         cout << "Factor data for rank " << grid.rank << endl;
@@ -111,7 +111,7 @@ public:
                     }
                     MPI_Barrier(grid.world);
                 }  
-            }
+            }*/
 
 
             factor.compute_gram_matrix(gram_matrices[i]);

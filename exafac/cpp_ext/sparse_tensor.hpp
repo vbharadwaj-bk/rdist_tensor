@@ -119,7 +119,7 @@ public:
         for(uint64_t i = 0; i < nnz; i++) {
             uint64_t target_proc = 0;
             for(uint64_t j = 0; j < dim; j++) {
-                target_proc += prefix[j] * (indices[i * dim + j] / tensor_grid.padded_row_counts[j]); 
+                target_proc += prefix[j] * (indices[i * dim + j] / tensor_grid.subblock_sizes_uniform[j]); 
             }
             
             send_counts_local[target_proc]++;

@@ -102,6 +102,18 @@ public:
                 grid.slices[i]
             );
 
+            if(i == 0) {
+                for(int k = 0; k < grid.world_size; k++) {
+                    if(grid.rank == k) {
+                        cout << "Factor data for rank " << grid.rank << endl;
+                        gathered_factors[i].print(); 
+                        cout << factor_data.shape[0] << " " << factor_data.shape[1] << endl;
+                    }
+                    MPI_Barrier(grid.world);
+                }  
+            }
+
+
             factor.compute_gram_matrix(gram_matrices[i]);
         }
 
@@ -118,7 +130,8 @@ public:
             }
         }
 
-        double bmb = ground_truth.lookups[0]->compute_2bmb(
+        double bmb = 0;
+        bmb = ground_truth.lookups[0]->compute_2bmb(
             low_rank_tensor.sigma,
             gathered_factors
         );

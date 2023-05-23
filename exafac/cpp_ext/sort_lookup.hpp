@@ -198,15 +198,14 @@ public:
           // Print the rows of the factor matrices that were multiplied together to produce
           // this value.
           for(int k = 0; k < N; k++) {
-            if(k != j) {
+            //if(k != j) {
               cout << "Factor " << k << " row: ";
               for(int u = 0; u < R; u++) {
                 cout << U[k][index[k] * R + u] << " ";
               }
               cout << endl;
-            } 
+            //} 
           }
-
         }
 
         residual_normsq += tensor_value * tensor_value - 2 * value * tensor_value; 

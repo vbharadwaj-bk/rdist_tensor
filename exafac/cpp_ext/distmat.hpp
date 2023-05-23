@@ -41,7 +41,7 @@ public:
         this->cols = cols; 
         this->rows = tensor_grid.tensor_dims[slice_dim];
 
-        padded_rows = tensor_grid.padded_row_counts[slice_dim];
+        padded_rows = tensor_grid.padded_row_counts[slice_dim]; 
         row_position = grid.row_positions[slice_dim][grid.rank];
 
         if(row_position * padded_rows > rows) {

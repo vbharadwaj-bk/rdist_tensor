@@ -36,8 +36,8 @@ def test_grid():
     fit = exact_als.compute_exact_fit()
     #exact_als.execute_ALS_round()
 
-    if rank == 0:
-        print(f"Fit: {fit}")
+    #if rank == 0:
+    #    print(f"Fit: {fit}")
 
 
 if __name__=='__main__':

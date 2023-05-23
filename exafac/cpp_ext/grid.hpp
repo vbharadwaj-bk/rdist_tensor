@@ -133,6 +133,7 @@ public:
 
     vector<vector<int>> start_coords;
     vector<int> bound_starts, bound_ends;
+    vector<int> subblock_sizes_uniform;
 
     int dim;
     int rank;
@@ -149,11 +150,16 @@ public:
             int proc_count = grid.proc_dims[i];
 
             int padded_row_count = (int) round_to_nearest_integer((uint64_t) dim, 
-                    (uint64_t) grid.world_size) / proc_count; 
+                    (uint64_t) grid.world_size) / grid.world_size; 
+
+            int subblock_size = (int) round_to_nearest_integer((uint64_t) dim, 
+                        (uint64_t) grid.world_size) / proc_count;
+
             padded_row_counts.push_back(padded_row_count);
+            subblock_sizes_uniform.push_back(subblock_size);
 
             start_coords.emplace_back();
-            for(int j = 0; j < dim; j += padded_row_count) {
+            for(int j = 0; j < dim; j += subblock_size) {
                 start_coords[i].push_back(j);
             }
 

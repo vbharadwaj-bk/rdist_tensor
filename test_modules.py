@@ -24,17 +24,20 @@ def test_grid():
     dims = [3, 2, 1, 1]
     proc_dims = np.array(dims, dtype=np.int32)
 
-    #print(test_prefixes(dims))
-    #exit(1)
-
     grid = Grid(proc_dims)
 
-    test = GridPy(dims)
+    # Get the MPI rank with mpi4py
+    rank = MPI.COMM_WORLD.Get_rank()
 
     sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
     low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)
+    low_rank_tensor.initialize_factors_deterministic()
     exact_als = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    exact_als.execute_ALS_round()
+    fit = exact_als.compute_exact_fit()
+    #exact_als.execute_ALS_round()
+
+    if rank == 0:
+        print(fit)
 
 
 if __name__=='__main__':

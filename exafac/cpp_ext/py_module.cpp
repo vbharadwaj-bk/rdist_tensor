@@ -31,7 +31,8 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<uint64_t, TensorGrid&, uint64_t>());
     py::class_<LowRankTensor>(m, "LowRankTensor")
         .def(py::init<uint64_t, TensorGrid&>())
-        .def("test_gram_matrix_computation", &LowRankTensor::test_gram_matrix_computation);
+        .def("test_gram_matrix_computation", &LowRankTensor::test_gram_matrix_computation)
+        .def("initialize_factors_deterministic", &LowRankTensor::initialize_factors_deterministic);
     py::class_<SparseTensor>(m, "SparseTensor")
         .def(py::init<TensorGrid&, 
             py::array_t<uint32_t>, 
@@ -39,7 +40,8 @@ PYBIND11_MODULE(py_module, m) {
             std::string>());
     py::class_<ExactALS>(m, "ExactALS")
         .def(py::init<SparseTensor&, LowRankTensor&>())
-        .def("execute_ALS_round", &ExactALS::execute_ALS_round); 
+        .def("execute_ALS_round", &ExactALS::execute_ALS_round)
+        .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
 }
 
 /*

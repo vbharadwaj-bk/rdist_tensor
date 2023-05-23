@@ -26,10 +26,6 @@ public:
     dim(ground_truth.dim)
     {
         for(uint64_t i = 0; i < dim; i++) {
-            low_rank_tensor.factors[i].initialize_deterministic();   
-        }
-
-        for(uint64_t i = 0; i < dim; i++) {
             int world_size;
             MPI_Comm_size(grid.slices[i], &world_size);
             uint64_t row_count = tensor_grid.padded_row_counts[i] * world_size;
@@ -49,7 +45,6 @@ public:
             // Allgather the local data of low_rank_tensor.factors[i]
             // into the gathered factor buffers
 
-            uint64_t gathered_rowct = gathered_factors[i].shape[0];
             uint64_t R = low_rank_tensor.rank; 
 
             if(i != (int) mode_to_leave) {
@@ -76,10 +71,11 @@ public:
             chain_had_prod(gram_matrices, gram_product, mode_to_leave);
             compute_pinv_square(gram_product, gram_product_inv, R);
 
-            Buffer<double> temp_buf({gathered_rowct, R});
+            uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
+            Buffer<double> temp_buf({output_buffer_rows, R});
 
             std::fill(temp_buf(), 
-                temp_buf(gathered_rowct * R), 
+                temp_buf(output_buffer_rows * R), 
                 0.0);
 
             ground_truth.lookups[i]->execute_exact_mttkrp( 
@@ -87,6 +83,56 @@ public:
                 temp_buf 
             );
         }
+    }
+
+    // Warning: this doesn't compute the fit yet!
+    double compute_exact_fit() {
+        uint64_t R = low_rank_tensor.rank; 
+        for(int i = 0; i < grid.dim; i++) {
+            DistMat1D &factor = low_rank_tensor.factors[i];
+            Buffer<double> &factor_data = *(factor.data);
+
+            MPI_Allgather(
+                factor_data(),
+                factor_data.shape[0] * R,
+                MPI_DOUBLE,
+                gathered_factors[i](),
+                factor_data.shape[0] * R,
+                MPI_DOUBLE,
+                grid.slices[i]
+            );
+
+            factor.compute_gram_matrix(gram_matrices[i]);
+        }
+
+        Buffer<double> gram_product({R, R});
+        chain_had_prod(gram_matrices, gram_product, -1);
+        
+        double normsq_lowrank_tensor = 0;
+        #pragma omp parallel for collapse(2) reduction(+:normsq_lowrank_tensor)
+        for(uint64_t i = 0; i < R; i++) {
+            for(uint64_t j = 0; j < R; j++) {
+                normsq_lowrank_tensor += 
+                    gram_product[i * R + j] 
+                    * low_rank_tensor.sigma[i] * low_rank_tensor.sigma[j];
+            }
+        }
+
+        double bmb = ground_truth.lookups[0]->compute_2bmb(
+            low_rank_tensor.sigma,
+            gathered_factors
+        );
+
+        // Allreduce residual_normsq across processors 
+        double global_bmb = 0;
+        MPI_Allreduce(&bmb, 
+            &global_bmb, 
+            1, 
+            MPI_DOUBLE, 
+            MPI_SUM, 
+            MPI_COMM_WORLD);
+
+        return global_bmb;
     }
 
     void execute_ALS_round() {

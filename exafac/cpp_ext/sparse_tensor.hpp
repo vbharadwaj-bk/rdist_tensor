@@ -17,8 +17,8 @@ public:
     std::string preprocessing;
     uint64_t dim;
     Buffer<uint64_t> offsets;
-
     vector<unique_ptr<SortIdxLookup<uint32_t, double>>> lookups;
+    double tensor_norm;
 
     /*
     * To avoid a compile-time dependence on the HDF-5 library,
@@ -37,11 +37,25 @@ public:
             dim(tensor_grid.dim),
             offsets({dim}) 
             { 
+        tensor_norm = 0.0;
         if(preprocessing == "log_count") {
-            #pragma omp parallel for
+            #pragma omp parallel for reduction(+:tensor_norm)
             for(uint64_t i = 0; i < values.shape[0]; i++) {
                 this->values[i] = log(values[i] + 1);
+                tensor_norm += this->values[i] * this->values[i];
             }
+        }
+        else {
+            #pragma omp parallel for reduction(+:tensor_norm)
+            for(uint64_t i = 0; i < values.shape[0]; i++) {
+                tensor_norm += this->values[i] * this->values[i];
+            }
+        }
+
+        MPI_Allreduce(MPI_IN_PLACE, &tensor_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        tensor_norm = sqrt(tensor_norm);
+        if(tensor_grid.rank == 0) {
+            cout << "Tensor norm is " << tensor_norm << endl;
         }
 
         check_tensor_invariants();

@@ -475,7 +475,7 @@ void chain_had_prod(
                     #pragma omp for collapse(2)
                     for(uint64_t i = 0; i < R_A; i++) {
                             for(uint64_t j = 0; j < R_B; j++) {
-                                    result[i * R_B + j] *= A[i * R_B + j];
+                                    result[i * R_B + j] *= A[k][i * R_B + j];
                             }
                     }
                 }

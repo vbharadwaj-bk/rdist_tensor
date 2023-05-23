@@ -24,6 +24,12 @@ public:
         } 
     }
 
+    void initialize_factors_deterministic() {
+        for(int i = 0; i < tensor_grid.dim; i++) {
+            factors[i].initialize_deterministic();
+        }
+    }
+
     void test_gram_matrix_computation() {
         Buffer<double> gram_matrix({rank, rank});
         for(int i = 0; i < tensor_grid.dim; i++) {

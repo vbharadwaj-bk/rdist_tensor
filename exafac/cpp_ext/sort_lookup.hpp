@@ -129,7 +129,7 @@ public:
     //cout << "Found Nonzeros: " << found_count << endl;
   }
 
-  double compute_residual_normsq(
+  double compute_2bmb(
       Buffer<double> &sigma, 
       vector<Buffer<double>> &U) {
 
@@ -186,12 +186,11 @@ public:
         }
         value_sum += value;
 
-        residual_normsq += tensor_value * tensor_value - 2 * value * tensor_value;
+        residual_normsq += tensor_value * tensor_value - 2 * value * tensor_value; 
       }
 }
 
-      residual_normsq += ATB_chain_prod_sum(U, U, sigma, sigma);
-      return residual_normsq;
+      return value_sum;
   }
 
   void execute_exact_mttkrp(

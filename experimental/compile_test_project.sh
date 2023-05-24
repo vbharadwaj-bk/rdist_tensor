@@ -1,0 +1,1 @@
+CC test_compilation.cpp -o test_compilation -I/global/homes/v/vbharadw/OpenBLAS_install/include -L/global/homes/v/vbharadw/OpenBLAS_install/lib -lopenblas

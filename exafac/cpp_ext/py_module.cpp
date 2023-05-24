@@ -40,7 +40,7 @@ PYBIND11_MODULE(py_module, m) {
             std::string>());
     py::class_<ExactALS>(m, "ExactALS")
         .def(py::init<SparseTensor&, LowRankTensor&>())
-        .def("execute_ALS_round", &ExactALS::execute_ALS_round)
+        .def("execute_ALS_rounds", &ExactALS::execute_ALS_rounds)
         .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
 }
 

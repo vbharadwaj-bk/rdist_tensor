@@ -41,11 +41,11 @@ public:
     }
 
     void execute_ALS_step(uint64_t mode_to_leave) {
+        uint64_t R = low_rank_tensor.rank; 
+
         for(int i = 0; i < grid.dim; i++) {
             // Allgather the local data of low_rank_tensor.factors[i]
             // into the gathered factor buffers
-
-            uint64_t R = low_rank_tensor.rank; 
 
             if(i != (int) mode_to_leave) {
                 DistMat1D &factor = low_rank_tensor.factors[i];
@@ -64,68 +64,67 @@ public:
                 factor.compute_gram_matrix(gram_matrices[i]);
                 MPI_Barrier(grid.world);
             }
-
-            Buffer<double> gram_product({R, R});
-            Buffer<double> gram_product_inv({R, R});
-
-            chain_had_prod(gram_matrices, gram_product, mode_to_leave);
-            compute_pinv_square(gram_product, gram_product_inv, R);
-
-            uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
-            Buffer<double> mttkrp_res({output_buffer_rows, R});
-
-            std::fill(mttkrp_res(), 
-                mttkrp_res(output_buffer_rows * R), 
-                0.0);
-
-            ground_truth.lookups[i]->execute_exact_mttkrp( 
-                gathered_factors,
-                mttkrp_res 
-            );
-
-            /*
-            DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
-            Buffer<double> &target_factor_data = *(target_factor.data);
-            uint64_t target_factor_rows = target_factor_data.shape[0];
-            Buffer<double> temp_local({target_factor_rows, R}); 
-
-            // Reduce_scatter_block the mttkrp_res buffer into temp_local 
-            // across grid.slices[mode_to_leave] 
-            MPI_Reduce_scatter_block(
-                mttkrp_res(),
-                temp_local(),
-                target_factor_rows * R,
-                MPI_DOUBLE,
-                MPI_SUM,
-                grid.slices[mode_to_leave]
-            );             
-    
-            cblas_dsymm(
-                CblasRowMajor,
-                CblasRight,
-                CblasUpper,
-                (uint32_t) target_factor_rows,
-                (uint32_t) R,
-                1.0,
-                gram_product_inv(),
-                R,
-                temp_local(),
-                R,
-                0.0,
-                target_factor_data(),
-                R);
-
-            target_factor.renormalize_columns(&(low_rank_tensor.sigma));
-            */
-
         }
+
+        Buffer<double> gram_product({R, R});
+        Buffer<double> gram_product_inv({R, R});
+
+        chain_had_prod(gram_matrices, gram_product, mode_to_leave);
+        compute_pinv_square(gram_product, gram_product_inv, R);
+
+        uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
+        Buffer<double> mttkrp_res({output_buffer_rows, R});
+
+        std::fill(mttkrp_res(), 
+            mttkrp_res(output_buffer_rows * R), 
+            0.0);
+
+        ground_truth.lookups[mode_to_leave]->execute_exact_mttkrp( 
+            gathered_factors,
+            mttkrp_res 
+        );
+
+
+        DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
+        Buffer<double> &target_factor_data = *(target_factor.data);
+        uint64_t target_factor_rows = target_factor_data.shape[0];
+        Buffer<double> temp_local({target_factor_rows, R}); 
+
+        // Reduce_scatter_block the mttkrp_res buffer into temp_local 
+        // across grid.slices[mode_to_leave] 
+        MPI_Reduce_scatter_block(
+            mttkrp_res(),
+            temp_local(),
+            target_factor_rows * R,
+            MPI_DOUBLE,
+            MPI_SUM,
+            grid.slices[mode_to_leave]
+        );             
+
+        cblas_dsymm(
+            CblasRowMajor,
+            CblasRight,
+            CblasUpper,
+            (uint32_t) target_factor_rows,
+            (uint32_t) R,
+            1.0,
+            gram_product_inv(),
+            R,
+            temp_local(),
+            R,
+            0.0,
+            target_factor_data(),
+            R);
+
+        target_factor.renormalize_columns(&(low_rank_tensor.sigma));
     }
 
-    void execute_ALS_round() {
-        if(grid.rank == 0) {
-            cout << "Executing ALS round" << endl;
+    void execute_ALS_rounds(uint64_t num_rounds) {
+        for(uint64_t round = 0; round < num_rounds; round++) {
+            for(int i = 0; i < grid.dim; i++) {
+                execute_ALS_step(i);
+            } 
         }
-        execute_ALS_step(0);
     }
 
     // Warning: this doesn't compute the fit yet!

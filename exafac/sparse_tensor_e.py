@@ -43,13 +43,6 @@ class DistSparseTensorE:
 
         # Assumption: all values are double format
         self.values = f['VALUES'][start_nnz:end_nnz]
-
-        # For debugging: "tag a certain value of the tensor with the given value"
-        tag_idx = 3300000
-        tag = 4982
-        if start_nnz <= tag_idx and tag_idx < end_nnz:
-            self.values[tag_idx - start_nnz] = tag
-
         self.tensor_grid = TensorGrid(self.tensor_dims, grid)
 
         self.sparse_tensor = SparseTensor(

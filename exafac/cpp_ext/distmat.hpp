@@ -96,6 +96,63 @@ public:
             );
     }
 
+    void renormalize_columns(Buffer<double>* col_norms_out) {
+        Buffer<double> col_norms({cols});
+        Buffer<double> &data = *(this->data);
+
+        std::fill(col_norms(), col_norms(cols), 0.0);
+
+        #pragma omp parallel
+{ 
+        Buffer<double> col_norms_local({cols});
+        std::fill(col_norms_local(), col_norms_local(cols), 0.0);
+
+        #pragma omp for 
+        for(uint64_t i = 0; i < true_row_count; i++) {
+            for(uint64_t j = 0; j < cols; j++) {
+                col_norms_local[j] += data[i * cols + j] * data[i * cols + j];
+            }
+        }
+
+        for(uint64_t i = 0; i < cols; i++) {
+            #pragma omp atomic
+            col_norms[i] += col_norms_local[i];
+        }
+
+        #pragma omp barrier
+
+        #pragma omp single
+        {
+            MPI_Allreduce(MPI_IN_PLACE,
+                col_norms(),
+                cols,
+                MPI_DOUBLE,
+                MPI_SUM,
+                grid.world
+                ); 
+        }
+
+
+        #pragma omp for
+        for(uint64_t i = 0; i < cols; i++) {
+            col_norms[i] = sqrt(col_norms[i]);
+        }
+
+        // TODO: Should handle division by zero around here 
+
+        #pragma omp for 
+        for(uint64_t i = 0; i < true_row_count; i++) {
+            for(uint64_t j = 0; j < cols; j++) {
+                data[i * cols + j] /= col_norms[j]; 
+            }
+        }
+}
+            
+        if(col_norms_out != nullptr) {
+            std::copy(col_norms(), col_norms(cols), (*col_norms_out)());
+        }
+    }
+
     void initialize_deterministic() {
         Buffer<double> &data = *(this->data);
         /*cout << "Rank " << grid.rank << " offset is " << row_position * padded_rows 

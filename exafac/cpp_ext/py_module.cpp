@@ -6,6 +6,7 @@
 #include <execution>
 #include <cblas.h>
 #include <lapacke.h>
+#include <omp.h>
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>

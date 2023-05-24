@@ -1,7 +1,9 @@
 #pragma once
+
 #include <iostream>
 #include <memory>
 #include <algorithm>
+#include <omp.h>
 #include "common.h"
 
 template<typename VAL_T>
@@ -101,30 +103,6 @@ void alltoallv_matrix_rows(
             recv_offsets_dcast[i] = (int) recv_offsets[i];
         } 
     }
-
-    /*cout << "Rank " << rank << " send counts: ";
-    for(uint64_t i = 0; i < world_size; i++) {
-        cout << send_counts[i] << " ";
-    }
-    cout << endl;
-
-    cout << "Rank " << rank << " recv counts: ";
-    for(uint64_t i = 0; i < world_size; i++) {
-        cout << recv_counts[i] << " ";
-    }
-    cout << endl;
-
-    cout << "Rank " << rank << " send offsets: ";
-    for(uint64_t i = 0; i < world_size; i++) {
-        cout << send_offsets[i] << " ";
-    }
-    cout << endl;
-
-    cout << "Rank " << rank << " recv offsets: ";
-    for(uint64_t i = 0; i < world_size; i++) {
-        cout << recv_offsets[i] << " ";
-    }
-    cout << endl;*/
 
     MPI_Datatype mpi_dtype = get_MPI_dtype<VAL_T>();
     MPI_Alltoallv(pack_buffer(), 

@@ -125,8 +125,6 @@ public:
         }
       }
     }
-
-    //cout << "Found Nonzeros: " << found_count << endl;
   }
 
   double compute_2bmb(

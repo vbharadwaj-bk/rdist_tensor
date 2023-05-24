@@ -67,7 +67,7 @@ public:
         }
 
 
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for(uint64_t i = 0; i < indices.shape[0]; i++) {
             for(uint64_t j = 0; j < dim; j++) {
                 indices[i * dim + j] -= offsets[j];
@@ -111,11 +111,11 @@ public:
         std::fill(send_counts(), send_counts(proc_count), 0);
         Buffer<int> processor_assignments({nnz}); 
 
-        //#pragma omp parallel
+        #pragma omp parallel
 {
         vector<uint64_t> send_counts_local(proc_count, 0);
 
-        //#pragma omp for
+        #pragma omp for
         for(uint64_t i = 0; i < nnz; i++) {
             uint64_t target_proc = 0;
             for(uint64_t j = 0; j < dim; j++) {

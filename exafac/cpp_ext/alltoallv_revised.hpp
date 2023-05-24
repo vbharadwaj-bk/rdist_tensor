@@ -55,7 +55,7 @@ void alltoallv_matrix_rows(
 
     Buffer<VAL_T> pack_buffer({rows, cols});
 
-    //#pragma omp parallel for 
+    #pragma omp parallel for 
     for(uint64_t i = 0; i < rows; i++) {
         int owner = processor_assignments[i];
         uint64_t idx;
@@ -63,7 +63,9 @@ void alltoallv_matrix_rows(
         #pragma omp atomic capture 
         idx = running_offsets[owner]++;
 
-        std::copy(send_buffer(i * cols), send_buffer((i + 1) * cols), pack_buffer(idx, 0)); 
+        for(uint64_t j = 0; j < cols; j++) {
+            pack_buffer[idx * cols + j] = send_buffer[i * cols + j];
+        }
     }
 
     for(uint64_t i = 0; i < world_size; i++) {

@@ -84,7 +84,6 @@ public:
             mttkrp_res 
         );
 
-
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
         Buffer<double> &target_factor_data = *(target_factor.data);
         uint64_t target_factor_rows = target_factor_data.shape[0];

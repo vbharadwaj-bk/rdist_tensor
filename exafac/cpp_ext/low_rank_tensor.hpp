@@ -27,7 +27,9 @@ public:
     void initialize_factors_deterministic() {
         for(int i = 0; i < tensor_grid.dim; i++) {
             factors[i].initialize_deterministic();
+            factors[i].renormalize_columns(nullptr);
         }
+        std::fill(sigma(), sigma(rank), 1.0);
     }
 
     void test_gram_matrix_computation() {

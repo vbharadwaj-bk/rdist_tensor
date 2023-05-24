@@ -102,24 +102,12 @@ public:
                 grid.slices[i]
             );
 
-            /*if(i == 0) {
-                for(int k = 0; k < grid.world_size; k++) {
-                    if(grid.rank == k) {
-                        cout << "Factor data for rank " << grid.rank << endl;
-                        gathered_factors[i].print(); 
-                        cout << factor_data.shape[0] << " " << factor_data.shape[1] << endl;
-                    }
-                    MPI_Barrier(grid.world);
-                }  
-            }*/
-
-
             factor.compute_gram_matrix(gram_matrices[i]);
         }
 
         Buffer<double> gram_product({R, R});
         chain_had_prod(gram_matrices, gram_product, -1);
-        
+
         double normsq_lowrank_tensor = 0;
         #pragma omp parallel for collapse(2) reduction(+:normsq_lowrank_tensor)
         for(uint64_t i = 0; i < R; i++) {
@@ -145,7 +133,11 @@ public:
             MPI_SUM, 
             MPI_COMM_WORLD);
 
-        return global_bmb;
+        double norm_residual = sqrt(normsq_lowrank_tensor + global_bmb);
+
+        // Should be 1 - this value, and floor with 0, but let's leave
+        // it like this for now 
+        return norm_residual / ground_truth.tensor_norm; 
     }
 
     void execute_ALS_round() {

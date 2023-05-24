@@ -468,6 +468,8 @@ void chain_had_prod(
         uint64_t R_A = A[0].shape[0];
         uint64_t R_B = A[0].shape[1];
 
+        std::fill(result(), result(R_A * R_B), 1.0);
+
         #pragma omp parallel 
 {
         for(uint64_t k = 0; k < A.size(); k++) {

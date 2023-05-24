@@ -189,7 +189,7 @@ public:
       }
 }
 
-      return value_sum;
+      return residual_normsq;
   }
 
   void execute_exact_mttkrp(

@@ -83,10 +83,11 @@ public:
                 mttkrp_res 
             );
 
-            DistMat1D target_factor = low_rank_tensor.factors[mode_to_leave];
+            /*
+            DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
             Buffer<double> &target_factor_data = *(target_factor.data);
             uint64_t target_factor_rows = target_factor_data.shape[0];
-            Buffer<double> temp_local({target_factor_rows, R});) 
+            Buffer<double> temp_local({target_factor_rows, R}); 
 
             // Reduce_scatter_block the mttkrp_res buffer into temp_local 
             // across grid.slices[mode_to_leave] 
@@ -103,7 +104,7 @@ public:
                 CblasRowMajor,
                 CblasRight,
                 CblasUpper,
-                (uint32_t) Ij,
+                (uint32_t) target_factor_rows,
                 (uint32_t) R,
                 1.0,
                 gram_product_inv(),
@@ -115,6 +116,8 @@ public:
                 R);
 
             target_factor.renormalize_columns(&(low_rank_tensor.sigma));
+            */
+
         }
     }
 
@@ -175,8 +178,8 @@ public:
 
         double norm_residual = sqrt(normsq_lowrank_tensor + global_bmb);
 
-        // Should be 1 - this value, and floor with 0, but let's leave
+        // Should floor with 0, but let's leave
         // it like this for now 
-        return norm_residual / ground_truth.tensor_norm; 
+        return 1 - (norm_residual / ground_truth.tensor_norm); 
     }
 };

@@ -34,7 +34,7 @@ def test_grid():
     low_rank_tensor.initialize_factors_deterministic()
     exact_als = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
     fit = exact_als.compute_exact_fit()
-    #exact_als.execute_ALS_round()
+    exact_als.execute_ALS_round()
 
     if rank == 0:
         print(f"Fit: {fit}")

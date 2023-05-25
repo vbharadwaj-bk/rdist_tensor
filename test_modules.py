@@ -21,7 +21,7 @@ def test_grid():
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
 
-    dims = [2, 2, 1, 1]
+    dims = [2, 1, 2, 2]
     proc_dims = np.array(dims, dtype=np.int32)
 
     grid = Grid(proc_dims)
@@ -38,7 +38,7 @@ def test_grid():
     fit = exact_als.compute_exact_fit()
     if rank == 0:
         print(f"Fit: {fit}")
-    exact_als.execute_ALS_rounds(40)
+    exact_als.execute_ALS_rounds(20)
 
     fit = exact_als.compute_exact_fit()
     if rank == 0:

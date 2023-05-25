@@ -25,6 +25,7 @@ public:
     grid(ground_truth.tensor_grid.grid),
     dim(ground_truth.dim)
     {
+        uint64_t R = low_rank_tensor.rank; 
         for(uint64_t i = 0; i < dim; i++) {
             int world_size;
             MPI_Comm_size(grid.slices[i], &world_size);
@@ -37,34 +38,28 @@ public:
             gram_matrices.emplace_back(
                 Buffer<double>({low_rank_tensor.rank, low_rank_tensor.rank})
             );
+
+
+            // Allgather factors into buffers and compute gram matrices
+            DistMat1D &factor = low_rank_tensor.factors[i];
+            Buffer<double> &factor_data = *(factor.data);
+
+            MPI_Allgather(
+                factor_data(),
+                factor_data.shape[0] * R,
+                MPI_DOUBLE,
+                gathered_factors[i](),
+                factor_data.shape[0] * R,
+                MPI_DOUBLE,
+                grid.slices[i]
+            );
+
+            factor.compute_gram_matrix(gram_matrices[i]);
         }
     }
 
     void execute_ALS_step(uint64_t mode_to_leave) {
         uint64_t R = low_rank_tensor.rank; 
-
-        for(int i = 0; i < grid.dim; i++) {
-            // Allgather the local data of low_rank_tensor.factors[i]
-            // into the gathered factor buffers
-
-            if(i != (int) mode_to_leave) {
-                DistMat1D &factor = low_rank_tensor.factors[i];
-                Buffer<double> &factor_data = *(factor.data);
-
-                MPI_Allgather(
-                    factor_data(),
-                    factor_data.shape[0] * R,
-                    MPI_DOUBLE,
-                    gathered_factors[i](),
-                    factor_data.shape[0] * R,
-                    MPI_DOUBLE,
-                    grid.slices[i]
-                );
-
-                factor.compute_gram_matrix(gram_matrices[i]);
-                MPI_Barrier(grid.world);
-            }
-        }
 
         Buffer<double> gram_product({R, R});
         Buffer<double> gram_product_inv({R, R});
@@ -116,10 +111,27 @@ public:
             R);
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
+
+        MPI_Allgather(
+            target_factor_data(),
+            target_factor_rows * R,
+            MPI_DOUBLE,
+            gathered_factors[mode_to_leave](),
+            target_factor_rows * R,
+            MPI_DOUBLE,
+            grid.slices[mode_to_leave]
+        );
+
+        target_factor.compute_gram_matrix(gram_matrices[mode_to_leave]);
+
     }
 
     void execute_ALS_rounds(uint64_t num_rounds) {
         for(uint64_t round = 0; round < num_rounds; round++) {
+            if(grid.rank == 0) {
+                cout << "Starting ALS round " << (round + 1) << endl; 
+            }
+
             for(int i = 0; i < grid.dim; i++) {
                 execute_ALS_step(i);
             } 

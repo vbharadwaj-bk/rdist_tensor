@@ -20,6 +20,9 @@ public:
     vector<unique_ptr<SortIdxLookup<uint32_t, double>>> lookups;
     double tensor_norm;
 
+    // Load balancing random permutations along each dimension
+    vector<Buffer<uint32_t>> perms;
+
     /*
     * To avoid a compile-time dependence on the HDF-5 library,
     * an instance of SparseTensor is tied to a Python file
@@ -58,6 +61,25 @@ public:
             cout << "Tensor norm is " << tensor_norm << endl;
         }
 
+        // Compute load-balancing permutations 
+        for(uint64_t i = 0; i < dim; i++) {
+            uint64_t mode_size = tensor_grid.tensor_dims[i];
+            perms.emplace_back(
+                Buffer<uint32_t>({mode_size})
+            );
+
+            std::iota(perms[i](), perms[i](mode_size), 0);
+            std::random_shuffle(perms[i](), perms[i](mode_size));
+        }
+
+        // Apply load-balancing permutations
+        #pragma omp parallel for 
+        for(uint64_t i = 0; i < values.shape[0]; i++) {
+            for(uint64_t j = 0; j < dim; j++) {
+                indices[i * dim + j] = perms[j][indices[i * dim + j]];
+            }
+        }
+
         check_tensor_invariants();
         redistribute_to_grid(tensor_grid);
         check_tensor_invariants();
@@ -65,7 +87,6 @@ public:
         for(uint64_t i = 0; i < dim; i++) {
             offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
         }
-
 
         #pragma omp parallel for
         for(uint64_t i = 0; i < indices.shape[0]; i++) {

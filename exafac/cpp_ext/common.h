@@ -314,7 +314,7 @@ public:
 
     void print() {
         if(shape.size() == 1) {
-            cout << "[ " << endl;
+            cout << "[ " << " "; 
             for(uint64_t i = 0; i < shape[0]; i++) {
                 cout << ptr[i] << " ";
             }

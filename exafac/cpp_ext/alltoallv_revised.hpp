@@ -59,6 +59,12 @@ void alltoallv_matrix_rows(
 
     uint64_t* r_offset_ptr = running_offsets();
 
+    /*
+    * TO-DO: This parallel packing does not work because the
+    * packing of the send buffer may not occur in the
+    * same order as the value buffer. Need to fix eventually. 
+    */
+
     //#pragma omp parallel for 
     for(uint64_t i = 0; i < rows; i++) {
         int owner = processor_assignments[i];

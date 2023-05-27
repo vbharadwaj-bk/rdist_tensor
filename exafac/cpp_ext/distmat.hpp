@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "grid.hpp"
+#include "random_util.hpp"
 #include "common.h"
 
 using namespace std;
@@ -27,6 +28,11 @@ public:
 
     Buffer<uint64_t> proc_to_row_order;
     Buffer<uint64_t> row_order_to_proc;
+
+    // Related to leverage-score sampling
+    unique_ptr<Buffer<double>> leverage_scores;
+
+    // End leverage score-related variables
 
     DistMat1D(uint64_t cols, 
         TensorGrid &tensor_grid, uint64_t slice_dim) 
@@ -50,6 +56,7 @@ public:
             true_row_count = min(padded_rows, rows - row_position * padded_rows);
         }
         data.reset(new Buffer<double>({padded_rows, cols}));
+        leverage_scores.reset(new Buffer<double>({padded_rows}));
 
         MPI_Allgather(&row_position,
             1,
@@ -169,4 +176,52 @@ public:
     void initialize_gaussian_random() {
         // TODO: Implement!
     }
+
+    void compute_leverage_scores() {
+        Buffer<double> &data = *(this->data);
+        Buffer<double> &leverage_scores = *(this->leverage_scores);
+        Buffer<double> gram({cols * cols});
+        Buffer<double> gram_pinv({cols * cols});
+        compute_gram_matrix(gram);
+        compute_pinv_square(gram, gram_pinv, cols);
+        compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
+    }
+
+    void draw_leverage_score_samples(uint64_t J) {
+        Consistent_Multistream_RNG global_rng;
+        Multistream_rng local_rng;
+
+        double leverage_sum = std::accumulate(leverage_scores(), leverage_scores(true_row_count), 0.0);
+        Buffer<double> leverage_sums({grid.world_size});
+        Buffer<uint64_t> samples_per_process({grid.world_size}); 
+        MPI_Allgather(&leverage_sum,
+            1,
+            MPI_DOUBLE,
+            leverage_sums(),
+            1,
+            MPI_DOUBLE,
+            grid.world
+            );
+
+        double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
+        
+        std::discrete_distribution<uint64_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
+        std::discrete_distribution<uint64_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
+
+        Buffer<uint64_t> sample_idxs({samples_per_process[grid.rank]});
+        Buffer<uint64_t> sample_weights({samples_per_process[grid.rank]});
+
+        // Not multithreaded, can thread if this becomes the bottleneck. 
+
+        for(uint64_t j = 0; j < J; j++) {
+            uint64_t sample = global_dist(global_rng.par_gen[0]);
+            samples_per_process[sample]++; 
+        }
+
+        for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
+            sample_idxs[i] = local_dist(local_rng.par_gen[0]);
+        }
+
+    }
+
 };

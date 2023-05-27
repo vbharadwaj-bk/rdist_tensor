@@ -485,3 +485,33 @@ void chain_had_prod(
 }
 
 }
+
+void compute_DAGAT(double* A, double* G, 
+        double* res, uint64_t J, uint64_t R) {
+
+    Buffer<double> temp({J, R});
+
+    cblas_dsymm(
+        CblasRowMajor,
+        CblasRight,
+        CblasUpper,
+        (uint32_t) J,
+        (uint32_t) R,
+        1.0,
+        G,
+        R,
+        A,
+        R,
+        0.0,
+        temp(),
+        R
+    );
+
+    #pragma omp parallel for 
+    for(uint32_t i = 0; i < J; i++) {
+        res[i] = 0.0;
+        for(uint32_t j = 0; j < R; j++) {
+            res[i] += A[i * R + j] * temp[i * R + j];
+        }
+    }
+}

@@ -18,6 +18,7 @@
 #include "low_rank_tensor.hpp"
 #include "sparse_tensor.hpp"
 #include "exact_als.hpp"
+#include "tensor_stationary_opt0.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -43,6 +44,11 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<SparseTensor&, LowRankTensor&>())
         .def("execute_ALS_rounds", &ExactALS::execute_ALS_rounds)
         .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
+    py::class_<TensorStationaryOpt0>(m, "TensorStationaryOpt0")
+        .def(py::init<SparseTensor&, LowRankTensor&>())
+        .def("execute_ALS_rounds", &TensorStationaryOpt0::execute_ALS_rounds)
+        .def("compute_exact_fit", &TensorStationaryOpt0::compute_exact_fit);  
+
 }
 
 /*
@@ -90,6 +96,7 @@ cfg['dependencies'] = [ 'common.h',
                         'sparse_tensor.hpp',
                         'sort_lookup.hpp',
                         'exact_als.hpp',
+                        'tensor_stationary_opt0.hpp',
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

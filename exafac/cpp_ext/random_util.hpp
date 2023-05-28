@@ -53,7 +53,7 @@ public:
     std::random_device rd;  
     vector<std::mt19937> par_gen; 
 
-    Consistent_Multistream_RNG() :
+    Consistent_Multistream_RNG(MPI_Comm comm) :
         rd() 
     {
         // Set up independent random streams for different threads.
@@ -77,7 +77,7 @@ public:
 
 
         // Broadcast seeds to everybody from rank 0
-        MPI_Bcast(seeds.data(), thread_count, MPI_UINT32_T, 0, MPI_COMM_WORLD);
+        MPI_Bcast(seeds.data(), thread_count, MPI_UINT32_T, 0, comm);
 
         for(int i = 0; i < thread_count; i++) {
             par_gen.emplace_back(seeds[i]);

@@ -18,6 +18,7 @@
 #include <iostream>
 #include <vector>
 #include <chrono>
+#include <algorithm>
 
 #define BIG_CONSTANT(x) (x##LLU)
 
@@ -514,4 +515,55 @@ void compute_DAGAT(double* A, double* G,
             res[i] += A[i * R + j] * temp[i * R + j];
         }
     }
+}
+
+template <typename VAL_T>
+void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, MPI_Comm comm) {
+    int row_count = (int) input.shape[0];
+    int world_size;
+    MPI_Comm_size(comm, &world_size);
+
+    Buffer<int> recvcounts({(uint64_t) world_size});
+    Buffer<int> displs({(uint64_t) world_size});
+
+    MPI_Allgather(
+        &row_count,
+        1,
+        MPI_UINT64_T,
+        recvcounts(),
+        1,
+        MPI_UINT64_T,
+        comm
+    );
+
+    int total_rows = std::accumulate(recvcounts(), recvcounts(world_size), 0);
+    int send_size;
+
+    if(input.shape.size() == 2) {
+        output.reset(new Buffer<VAL_T>({total_rows, input.shape[1]}));
+
+        for(int i = 0; i < world_size; i++) {
+            recvcounts[i] *= input.shape[1]; 
+        }
+        send_size = (int) (input.shape[0] * input.shape[1]);
+    }
+    else {
+        output.reset(new Buffer<VAL_T>({total_rows}));
+        send_size = (int) input.shape[0];
+    }
+
+    std::exclusive_scan(recvcounts(), recvcounts(world_size), displs(), 0);
+
+    MPI_Datatype dtype = get_MPI_dtype<VAL_T>();
+
+    MPI_Allgatherv(
+        input(),
+        send_size,
+        dtype,
+        output(),
+        recvcounts(),
+        displs(),
+        dtype,
+        comm
+    );
 }

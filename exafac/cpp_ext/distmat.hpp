@@ -188,12 +188,14 @@ public:
     }
 
     void draw_leverage_score_samples(uint64_t J) {
-        Consistent_Multistream_RNG global_rng;
-        Multistream_rng local_rng;
+        Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
+        Multistream_RNG local_rng;
+
+        Buffer<double> &leverage_scores = *(this->leverage_scores);
 
         double leverage_sum = std::accumulate(leverage_scores(), leverage_scores(true_row_count), 0.0);
-        Buffer<double> leverage_sums({grid.world_size});
-        Buffer<uint64_t> samples_per_process({grid.world_size}); 
+        Buffer<double> leverage_sums({(uint64_t) grid.world_size});
+        Buffer<uint64_t> samples_per_process({(uint64_t) grid.world_size}); 
         MPI_Allgather(&leverage_sum,
             1,
             MPI_DOUBLE,
@@ -203,7 +205,7 @@ public:
             grid.world
             );
 
-        double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
+        //double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
         
         std::discrete_distribution<uint64_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
         std::discrete_distribution<uint64_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
@@ -221,7 +223,5 @@ public:
         for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
             sample_idxs[i] = local_dist(local_rng.par_gen[0]);
         }
-
     }
-
 };

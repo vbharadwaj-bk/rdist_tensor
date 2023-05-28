@@ -21,7 +21,7 @@ def test_grid():
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
 
-    dims = [2, 1, 2, 2]
+    dims = [2, 1, 2, 1]
     proc_dims = np.array(dims, dtype=np.int32)
 
     grid = Grid(proc_dims)
@@ -34,14 +34,14 @@ def test_grid():
     sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
     low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)
     low_rank_tensor.initialize_factors_deterministic()
-    exact_als = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    tensor_stationary_opt0 = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
 
-    fit = exact_als.compute_exact_fit()
+    fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    exact_als.execute_ALS_rounds(40)
+    tensor_stationary_opt0.execute_ALS_rounds(1)
 
-    fit = exact_als.compute_exact_fit()
+    fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:
         print(f"Final Fit: {fit}")
 

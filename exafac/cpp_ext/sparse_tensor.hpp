@@ -70,7 +70,9 @@ public:
             );
 
             std::iota(perms[i](), perms[i](mode_size), 0);
-            std::random_shuffle(perms[i](), perms[i](mode_size));
+
+            // Need to ensure a consistent permutation here... 
+            //std::random_shuffle(perms[i](), perms[i](mode_size));
         }
 
         // Apply load-balancing permutations

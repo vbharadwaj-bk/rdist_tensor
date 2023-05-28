@@ -32,6 +32,15 @@ public:
         std::fill(sigma(), sigma(rank), 1.0);
     }
 
+    void initialize_factors_gaussian_random() {
+        for(int i = 0; i < tensor_grid.dim; i++) {
+            factors[i].initialize_gaussian_random();
+            factors[i].renormalize_columns(nullptr);
+        }
+        std::fill(sigma(), sigma(rank), 1.0);
+    }
+
+
     void test_gram_matrix_computation() {
         Buffer<double> gram_matrix({rank, rank});
         for(int i = 0; i < tensor_grid.dim; i++) {

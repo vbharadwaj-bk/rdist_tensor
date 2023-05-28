@@ -59,7 +59,7 @@ public:
         }
     }
 
-    void execute_ALS_step(uint64_t mode_to_leave) {
+    void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank; 
 
         Buffer<double> gram_product({R, R});
@@ -68,6 +68,10 @@ public:
         chain_had_prod(gram_matrices, gram_product, mode_to_leave);
         compute_pinv_square(gram_product, gram_product_inv, R);
 
+        unique_ptr<Buffer<uint32_t>> sample_idxs;
+        unique_ptr<Buffer<double>> sample_weights;
+
+        //low_rank_tensor.factors[0].draw_leverage_score_samples(J, sample_idxs, sample_weights);
 
         uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
         Buffer<double> mttkrp_res({output_buffer_rows, R});
@@ -125,17 +129,17 @@ public:
         );
 
         target_factor.compute_gram_matrix(gram_matrices[mode_to_leave]);
-        target_factor.compute_leverage_scores();
+        //target_factor.compute_leverage_scores();
     }
 
-    void execute_ALS_rounds(uint64_t num_rounds) {
+    void execute_ALS_rounds(uint64_t num_rounds, uint64_t J) {
         for(uint64_t round = 0; round < num_rounds; round++) {
             if(grid.rank == 0) {
                 cout << "Starting ALS round " << (round + 1) << endl; 
             }
 
             for(int i = 0; i < grid.dim; i++) {
-                execute_ALS_step(i);
+                execute_ALS_step(i, J);
             } 
         }
     }

@@ -356,9 +356,7 @@ void compute_pinv_square(Buffer<double> &M, Buffer<double> &out, uint64_t target
                     R, 
                     lambda() );
 
-    //cout << "Lambda: ";
     for(uint32_t v = 0; v < R; v++) {
-        //cout << lambda[v] << " ";
         if(v >= R - target_rank && lambda[v] > eigenvalue_tolerance) {
             for(uint32_t u = 0; u < R; u++) {
                 M[u * R + v] = M[u * R + v] / sqrt(lambda[v]); 
@@ -517,7 +515,7 @@ void compute_DAGAT(double* A, double* G,
     }
 }
 
-template <typename VAL_T>
+/*template <typename VAL_T>
 void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, MPI_Comm comm) {
     int row_count = (int) input.shape[0];
     int world_size;
@@ -567,3 +565,4 @@ void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, M
         comm
     );
 }
+*/

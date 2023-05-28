@@ -165,6 +165,7 @@ public:
         /*cout << "Rank " << grid.rank << " offset is " << row_position * padded_rows 
         << " with true row count " << true_row_count << endl;*/
 
+        #pragma omp parallel for collapse(2)
         for(uint64_t i = 0; i < true_row_count; i++) {
             for(uint64_t j = 0; j < cols; j++) {
                 data[i * cols + j] = (double) cos((i + row_position * padded_rows) * cols + j);
@@ -174,7 +175,22 @@ public:
     }
 
     void initialize_gaussian_random() {
-        // TODO: Implement!
+        Multistream_RNG rng;
+        std::normal_distribution<double> normal_dist(0.0, 1.0);
+        Buffer<double> &data = *(this->data);
+
+        #pragma omp parallel
+{
+        int thread_num = omp_get_thread_num();
+
+        #pragma omp for collapse(2)
+        for(uint64_t i = 0; i < true_row_count; i++) {
+            for(uint64_t j = 0; j < cols; j++) {
+                data[i * cols + j] = normal_dist(rng.par_gen[thread_num]); 
+            }
+        }
+}
+
     }
 
     void compute_leverage_scores() {
@@ -183,11 +199,12 @@ public:
         Buffer<double> gram({cols * cols});
         Buffer<double> gram_pinv({cols * cols});
         compute_gram_matrix(gram);
-        compute_pinv_square(gram, gram_pinv, cols);
-        compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
+        cout << "Cols: " << cols << endl;
+        //compute_pinv_square(gram, gram_pinv, cols);
+        //compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
     }
 
-    void draw_leverage_score_samples(uint64_t J) {
+    void draw_leverage_score_samples(uint64_t J, unique_ptr<Buffer<uint32_t>> &sample_idxs, unique_ptr<Buffer<double>> &sample_weights) {
         Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
         Multistream_RNG local_rng;
 
@@ -205,13 +222,13 @@ public:
             grid.world
             );
 
-        //double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
+        double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
         
-        std::discrete_distribution<uint64_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
-        std::discrete_distribution<uint64_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
+        std::discrete_distribution<uint32_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
+        std::discrete_distribution<uint32_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
 
-        Buffer<uint64_t> sample_idxs({samples_per_process[grid.rank]});
-        Buffer<uint64_t> sample_weights({samples_per_process[grid.rank]});
+        sample_idxs.reset(new Buffer<uint32_t>({samples_per_process[grid.rank]}));
+        sample_weights.reset(new Buffer<double>({samples_per_process[grid.rank]}));
 
         // Not multithreaded, can thread if this becomes the bottleneck. 
 
@@ -221,7 +238,10 @@ public:
         }
 
         for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
-            sample_idxs[i] = local_dist(local_rng.par_gen[0]);
+            (*sample_idxs)[i] = local_dist(local_rng.par_gen[0]);
+
+            // Need to do some more reweighting here, fine for now 
+            (*sample_weights)[i] = leverage_scores[(*sample_idxs)[i]] / total_leverage_weight; 
         }
     }
 };

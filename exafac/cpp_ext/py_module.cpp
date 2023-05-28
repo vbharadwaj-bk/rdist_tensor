@@ -34,7 +34,8 @@ PYBIND11_MODULE(py_module, m) {
     py::class_<LowRankTensor>(m, "LowRankTensor")
         .def(py::init<uint64_t, TensorGrid&>())
         .def("test_gram_matrix_computation", &LowRankTensor::test_gram_matrix_computation)
-        .def("initialize_factors_deterministic", &LowRankTensor::initialize_factors_deterministic);
+        .def("initialize_factors_deterministic", &LowRankTensor::initialize_factors_deterministic)
+        .def("initialize_factors_gaussian_random", &LowRankTensor::initialize_factors_gaussian_random);
     py::class_<SparseTensor>(m, "SparseTensor")
         .def(py::init<TensorGrid&, 
             py::array_t<uint32_t>, 

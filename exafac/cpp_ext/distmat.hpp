@@ -196,15 +196,15 @@ public:
     void compute_leverage_scores() {
         Buffer<double> &data = *(this->data);
         Buffer<double> &leverage_scores = *(this->leverage_scores);
-        Buffer<double> gram({cols * cols});
-        Buffer<double> gram_pinv({cols * cols});
+        Buffer<double> gram({cols, cols});
+        Buffer<double> gram_pinv({cols, cols});
+
         compute_gram_matrix(gram);
-        cout << "Cols: " << cols << endl;
-        //compute_pinv_square(gram, gram_pinv, cols);
-        //compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
+        compute_pinv_square(gram, gram_pinv, cols);
+        compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols); 
     }
 
-    void draw_leverage_score_samples(uint64_t J, unique_ptr<Buffer<uint32_t>> &sample_idxs, unique_ptr<Buffer<double>> &sample_weights) {
+    void draw_leverage_score_samples(uint64_t J, Buffer<uint32_t> &sample_idxs, Buffer<double> &sample_weights) {
         Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
         Multistream_RNG local_rng;
 
@@ -223,25 +223,31 @@ public:
             );
 
         double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
-        
+
         std::discrete_distribution<uint32_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
         std::discrete_distribution<uint32_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
 
-        sample_idxs.reset(new Buffer<uint32_t>({samples_per_process[grid.rank]}));
-        sample_weights.reset(new Buffer<double>({samples_per_process[grid.rank]}));
-
         // Not multithreaded, can thread if this becomes the bottleneck. 
+        std::fill(samples_per_process(), samples_per_process(grid.world_size), 0);
 
         for(uint64_t j = 0; j < J; j++) {
             uint64_t sample = global_dist(global_rng.par_gen[0]);
             samples_per_process[sample]++; 
         }
 
+        Buffer<uint32_t> sample_idxs_local({samples_per_process[grid.rank]});
+        Buffer<double> sample_weights_local({samples_per_process[grid.rank]});
+
+        uint32_t offset = row_position * padded_rows;
+
         for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
-            (*sample_idxs)[i] = local_dist(local_rng.par_gen[0]);
+            sample_idxs_local[i] = offset + local_dist(local_rng.par_gen[0]);
 
             // Need to do some more reweighting here, fine for now 
-            (*sample_weights)[i] = leverage_scores[(*sample_idxs)[i]] / total_leverage_weight; 
+            sample_weights_local[i] = leverage_scores[sample_idxs_local[i]] / total_leverage_weight; 
         }
+
+        allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);
+        allgatherv_buffer(sample_weights_local, sample_weights, MPI_COMM_WORLD);
     }
 };

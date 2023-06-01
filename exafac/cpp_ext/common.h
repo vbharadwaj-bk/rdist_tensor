@@ -210,6 +210,7 @@ class __attribute__((visibility("hidden"))) Buffer {
     T* ptr;
     uint64_t dim0;
     uint64_t dim1;
+    bool initialized;
 
 public:
     vector<uint64_t> shape;
@@ -220,6 +221,7 @@ public:
             ptr(std::move(other.ptr)),
             dim0(other.dim0),
             dim1(other.dim1),
+            initialized(other.initialized),
             shape(std::move(other.shape))
     {}
     Buffer& operator=(const Buffer& other) = default;
@@ -231,6 +233,7 @@ public:
         dim0 = other.dim0;
         dim1 = other.dim1;
         shape = other.shape;
+        initialized = other.initialized;
     }
 
     Buffer(py::array_t<T> arr_py, bool copy) {
@@ -259,6 +262,7 @@ public:
             ptr = managed_ptr.get();
             std::copy(static_cast<T*>(info.ptr), static_cast<T*>(info.ptr) + info.size, ptr);
         }
+        initialized = true;
     }
 
     Buffer(py::array_t<T> arr_py) :
@@ -268,19 +272,8 @@ public:
     }
 
     Buffer(initializer_list<uint64_t> args) {
-        uint64_t buffer_size = 1;
-        for(uint64_t i : args) {
-            buffer_size *= i;
-            shape.push_back(i);
-        }
-
-        if(args.size() == 2) {
-            dim0 = shape[0];
-            dim1 = shape[1];
-        }
-
-        managed_ptr.reset(new T[buffer_size]);
-        ptr = managed_ptr.get();
+        initialized = false;
+        initialize_to_shape(args);
     }
 
     Buffer(initializer_list<uint64_t> args, T* ptr) {
@@ -294,6 +287,31 @@ public:
         }
 
         this->ptr = ptr;
+        initialized = true;
+    }
+
+    Buffer() {
+        initialized = false;
+    }
+
+    void initialize_to_shape(initializer_list<uint64_t> args) {
+        if(initialized) {
+            throw std::runtime_error("Cannot initialize a buffer twice");
+        }
+        uint64_t buffer_size = 1;
+        for(uint64_t i : args) {
+            buffer_size *= i;
+            shape.push_back(i);
+        }
+
+        if(args.size() == 2) {
+            dim0 = shape[0];
+            dim1 = shape[1];
+        }
+
+        managed_ptr.reset(new T[buffer_size]);
+        ptr = managed_ptr.get();
+        initialized = true;
     }
 
     T* operator()() {
@@ -515,8 +533,8 @@ void compute_DAGAT(double* A, double* G,
     }
 }
 
-/*template <typename VAL_T>
-void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, MPI_Comm comm) {
+template <typename VAL_T>
+void allgatherv_buffer(Buffer<VAL_T> &input, Buffer<VAL_T> &output, MPI_Comm comm) {
     int row_count = (int) input.shape[0];
     int world_size;
     MPI_Comm_size(comm, &world_size);
@@ -527,10 +545,10 @@ void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, M
     MPI_Allgather(
         &row_count,
         1,
-        MPI_UINT64_T,
+        MPI_INT32_T,
         recvcounts(),
         1,
-        MPI_UINT64_T,
+        MPI_INT32_T,
         comm
     );
 
@@ -538,7 +556,7 @@ void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, M
     int send_size;
 
     if(input.shape.size() == 2) {
-        output.reset(new Buffer<VAL_T>({total_rows, input.shape[1]}));
+        output.initialize_to_shape({(uint64_t) total_rows, input.shape[1]});
 
         for(int i = 0; i < world_size; i++) {
             recvcounts[i] *= input.shape[1]; 
@@ -546,13 +564,13 @@ void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, M
         send_size = (int) (input.shape[0] * input.shape[1]);
     }
     else {
-        output.reset(new Buffer<VAL_T>({total_rows}));
+        output.initialize_to_shape({(uint64_t) total_rows});
         send_size = (int) input.shape[0];
     }
 
-    std::exclusive_scan(recvcounts(), recvcounts(world_size), displs(), 0);
-
     MPI_Datatype dtype = get_MPI_dtype<VAL_T>();
+
+    std::exclusive_scan(recvcounts(), recvcounts(world_size), displs(), 0);
 
     MPI_Allgatherv(
         input(),
@@ -565,4 +583,18 @@ void algatherv_buffer(Buffer<VAL_T> &input, unique_ptr<Buffer<VAL_T>> &output, M
         comm
     );
 }
-*/
+
+template<typename VAL_T>
+void apply_permutation(Buffer<uint32_t> &perm, Buffer<VAL_T> &arr) {
+    if(arr.shape.size() != 1) {
+        throw std::runtime_error("apply_random_permutation only works on 1D arrays");
+    }
+    Buffer<VAL_T> temp({arr.shape[0]});
+
+    #pragma omp parallel for
+    for(uint64_t i = 0; i < arr.shape[0]; i++) {
+        temp[i] = arr[perm[i]];
+    }
+
+    arr.steal_resources(temp);
+}

@@ -68,10 +68,56 @@ public:
         chain_had_prod(gram_matrices, gram_product, mode_to_leave);
         compute_pinv_square(gram_product, gram_product_inv, R);
 
-        unique_ptr<Buffer<uint32_t>> sample_idxs;
-        unique_ptr<Buffer<double>> sample_weights;
+        Buffer<uint32_t> samples({J, ground_truth.dim});
+        Buffer<double> weights({J});
 
-        //low_rank_tensor.factors[0].draw_leverage_score_samples(J, sample_idxs, sample_weights);
+        std::fill(weights(), weights(J), 1.0);
+        Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
+
+        // Collect all samples and randomly permute along each mode 
+        for(uint64_t i = 0; i < ground_truth.dim; i++) {
+            if(i == mode_to_leave) {
+                continue;
+            }
+
+            Buffer<uint32_t> sample_idxs;
+            Buffer<double> sample_weights;
+            low_rank_tensor.factors[0].draw_leverage_score_samples(J, sample_idxs, sample_weights);
+        
+            Buffer<uint32_t> rand_perm({J});
+            std::iota(rand_perm(), rand_perm(J), 0);
+            std::shuffle(rand_perm(), rand_perm(J), global_rng.par_gen[0]);
+
+            apply_permutation(rand_perm, sample_idxs);
+            apply_permutation(rand_perm, sample_weights);
+
+            #pragma omp parallel for
+            for(uint64_t j = 0; j < J; j++) {
+                samples[j * ground_truth.dim + i] = sample_idxs[j];
+                weights[j] *= sample_weights[j]; // TODO: Need to fix the weighting 
+            }
+        }
+
+        // At some point, should deduplicate samples 
+
+        // Now filter out all samples that don't belong to this processor
+        Buffer<int> belongs_to_proc({J});
+        std::fill(belongs_to_proc(), belongs_to_proc(J), 0);
+
+        for(uint64_t j = 0; j < J; j++) {
+            bool within_bounds = true;
+            for(uint64_t i = 0; i < ground_truth.dim; i++) {
+                if(i == mode_to_leave) {
+                    continue;
+                }
+
+                int idx = (int) samples[j * ground_truth.dim + i];
+                bool coord_within_bounds = idx >= tensor_grid.bound_starts[i] && idx < tensor_grid.bound_ends[i];
+
+                within_bounds = within_bounds && coord_within_bounds;
+            }
+            belongs_to_proc[j] = within_bounds ? 1 : 0;
+        }
 
         uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
         Buffer<double> mttkrp_res({output_buffer_rows, R});
@@ -129,7 +175,7 @@ public:
         );
 
         target_factor.compute_gram_matrix(gram_matrices[mode_to_leave]);
-        //target_factor.compute_leverage_scores();
+        target_factor.compute_leverage_scores();
     }
 
     void execute_ALS_rounds(uint64_t num_rounds, uint64_t J) {

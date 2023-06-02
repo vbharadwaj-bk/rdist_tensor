@@ -71,6 +71,7 @@ public:
         Buffer<uint32_t> samples({J, ground_truth.dim});
         Buffer<double> weights({J});
 
+        std::fill(samples(), samples(J * ground_truth.dim), 0);
         std::fill(weights(), weights(J), 1.0);
         Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
 
@@ -82,7 +83,7 @@ public:
 
             Buffer<uint32_t> sample_idxs;
             Buffer<double> sample_weights;
-            low_rank_tensor.factors[0].draw_leverage_score_samples(J, sample_idxs, sample_weights);
+            low_rank_tensor.factors[i].draw_leverage_score_samples(J, sample_idxs, sample_weights);
         
             Buffer<uint32_t> rand_perm({J});
             std::iota(rand_perm(), rand_perm(J), 0);
@@ -98,12 +99,14 @@ public:
             }
         }
 
-        // At some point, should deduplicate samples 
-
         // Now filter out all samples that don't belong to this processor
         Buffer<int> belongs_to_proc({J});
+        Buffer<int> packed_offsets({J});
         std::fill(belongs_to_proc(), belongs_to_proc(J), 0);
 
+        uint64_t local_sample_count = 0;
+
+        //#pragma omp parallel for reduction(+:local_sample_count)
         for(uint64_t j = 0; j < J; j++) {
             bool within_bounds = true;
             for(uint64_t i = 0; i < ground_truth.dim; i++) {
@@ -117,7 +120,57 @@ public:
                 within_bounds = within_bounds && coord_within_bounds;
             }
             belongs_to_proc[j] = within_bounds ? 1 : 0;
+            local_sample_count += belongs_to_proc[j]; 
         }
+
+        // If necessary, change to parallel execution policy 
+        std::exclusive_scan(belongs_to_proc(), belongs_to_proc(J), packed_offsets(), 0);
+
+        Buffer<uint32_t> filtered_samples({local_sample_count, ground_truth.dim});
+        Buffer<double> filtered_weights({local_sample_count});
+
+        //#pragma omp parallel for
+        for(int j = 0; j < J; j++) {
+            if(belongs_to_proc[j] == 1) {
+                for(int i = 0; i < ground_truth.dim; i++) {
+                    uint32_t result = samples[j * ground_truth.dim + i];
+                    result -= ground_truth.offsets[i];
+                    filtered_samples[packed_offsets[j] * ground_truth.dim + i] = result;
+                }
+                filtered_weights[packed_offsets[j]] = weights[j];
+            }
+        }
+
+        Buffer<double> design_matrix({local_sample_count, R});
+        std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
+
+
+        // #pragma omp parallel
+{
+        //#pragma omp for
+        for(uint64_t j = 0; j < local_sample_count; j++) {
+            for(uint64_t r = 0; r < R; r++) {
+                design_matrix[j * R + r] = filtered_weights[j]; 
+            }
+        }
+
+
+        for(uint64_t i = 0; i < ground_truth.dim; i++) {
+            if(i == mode_to_leave) {
+                continue;
+            }
+
+            //#pragma omp for
+            for(uint64_t j = 0; j < local_sample_count; j++) {
+                uint32_t idx = filtered_samples[j * ground_truth.dim + i];
+
+                double *factor_data = gathered_factors[i]();
+                for(uint64_t r = 0; r < R; r++) {
+                    design_matrix[j * R + r] *= factor_data[idx * R + r]; 
+                }
+            }
+        }
+}
 
         uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
         Buffer<double> mttkrp_res({output_buffer_rows, R});

@@ -204,7 +204,7 @@ public:
         compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols); 
     }
 
-    void draw_leverage_score_samples(uint64_t J, Buffer<uint32_t> &sample_idxs, Buffer<double> &sample_weights) {
+    void draw_leverage_score_samples(uint64_t J, Buffer<uint32_t> &sample_idxs, Buffer<double> &log_weights) {
         Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
         Multistream_RNG local_rng;
 
@@ -235,8 +235,12 @@ public:
             samples_per_process[sample]++; 
         }
 
-        Buffer<uint32_t> sample_idxs_local({samples_per_process[grid.rank]});
-        Buffer<double> sample_weights_local({samples_per_process[grid.rank]});
+        uint64_t local_samples = samples_per_process[grid.rank];
+
+        Buffer<uint32_t> sample_idxs_local({local_samples});
+        Buffer<double> sample_weights_local({local_samples});
+
+        std::fill(sample_weights_local(), sample_weights_local(local_samples), 0.0);
 
         uint32_t offset = row_position * padded_rows;
 
@@ -244,10 +248,10 @@ public:
             sample_idxs_local[i] = offset + local_dist(local_rng.par_gen[0]);
 
             // Need to do some more reweighting here, fine for now 
-            sample_weights_local[i] = leverage_scores[sample_idxs_local[i]] / total_leverage_weight; 
+            sample_weights_local[i] += log(total_leverage_weight) - log(leverage_scores[sample_idxs_local[i]]);
         }
 
         allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);
-        allgatherv_buffer(sample_weights_local, sample_weights, MPI_COMM_WORLD);
+        allgatherv_buffer(sample_weights_local, log_weights, MPI_COMM_WORLD);
     }
 };

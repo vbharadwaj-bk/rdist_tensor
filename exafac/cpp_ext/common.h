@@ -332,6 +332,7 @@ public:
     }
 
     void print() {
+        cout << "------------------------" << endl;
         if(shape.size() == 1) {
             cout << "[ " << " "; 
             for(uint64_t i = 0; i < shape[0]; i++) {
@@ -356,10 +357,48 @@ public:
             }
             cout << endl;
         }
+        cout << "------------------------" << endl;
     }
 
     ~Buffer() {}
 };
+
+void compute_gram(Buffer<double> &in, Buffer<double> &M) {
+    uint64_t R = in.shape[1];
+
+    std::fill(M(), M(R * R), 0.0);
+
+    uint64_t I = in.shape[0];
+    #pragma omp parallel
+    {
+        int num_threads = omp_get_num_threads();
+        int thread_id = omp_get_thread_num();
+        uint64_t work = (I + num_threads - 1) / num_threads;
+        uint64_t start = min(work * thread_id, I);
+        uint64_t end = min(work * (thread_id + 1), I);
+
+        if(end - start > 0) {
+            Buffer<double> local({R, R});
+            cblas_dsyrk(CblasRowMajor, 
+                        CblasUpper, 
+                        CblasTrans,
+                        R,
+                        end-start, 
+                        1.0, 
+                        in(start * R), 
+                        R, 
+                        0.0, 
+                        local(), 
+                        R);
+
+            for(uint64_t i = 0; i < R * R; i++) {
+                #pragma omp atomic
+                M[i] += local[i];
+            }
+        }
+    }
+}
+
 
 void compute_pinv_square(Buffer<double> &M, Buffer<double> &out, uint64_t target_rank) {
     uint64_t R = M.shape[0];

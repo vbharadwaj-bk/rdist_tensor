@@ -123,6 +123,14 @@ public:
             local_sample_count += belongs_to_proc[j]; 
         }
 
+        // Print the number of unique samples overall
+        uint64_t total_sample_count;
+        MPI_Allreduce(&local_sample_count, &total_sample_count, 1, MPI_UINT64_T, MPI_SUM, grid.world);
+        if(grid.rank == 0) {
+            cout << "Total number of unique samples: " << total_sample_count << endl;
+        } 
+
+
         // If necessary, change to parallel execution policy 
         std::exclusive_scan(belongs_to_proc(), belongs_to_proc(J), packed_offsets(), 0);
 
@@ -172,7 +180,7 @@ public:
         //#pragma omp for
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
-                design_matrix[j * R + r] *= filtered_weights[j]; 
+                design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
             }
         }
 }
@@ -183,8 +191,13 @@ public:
         Buffer<double> design_gram_inv({R, R});
         compute_gram(design_matrix, design_gram);
         compute_pinv_square(design_gram, design_gram_inv, R);
-        /*design_gram.print();
-        gram_product_inv.print();*/
+
+        //#pragma omp parallel for
+        for(uint64_t j = 0; j < local_sample_count; j++) {
+            for(uint64_t r = 0; r < R; r++) {
+                design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
+            }
+        }
 
         uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
         Buffer<double> mttkrp_res({output_buffer_rows, R});
@@ -193,16 +206,24 @@ public:
             mttkrp_res(output_buffer_rows * R), 
             0.0);
 
-        /*ground_truth.lookups[mode_to_leave]->execute_exact_mttkrp( 
-            gathered_factors,
-            mttkrp_res 
-        );*/
-
-        ground_truth.lookups[mode_to_leave]->execute_spmm(
-            filtered_samples, 
-            design_matrix,
-            mttkrp_res
+        if(mode_to_leave == 0) {
+            ground_truth.lookups[mode_to_leave]->execute_exact_mttkrp( 
+                gathered_factors,
+                mttkrp_res 
             );
+        }
+        else {
+            uint64_t found_nonzeros_local = ground_truth.lookups[mode_to_leave]->execute_spmm(
+                filtered_samples, 
+                design_matrix,
+                mttkrp_res
+                );
+            MPI_Allreduce(MPI_IN_PLACE, &found_nonzeros_local, 1, MPI_UINT64_T, MPI_SUM, grid.world);
+            if(grid.rank == 0) {
+                cout << "Found " << found_nonzeros_local << " nonzeros in mode " << mode_to_leave << endl;
+            }
+        }
+
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
         Buffer<double> &target_factor_data = *(target_factor.data);

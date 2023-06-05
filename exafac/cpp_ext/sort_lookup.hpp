@@ -64,7 +64,7 @@ public:
   * This function assumes that the output buffer has already been
   * initialized to zero. 
   */
-  void execute_spmm(
+  uint64_t execute_spmm(
       Buffer<IDX_T> &indices, 
       Buffer<double> &input,
       Buffer<double> &output
@@ -125,6 +125,7 @@ public:
         }
       }
     }
+    return found_count;
   }
 
   double compute_2bmb(

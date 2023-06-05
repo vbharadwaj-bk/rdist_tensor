@@ -179,9 +179,11 @@ public:
 
         // Compute the gram matrix of the design matrix
         // Need to multiply by the square root of the weights to do this!
-        /*Buffer<double> design_gram({R, R});
+        Buffer<double> design_gram({R, R});
+        Buffer<double> design_gram_inv({R, R});
         compute_gram(design_matrix, design_gram);
-        design_gram.print();
+        compute_pinv_square(design_gram, design_gram_inv, R);
+        /*design_gram.print();
         gram_product_inv.print();*/
 
         uint64_t output_buffer_rows = gathered_factors[mode_to_leave].shape[0];
@@ -225,7 +227,8 @@ public:
             (uint32_t) target_factor_rows,
             (uint32_t) R,
             1.0,
-            gram_product_inv(),
+            //gram_product_inv(),
+            design_gram_inv(),
             R,
             temp_local(),
             R,

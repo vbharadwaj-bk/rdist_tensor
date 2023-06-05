@@ -32,7 +32,7 @@ def test_grid():
     #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5', grid) 
     #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
     sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
-    low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)
+    low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)
     #low_rank_tensor.initialize_factors_deterministic()
     low_rank_tensor.initialize_factors_gaussian_random()
     tensor_stationary_opt0 = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
@@ -40,7 +40,7 @@ def test_grid():
     fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    tensor_stationary_opt0.execute_ALS_rounds(1, 100000)
+    tensor_stationary_opt0.execute_ALS_rounds(40, 50000)
 
     fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:

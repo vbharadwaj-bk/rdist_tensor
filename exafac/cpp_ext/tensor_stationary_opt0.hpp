@@ -172,7 +172,7 @@ public:
         //#pragma omp for
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
-                design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
+                design_matrix[j * R + r] *= filtered_weights[j]; 
             }
         }
 }
@@ -227,8 +227,8 @@ public:
             (uint32_t) target_factor_rows,
             (uint32_t) R,
             1.0,
-            //gram_product_inv(),
-            design_gram_inv(),
+            gram_product_inv(),
+            //design_gram_inv(),
             R,
             temp_local(),
             R,

@@ -260,7 +260,7 @@ public:
 
         for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
             uint32_t sample = local_dist(local_rng.par_gen[0]);
-            sample_idxs_local[i] = offset + local_dist(local_rng.par_gen[0]);
+            sample_idxs_local[i] = offset + sample; 
 
             // Need to do some more reweighting here, fine for now 
             sample_weights_local[i] += log(total_leverage_weight) - log(leverage_scores[sample]);

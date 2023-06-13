@@ -21,7 +21,7 @@ def test_grid():
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
 
-    dims = [1, 1, 1, 1]
+    dims = [2, 1, 2, 2]
     proc_dims = np.array(dims, dtype=np.int32)
 
     grid = Grid(proc_dims)

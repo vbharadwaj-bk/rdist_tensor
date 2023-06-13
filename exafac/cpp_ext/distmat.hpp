@@ -201,7 +201,20 @@ public:
 
         compute_gram_matrix(gram);
         compute_pinv_square(gram, gram_pinv, cols);
-        compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols); 
+        compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
+
+
+        double leverage_sum = std::accumulate(leverage_scores(), leverage_scores(true_row_count), 0.0);
+        MPI_Allreduce(MPI_IN_PLACE,
+            &leverage_sum,
+            1,
+            MPI_DOUBLE,
+            MPI_SUM,
+            grid.world
+            );
+
+        cout << "Sum of all leverage scores: " << leverage_sum << endl; 
+
     }
 
     void draw_leverage_score_samples(uint64_t J, Buffer<uint32_t> &sample_idxs, Buffer<double> &log_weights) {
@@ -224,6 +237,7 @@ public:
 
         double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
 
+        // Should cache the distributions 
         std::discrete_distribution<uint32_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
         std::discrete_distribution<uint32_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
 
@@ -245,10 +259,11 @@ public:
         uint32_t offset = row_position * padded_rows;
 
         for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
+            uint32_t sample = local_dist(local_rng.par_gen[0]);
             sample_idxs_local[i] = offset + local_dist(local_rng.par_gen[0]);
 
             // Need to do some more reweighting here, fine for now 
-            sample_weights_local[i] += log(total_leverage_weight) - log(leverage_scores[sample_idxs_local[i]]);
+            sample_weights_local[i] += log(total_leverage_weight) - log(leverage_scores[sample]);
         }
 
         allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);

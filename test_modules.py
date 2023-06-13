@@ -40,7 +40,7 @@ def test_grid():
     fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    tensor_stationary_opt0.execute_ALS_rounds(40, 50000)
+    tensor_stationary_opt0.execute_ALS_rounds(20, 50000)
 
     fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:

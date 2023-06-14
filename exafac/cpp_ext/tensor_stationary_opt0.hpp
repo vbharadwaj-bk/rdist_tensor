@@ -39,7 +39,6 @@ public:
                 Buffer<double>({low_rank_tensor.rank, low_rank_tensor.rank})
             );
 
-
             // Allgather factors into buffers and compute gram matrices
             DistMat1D &factor = low_rank_tensor.factors[i];
             Buffer<double> &factor_data = *(factor.data);
@@ -123,14 +122,6 @@ public:
             local_sample_count += belongs_to_proc[j]; 
         }
 
-        // Print the number of unique samples overall
-        uint64_t total_sample_count;
-        MPI_Allreduce(&local_sample_count, &total_sample_count, 1, MPI_UINT64_T, MPI_SUM, grid.world);
-        if(grid.rank == 0) {
-            cout << "Total number of unique samples: " << total_sample_count << endl;
-        } 
-
-
         // If necessary, change to parallel execution policy 
         std::exclusive_scan(belongs_to_proc(), belongs_to_proc(J), packed_offsets(), 0);
 
@@ -184,11 +175,17 @@ public:
         }
 }
 
-        // Compute the gram matrix of the design matrix
-        // Need to multiply by the square root of the weights to do this!
         Buffer<double> design_gram({R, R});
         Buffer<double> design_gram_inv({R, R});
         compute_gram(design_matrix, design_gram);
+
+        MPI_Allreduce(MPI_IN_PLACE, 
+                    design_gram(), 
+                    R * R, 
+                    MPI_DOUBLE, 
+                    MPI_SUM, 
+                    grid.slices[mode_to_leave]);
+
         compute_pinv_square(design_gram, design_gram_inv, R);
 
         //#pragma omp parallel for
@@ -205,27 +202,11 @@ public:
             mttkrp_res(output_buffer_rows * R), 
             0.0);
 
-        /*if(mode_to_leave != ) {
-            ground_truth.lookups[mode_to_leave]->execute_exact_mttkrp( 
-                gathered_factors,
-                mttkrp_res 
+        ground_truth.lookups[mode_to_leave]->execute_spmm(
+            filtered_samples, 
+            design_matrix,
+            mttkrp_res
             );
-        }*/
-        /*else*/ {
-
-            // Compute the sum of all values in MTTKRP_res across all processes
-
-            uint64_t found_nonzeros_local = ground_truth.lookups[mode_to_leave]->execute_spmm(
-                filtered_samples, 
-                design_matrix,
-                mttkrp_res
-                );
-
-            MPI_Allreduce(MPI_IN_PLACE, &found_nonzeros_local, 1, MPI_UINT64_T, MPI_SUM, grid.world);
-            if(grid.rank == 0) {
-                cout << "Found " << found_nonzeros_local << " nonzeros in mode " << mode_to_leave << endl;
-            }
-        }
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
         Buffer<double> &target_factor_data = *(target_factor.data);
@@ -250,8 +231,8 @@ public:
             (uint32_t) target_factor_rows,
             (uint32_t) R,
             1.0,
-            gram_product_inv(),
-            //design_gram_inv(),
+            //gram_product_inv(),
+            design_gram_inv(),
             R,
             temp_local(),
             R,

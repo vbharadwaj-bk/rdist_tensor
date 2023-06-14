@@ -203,18 +203,14 @@ public:
         compute_pinv_square(gram, gram_pinv, cols);
         compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
 
-
-        double leverage_sum = std::accumulate(leverage_scores(), leverage_scores(true_row_count), 0.0);
+        /*double leverage_sum = std::accumulate(leverage_scores(), leverage_scores(true_row_count), 0.0);
         MPI_Allreduce(MPI_IN_PLACE,
             &leverage_sum,
             1,
             MPI_DOUBLE,
             MPI_SUM,
             grid.world
-            );
-
-        cout << "Sum of all leverage scores: " << leverage_sum << endl; 
-
+            );*/
     }
 
     void draw_leverage_score_samples(uint64_t J, Buffer<uint32_t> &sample_idxs, Buffer<double> &log_weights) {

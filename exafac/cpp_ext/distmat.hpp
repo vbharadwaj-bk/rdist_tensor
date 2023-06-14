@@ -74,9 +74,10 @@ public:
 
     void compute_gram_matrix(Buffer<double> &gram) {
         Buffer<double> &data = *(this->data);
-        if (true_row_count == 0) {
-            std::fill(gram(), gram(cols * cols), 0.0);
-        } else {
+        std::fill(gram(), gram(cols * cols), 0.0);
+        if (true_row_count != 0) {
+            Buffer<double> local_data_view({true_row_count, cols}, data());
+            //compute_gram(local_data_view, gram);
             cblas_dgemm(CblasRowMajor,
                 CblasTrans,
                 CblasNoTrans,
@@ -84,9 +85,9 @@ public:
                 cols,
                 true_row_count,
                 1.0,
-                data(),
+                local_data_view(),
                 cols,
-                data(),
+                local_data_view(),
                 cols,
                 0.0,
                 gram(),

@@ -15,7 +15,6 @@ public:
     uint64_t dim;
 
     vector<Buffer<double>> gathered_factors;
-    vector<Buffer<double>> gram_matrices; 
 
     TensorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
@@ -35,10 +34,6 @@ public:
                 Buffer<double>({row_count, low_rank_tensor.rank})
             );
 
-            gram_matrices.emplace_back(
-                Buffer<double>({low_rank_tensor.rank, low_rank_tensor.rank})
-            );
-
             // Allgather factors into buffers and compute gram matrices
             DistMat1D &factor = low_rank_tensor.factors[i];
             Buffer<double> &factor_data = *(factor.data);
@@ -53,19 +48,12 @@ public:
                 grid.slices[i]
             );
 
-            factor.compute_gram_matrix(gram_matrices[i]);
             factor.compute_leverage_scores();
         }
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank; 
-
-        Buffer<double> gram_product({R, R});
-        Buffer<double> gram_product_inv({R, R});
-
-        chain_had_prod(gram_matrices, gram_product, mode_to_leave);
-        compute_pinv_square(gram_product, gram_product_inv, R);
 
         Buffer<uint32_t> samples({J, ground_truth.dim});
         Buffer<double> weights({J});
@@ -105,7 +93,7 @@ public:
 
         uint64_t local_sample_count = 0;
 
-        //#pragma omp parallel for reduction(+:local_sample_count)
+        #pragma omp parallel for reduction(+:local_sample_count)
         for(uint64_t j = 0; j < J; j++) {
             bool within_bounds = true;
             for(uint64_t i = 0; i < ground_truth.dim; i++) {
@@ -143,13 +131,8 @@ public:
         Buffer<double> design_matrix({local_sample_count, R});
         std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
 
-        // #pragma omp parallel
+        #pragma omp parallel
 {
-
-        // Fill the design matrix with the apppropriate weights.
-        // TODO: Need to split this into two phases for the gram 
-        // matrix computation.
-
         for(uint64_t i = 0; i < ground_truth.dim; i++) {
             if(i == mode_to_leave) {
                 continue;
@@ -157,7 +140,7 @@ public:
 
             double *factor_data = gathered_factors[i]();
 
-            //#pragma omp for
+            #pragma omp for
             for(uint64_t j = 0; j < local_sample_count; j++) {
                 uint32_t idx = filtered_samples[j * ground_truth.dim + i];
 
@@ -167,7 +150,7 @@ public:
             }
         }
 
-        //#pragma omp for
+        #pragma omp for 
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
@@ -188,7 +171,7 @@ public:
 
         compute_pinv_square(design_gram, design_gram_inv, R);
 
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
@@ -231,7 +214,6 @@ public:
             (uint32_t) target_factor_rows,
             (uint32_t) R,
             1.0,
-            //gram_product_inv(),
             design_gram_inv(),
             R,
             temp_local(),
@@ -252,7 +234,6 @@ public:
             grid.slices[mode_to_leave]
         );
 
-        target_factor.compute_gram_matrix(gram_matrices[mode_to_leave]);
         target_factor.compute_leverage_scores();
     }
 

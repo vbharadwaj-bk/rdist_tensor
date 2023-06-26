@@ -21,10 +21,7 @@ def test_grid():
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
 
-    dims = [2, 1, 2, 1]
-    proc_dims = np.array(dims, dtype=np.int32)
-
-    grid = Grid(proc_dims)
+    grid = None 
 
     # Get the MPI rank with mpi4py
     rank = MPI.COMM_WORLD.Get_rank()
@@ -40,7 +37,7 @@ def test_grid():
     fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    tensor_stationary_opt0.execute_ALS_rounds(40, 65536)
+    tensor_stationary_opt0.execute_ALS_rounds(40, 65536, 5)
 
     fit = tensor_stationary_opt0.compute_exact_fit()
     if rank == 0:

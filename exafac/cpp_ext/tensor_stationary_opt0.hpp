@@ -237,15 +237,22 @@ public:
         target_factor.compute_leverage_scores();
     }
 
-    void execute_ALS_rounds(uint64_t num_rounds, uint64_t J) {
-        for(uint64_t round = 0; round < num_rounds; round++) {
+    void execute_ALS_rounds(uint64_t num_rounds, uint64_t J, uint32_t epoch_interval) {
+        for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
-                cout << "Starting ALS round " << (round + 1) << endl; 
+                cout << "Starting ALS round " << (round) << endl; 
             }
 
             for(int i = 0; i < grid.dim; i++) {
                 execute_ALS_step(i, J);
             } 
+
+            if((round % epoch_interval) == 0) {
+                double exact_fit = compute_exact_fit();
+                if(grid.rank == 0) {
+                    cout << "Exact fit after " << round << " rounds: " << exact_fit << endl;
+                }
+            }
         }
     }
 

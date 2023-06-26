@@ -9,6 +9,55 @@ from exafac.common import *
 
 import cppimport.import_hook
 
+def prime_factorization(n):
+    prime_factors = []
+
+    i = 2
+    while i**2 <= n:
+        if n % i:
+            i += 1
+        else:
+            n /= i
+
+            prime_factors.append(i)
+
+    if n > 1:
+        prime_factors.append(n)
+
+    return sorted(prime_factors)
+
+def get_best_mpi_dim(nprocs, global_dims):
+    '''
+    Adapted from
+    https://github.com/ShadenSmith/splatt/blob/6cb86283c1fbfddcc67c2564e025691de4f784cf/src/mpi/mpi_io.c#L537
+    '''
+    N= len(global_dims)
+    factors = prime_factorization(nprocs)
+    total_size = 0
+
+    mpi_dims = np.ones(N, dtype=np.uint64)
+    diffs = np.zeros(N, dtype=np.uint64)
+
+    total_size = np.sum(global_dims) 
+    target = total_size // nprocs
+
+    for i in reversed(range(len(factors))):
+        furthest = 0
+
+        for j in range(N):
+            curr = global_dims[j] / mpi_dims[j]
+            if curr > target:
+                diffs[j] = curr - target
+            else:
+                diffs[j] = 0 
+
+            if diffs[j] > diffs[furthest]:
+                furthest = j
+
+        mpi_dims[furthest] *= factors[i]
+
+    return mpi_dims
+
 class DistSparseTensorE:
     def __init__(self, filename, grid, preprocessing="None"):
         f = h5py.File(filename, 'r')
@@ -20,8 +69,15 @@ class DistSparseTensorE:
         self.min_idxs = f['MIN_MODE_SET'][:]
         self.dim = len(self.max_idxs)
         self.tensor_dims = np.array(self.max_idxs - self.min_idxs + 1, dtype=np.int32)
+        self.grid = grid
 
-        if grid.get_dimension() != self.dim:
+        if self.grid is None:
+            optimal_grid_dims = get_best_mpi_dim(self.world_size, self.tensor_dims)
+            self.grid = Grid(optimal_grid_dims)
+
+        self.tensor_grid = TensorGrid(self.tensor_dims, self.grid)
+
+        if self.grid.get_dimension() != self.dim:
             raise ValueError("Grid dimension must match tensor dimension")
 
         # The tensor must have at least one mode
@@ -43,7 +99,6 @@ class DistSparseTensorE:
 
         # Assumption: all values are double format
         self.values = f['VALUES'][start_nnz:end_nnz]
-        self.tensor_grid = TensorGrid(self.tensor_dims, grid)
 
         self.sparse_tensor = SparseTensor(
                 self.tensor_grid, 

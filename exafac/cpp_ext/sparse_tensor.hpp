@@ -7,6 +7,7 @@
 #include "common.h"
 #include "alltoallv_revised.hpp"
 #include "low_rank_tensor.hpp"
+#include "random_util.hpp"
 
 using namespace std;
 
@@ -62,6 +63,8 @@ public:
             cout << "Tensor norm is " << tensor_norm << endl;
         }
 
+        Consistent_Multistream_RNG gen(tensor_grid.grid.world);
+
         // Compute load-balancing permutations 
         for(uint64_t i = 0; i < dim; i++) {
             uint64_t mode_size = tensor_grid.tensor_dims[i];
@@ -70,9 +73,7 @@ public:
             );
 
             std::iota(perms[i](), perms[i](mode_size), 0);
-
-            // Need to ensure a consistent permutation here... 
-            //std::random_shuffle(perms[i](), perms[i](mode_size));
+            std::shuffle(perms[i](), perms[i](mode_size), gen.par_gen[0]);
         }
 
         // Apply load-balancing permutations

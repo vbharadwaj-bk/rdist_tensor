@@ -3,6 +3,9 @@
 #include "common.h"
 #include "sparse_tensor.hpp"
 #include "low_rank_tensor.hpp"
+#include "json.hpp"
+
+using json = nlohmann::json;
 
 using namespace std;
 
@@ -12,8 +15,10 @@ public:
     LowRankTensor &low_rank_tensor;
     TensorGrid &tensor_grid;
     Grid &grid;
-    uint64_t dim;
 
+    json stats;
+
+    uint64_t dim;
     vector<Buffer<double>> gathered_factors;
 
     TensorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
@@ -238,21 +243,37 @@ public:
     }
 
     void execute_ALS_rounds(uint64_t num_rounds, uint64_t J, uint32_t epoch_interval) {
+        double als_total_time = 0.0;
+        double fit_computation_time = 0.0;
+
         for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
                 cout << "Starting ALS round " << (round) << endl; 
             }
 
+            auto start = start_clock();
             for(int i = 0; i < grid.dim; i++) {
                 execute_ALS_step(i, J);
-            } 
+            }
+            als_total_time += stop_clock_get_elapsed(start);
 
             if((round % epoch_interval) == 0) {
+                start = start_clock();
                 double exact_fit = compute_exact_fit();
+                fit_computation_time += stop_clock_get_elapsed(start);
+
                 if(grid.rank == 0) {
                     cout << "Exact fit after " << round << " rounds: " << exact_fit << endl;
                 }
             }
+        }
+
+        stats["num_rounds"] = num_rounds;
+        stats["als_total_time"] = als_total_time; 
+        stats["fit_computation_time"] = fit_computation_time; 
+
+        if(grid.rank == 0) {
+            cout << stats << endl;
         }
     }
 

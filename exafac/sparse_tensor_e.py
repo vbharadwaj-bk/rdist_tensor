@@ -73,6 +73,10 @@ class DistSparseTensorE:
 
         if self.grid is None:
             optimal_grid_dims = get_best_mpi_dim(self.world_size, self.tensor_dims)
+
+            if self.rank == 0:
+                print(f"Optimal grid dimensions: {optimal_grid_dims}")
+
             self.grid = Grid(optimal_grid_dims)
 
         self.tensor_grid = TensorGrid(self.tensor_dims, self.grid)

@@ -190,11 +190,24 @@ public:
             mttkrp_res(output_buffer_rows * R), 
             0.0);
 
-        ground_truth.lookups[mode_to_leave]->execute_spmm(
+        MPI_Barrier(MPI_COMM_WORLD);
+        auto t = start_clock();
+
+        uint64_t nonzeros_iterated = ground_truth.lookups[mode_to_leave]->execute_spmm(
             filtered_samples, 
             design_matrix,
             mttkrp_res
             );
+
+        cout << "Rank " << grid.rank << " nonzeros iterated: " << nonzeros_iterated << endl;
+
+
+        MPI_Barrier(MPI_COMM_WORLD);
+        double elapsed = stop_clock_get_elapsed(t);
+
+        if(grid.rank == 0) {
+            cout << "SpMM time: " << elapsed << endl;
+        }
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
         Buffer<double> &target_factor_data = *(target_factor.data);

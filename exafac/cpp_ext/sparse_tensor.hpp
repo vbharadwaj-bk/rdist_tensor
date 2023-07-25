@@ -163,13 +163,15 @@ public:
             indices,
             processor_assignments,
             send_counts,
-            recv_idxs
+            recv_idxs,
+            tensor_grid.grid.world
         );
         alltoallv_matrix_rows(
             values,
             processor_assignments,
             send_counts,
-            recv_values
+            recv_values,
+            tensor_grid.grid.world
         );
 
         indices.steal_resources(*recv_idxs);

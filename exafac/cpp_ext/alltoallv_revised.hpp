@@ -11,13 +11,14 @@ void alltoallv_matrix_rows(
         Buffer<VAL_T> &send_buffer,
 		Buffer<int> &processor_assignments,
 		Buffer<uint64_t> &send_counts_input,
-        unique_ptr<Buffer<VAL_T>> &recv_buffer
+        unique_ptr<Buffer<VAL_T>> &recv_buffer,
+        MPI_Comm &world
         ) {
 
     int rank, world_size_i;
     uint64_t world_size;
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &world_size_i);
+    MPI_Comm_rank(world, &rank);
+    MPI_Comm_size(world, &world_size_i);
     world_size = world_size_i;
 
     uint64_t rows = send_buffer.shape[0];
@@ -43,7 +44,7 @@ void alltoallv_matrix_rows(
                 1, MPI_UINT64_T, 
                 recv_counts(), 
                 1, MPI_UINT64_T, 
-                MPI_COMM_WORLD);
+                world);
 
     uint64_t total_send_rows = 
 				std::accumulate(send_counts(), send_counts(world_size), 0);
@@ -118,7 +119,7 @@ void alltoallv_matrix_rows(
                     (*recv_buffer)(),
                     recv_counts_dcast(), 
                     recv_offsets_dcast(), 
-                    mpi_dtype, 
-                    MPI_COMM_WORLD 
+                    mpi_dtype,
+                    world
                     );
 }

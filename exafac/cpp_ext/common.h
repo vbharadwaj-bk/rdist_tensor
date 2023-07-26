@@ -661,17 +661,24 @@ json compute_dstat(double quantity, MPI_Comm world) {
     );
     mean /= world_size;
 
-    double diff_to_mean = quantity - mean;
+    double diff_to_mean_sq = (quantity - mean) * (quantity - mean);
 
     MPI_Allreduce(
-        &diff_to_mean,
+        &diff_to_mean_sq,
         &std,
         1,
         MPI_DOUBLE,
         MPI_SUM,
         world
     );
-    std = sqrt(std / world_size);
+
+    if(world_size > 0) {
+        std = sqrt(std / (world_size - 1));
+    }
+    else {
+        std = 0.0;
+    }
+
 
     MPI_Allreduce(
         &quantity,

@@ -21,6 +21,8 @@ public:
 
     // Related to benchmarking...
     json stats;
+
+    double leverage_computation_time, dense_gather_time, dense_reduce_time;
     double spmm_time, nonzeros_iterated;
 
     TensorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
@@ -209,7 +211,9 @@ public:
         Buffer<double> temp_local({target_factor_rows, R}); 
 
         // Reduce_scatter_block the mttkrp_res buffer into temp_local 
-        // across grid.slices[mode_to_leave] 
+        // across grid.slices[mode_to_leave]
+
+        t = start_clock(); 
         MPI_Reduce_scatter_block(
             mttkrp_res(),
             temp_local(),
@@ -217,7 +221,8 @@ public:
             MPI_DOUBLE,
             MPI_SUM,
             grid.slices[mode_to_leave]
-        );             
+        );
+        dense_reduce_time += stop_clock_get_elapsed(t);
 
         cblas_dsymm(
             CblasRowMajor,
@@ -236,6 +241,7 @@ public:
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
 
+        t = start_clock();
         MPI_Allgather(
             target_factor_data(),
             target_factor_rows * R,
@@ -245,6 +251,7 @@ public:
             MPI_DOUBLE,
             grid.slices[mode_to_leave]
         );
+        dense_gather_time += stop_clock_get_elapsed(t);
 
         target_factor.compute_leverage_scores();
     }
@@ -256,6 +263,9 @@ public:
         // Benchmarking timers 
         spmm_time = 0.0;
         nonzeros_iterated = 0.0;
+        leverage_computation_time = 0.0; 
+        dense_gather_time = 0.0; 
+        dense_reduce_time = 0.0;
 
         for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
@@ -284,9 +294,12 @@ public:
         stats["fit_computation_time"] = fit_computation_time; 
         stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
         stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
+        stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);
+        stats["dense_gather_time"] = compute_dstat(dense_gather_time, MPI_COMM_WORLD);
+        stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
 
         if(grid.rank == 0) {
-            cout << stats << endl;
+            cout << stats.dump(4) << endl;
         }
     }
 

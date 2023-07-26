@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <bits/stdc++.h>
+#include "json.hpp"
 
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
@@ -24,6 +25,8 @@
 
 using namespace std;
 namespace py = pybind11;
+
+using json = nlohmann::json;
 
 template<typename TYPE_T>
 MPI_Datatype get_MPI_dtype() {
@@ -636,4 +639,61 @@ void apply_permutation(Buffer<uint32_t> &perm, Buffer<VAL_T> &arr) {
     }
 
     arr.steal_resources(temp);
+}
+
+json compute_dstat(double quantity, MPI_Comm world) {
+    int world_size;
+    MPI_Comm_size(world, &world_size);    
+
+    json result;
+    double mean;
+    double std;
+    double min;
+    double max;
+
+    MPI_Allreduce(
+        &quantity,
+        &mean,
+        1,
+        MPI_DOUBLE,
+        MPI_SUM,
+        world
+    );
+    mean /= world_size;
+
+    double diff_to_mean = quantity - mean;
+
+    MPI_Allreduce(
+        &diff_to_mean,
+        &std,
+        1,
+        MPI_DOUBLE,
+        MPI_SUM,
+        world
+    );
+    std = sqrt(std / world_size);
+
+    MPI_Allreduce(
+        &quantity,
+        &min,
+        1,
+        MPI_DOUBLE,
+        MPI_MIN,
+        world
+    );
+
+    MPI_Allreduce(
+        &quantity,
+        &max,
+        1,
+        MPI_DOUBLE,
+        MPI_MAX,
+        world
+    );
+
+    result["mean"] = mean;
+    result["std"] = std;
+    result["min"] = min;
+    result["max"] = max;
+    return result;
 }

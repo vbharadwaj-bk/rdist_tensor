@@ -16,10 +16,12 @@ public:
     TensorGrid &tensor_grid;
     Grid &grid;
 
-    json stats;
-
     uint64_t dim;
     vector<Buffer<double>> gathered_factors;
+
+    // Related to benchmarking...
+    json stats;
+    double spmm_time, nonzeros_iterated;
 
     TensorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
@@ -190,23 +192,16 @@ public:
             mttkrp_res(output_buffer_rows * R), 
             0.0);
 
-        MPI_Barrier(MPI_COMM_WORLD);
         auto t = start_clock();
-
-        uint64_t nonzeros_iterated = ground_truth.lookups[mode_to_leave]->execute_spmm(
+        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
             filtered_samples, 
             design_matrix,
             mttkrp_res
             );
-
-        MPI_Barrier(MPI_COMM_WORLD);
         double elapsed = stop_clock_get_elapsed(t);
+        MPI_Barrier(MPI_COMM_WORLD);
 
-        //cout << "Rank " << grid.rank << " nonzeros iterated: " 
-        // << nonzeros_iterated << endl;
-        //if(grid.rank == 0) {
-        //    cout << "SpMM time: " << elapsed << endl;
-        //}
+        spmm_time += elapsed; 
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
         Buffer<double> &target_factor_data = *(target_factor.data);
@@ -258,6 +253,10 @@ public:
         double als_total_time = 0.0;
         double fit_computation_time = 0.0;
 
+        // Benchmarking timers 
+        spmm_time = 0.0;
+        nonzeros_iterated = 0.0;
+
         for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
                 cout << "Starting ALS round " << (round) << endl; 
@@ -283,6 +282,8 @@ public:
         stats["num_rounds"] = num_rounds;
         stats["als_total_time"] = als_total_time; 
         stats["fit_computation_time"] = fit_computation_time; 
+        stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
+        stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
 
         if(grid.rank == 0) {
             cout << stats << endl;

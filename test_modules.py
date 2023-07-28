@@ -39,7 +39,7 @@ def test_grid():
     fit = optimizer.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    optimizer.execute_ALS_rounds(5, 65536, 10)
+    optimizer.execute_ALS_rounds(40, 65536, 10)
     #optimizer.execute_ALS_rounds(5)
 
     fit = optimizer.compute_exact_fit()

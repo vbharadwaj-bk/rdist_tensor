@@ -62,17 +62,20 @@ public:
     }
 
     void deduplicate_design_matrix(
-            Buffer<uint64_t> &samples,
+            Buffer<uint32_t> &samples,
             Buffer<double> &weights,
+            Buffer<double> &h,
             uint64_t j, 
-            Buffer<uint64_t> &samples_dedup,
+            Buffer<uint32_t> &samples_dedup,
             Buffer<double> &weights_dedup,
             Buffer<double> &h_dedup) {
+
         uint64_t J = samples.shape[0];
         uint64_t N = samples.shape[1];
+        uint64_t R = h.shape[1]; 
 
-        Buffer<uint64_t*> sort_idxs({J});
-        Buffer<uint64_t*> dedup_idxs({J});
+        Buffer<uint32_t*> sort_idxs({J});
+        Buffer<uint32_t*> dedup_idxs({J});
 
         #pragma omp parallel for
         for(uint64_t i = 0; i < J; i++) {
@@ -82,7 +85,7 @@ public:
         std::sort(std::execution::par_unseq, 
             sort_idxs(), 
             sort_idxs(J),
-            [j, N](uint64_t* a, uint64_t* b) {
+            [j, N](uint32_t* a, uint32_t* b) {
                 for(uint32_t i = 0; i < N; i++) {
                     if(i != j && a[i] != b[i]) {
                         return a[i] < b[i];
@@ -92,12 +95,12 @@ public:
             });
 
 
-        uint64_t** end_range = 
+        uint32_t** end_range = 
             std::unique_copy(std::execution::par_unseq,
                 sort_idxs(),
                 sort_idxs(J),
                 dedup_idxs(),
-                [j, N](uint64_t* a, uint64_t* b) {
+                [j, N](uint32_t* a, uint32_t* b) {
                     for(uint32_t i = 0; i < N; i++) {
                         if(i != j && a[i] != b[i]) {
                             return false;
@@ -114,14 +117,14 @@ public:
 
         #pragma omp parallel for
         for(uint64_t i = 0; i < num_unique; i++) {
-            uint64_t* buf = dedup_idxs[i];
-            uint64_t offset = (buf - (*samples_transpose)()) / N;
+            uint32_t* buf = dedup_idxs[i];
+            uint32_t offset = (buf - samples()) / N;
 
-            std::pair<uint64_t**, uint64_t**> bounds = std::equal_range(
+            std::pair<uint32_t**, uint32_t**> bounds = std::equal_range(
                 sort_idxs(),
                 sort_idxs(J),
                 buf, 
-                [j, N](uint64_t* a, uint64_t* b) {
+                [j, N](uint32_t* a, uint32_t* b) {
                     for(uint32_t i = 0; i < N; i++) {
                         if(i != j && a[i] != b[i]) {
                             return a[i] < b[i];
@@ -132,13 +135,13 @@ public:
 
             uint64_t num_copies = bounds.second - bounds.first; 
 
-            weights_dedup[i] = sampler->weights[offset] * num_copies; 
+            weights_dedup[i] = weights[offset] * num_copies; 
 
             for(uint64_t k = 0; k < N; k++) {
                 samples_dedup[i * N + k] = buf[k];
             }
             for(uint64_t k = 0; k < R; k++) {
-                h_dedup[i * R + k] = sampler->h[offset * R + k]; 
+                h_dedup[i * R + k] = h[offset * R + k]; 
             }
         }
     }
@@ -248,7 +251,8 @@ public:
         deduplicate_design_matrix(
             filtered_samples,
             filtered_weights,
-            j, 
+            design_matrix,
+            mode_to_leave, 
             samples_dedup,
             weights_dedup,
             h_dedup);

@@ -225,8 +225,7 @@ public:
         Buffer<double> design_matrix({local_sample_count, R});
         std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
 
-        #pragma omp parallel
-{
+
         for(uint64_t i = 0; i < ground_truth.dim; i++) {
             if(i == mode_to_leave) {
                 continue;
@@ -234,7 +233,7 @@ public:
 
             double *factor_data = gathered_factors[i]();
 
-            #pragma omp for
+            #pragma omp parallel for
             for(uint64_t j = 0; j < local_sample_count; j++) {
                 uint32_t idx = filtered_samples[j * ground_truth.dim + i];
 
@@ -257,18 +256,22 @@ public:
             weights_dedup,
             h_dedup);
 
-        #pragma omp for 
+        /*#pragma omp parallel for 
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
             }
-        }
-}
+        }*/
 
+        for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
+            for(uint64_t r = 0; r < R; r++) {
+                h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
+            }
+        }
 
         Buffer<double> design_gram({R, R});
         Buffer<double> design_gram_inv({R, R});
-        compute_gram(design_matrix, design_gram);
+        compute_gram(h_dedup, design_gram);
 
         MPI_Allreduce(MPI_IN_PLACE, 
                     design_gram(), 
@@ -279,10 +282,17 @@ public:
 
         compute_pinv_square(design_gram, design_gram_inv, R);
 
-        #pragma omp parallel for
+        /*#pragma omp parallel for
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
+            }
+        }*/
+
+        #pragma omp parallel for
+        for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
+            for(uint64_t r = 0; r < R; r++) {
+                h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
             }
         }
 
@@ -295,8 +305,8 @@ public:
 
         auto t = start_clock();
         nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
-            filtered_samples, 
-            design_matrix,
+            samples_dedup, 
+            h_dedup,
             mttkrp_res
             );
         double elapsed = stop_clock_get_elapsed(t);

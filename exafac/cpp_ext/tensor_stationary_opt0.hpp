@@ -61,6 +61,88 @@ public:
         }
     }
 
+    void deduplicate_design_matrix(
+            Buffer<uint64_t> &samples,
+            Buffer<double> &weights,
+            uint64_t j, 
+            Buffer<uint64_t> &samples_dedup,
+            Buffer<double> &weights_dedup,
+            Buffer<double> &h_dedup) {
+        uint64_t J = samples.shape[0];
+        uint64_t N = samples.shape[1];
+
+        Buffer<uint64_t*> sort_idxs({J});
+        Buffer<uint64_t*> dedup_idxs({J});
+
+        #pragma omp parallel for
+        for(uint64_t i = 0; i < J; i++) {
+            sort_idxs[i] = samples(i * N);
+        }
+
+        std::sort(std::execution::par_unseq, 
+            sort_idxs(), 
+            sort_idxs(J),
+            [j, N](uint64_t* a, uint64_t* b) {
+                for(uint32_t i = 0; i < N; i++) {
+                    if(i != j && a[i] != b[i]) {
+                        return a[i] < b[i];
+                    }
+                }
+                return false;  
+            });
+
+
+        uint64_t** end_range = 
+            std::unique_copy(std::execution::par_unseq,
+                sort_idxs(),
+                sort_idxs(J),
+                dedup_idxs(),
+                [j, N](uint64_t* a, uint64_t* b) {
+                    for(uint32_t i = 0; i < N; i++) {
+                        if(i != j && a[i] != b[i]) {
+                            return false;
+                        }
+                    }
+                    return true; 
+                });
+
+        uint64_t num_unique = end_range - dedup_idxs();
+
+        samples_dedup.initialize_to_shape({num_unique, N});
+        weights_dedup.initialize_to_shape({num_unique});
+        h_dedup.initialize_to_shape({num_unique, R});
+
+        #pragma omp parallel for
+        for(uint64_t i = 0; i < num_unique; i++) {
+            uint64_t* buf = dedup_idxs[i];
+            uint64_t offset = (buf - (*samples_transpose)()) / N;
+
+            std::pair<uint64_t**, uint64_t**> bounds = std::equal_range(
+                sort_idxs(),
+                sort_idxs(J),
+                buf, 
+                [j, N](uint64_t* a, uint64_t* b) {
+                    for(uint32_t i = 0; i < N; i++) {
+                        if(i != j && a[i] != b[i]) {
+                            return a[i] < b[i];
+                        }
+                    }
+                    return false; 
+                });
+
+            uint64_t num_copies = bounds.second - bounds.first; 
+
+            weights_dedup[i] = sampler->weights[offset] * num_copies; 
+
+            for(uint64_t k = 0; k < N; k++) {
+                samples_dedup[i * N + k] = buf[k];
+            }
+            for(uint64_t k = 0; k < R; k++) {
+                h_dedup[i * R + k] = sampler->h[offset * R + k]; 
+            }
+        }
+    }
+
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank; 
 
@@ -159,6 +241,18 @@ public:
             }
         }
 
+        Buffer<uint32_t> samples_dedup;
+        Buffer<double> weights_dedup;
+        Buffer<double> h_dedup;
+
+        deduplicate_design_matrix(
+            filtered_samples,
+            filtered_weights,
+            j, 
+            samples_dedup,
+            weights_dedup,
+            h_dedup);
+
         #pragma omp for 
         for(uint64_t j = 0; j < local_sample_count; j++) {
             for(uint64_t r = 0; r < R; r++) {
@@ -166,6 +260,7 @@ public:
             }
         }
 }
+
 
         Buffer<double> design_gram({R, R});
         Buffer<double> design_gram_inv({R, R});

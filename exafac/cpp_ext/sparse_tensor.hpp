@@ -157,8 +157,8 @@ public:
         }
 }
 
-        unique_ptr<Buffer<uint32_t>> recv_idxs;
-        unique_ptr<Buffer<double>> recv_values;
+        Buffer<uint32_t> recv_idxs;
+        Buffer<double> recv_values;
         alltoallv_matrix_rows(
             indices,
             processor_assignments,
@@ -174,8 +174,8 @@ public:
             tensor_grid.grid.world
         );
 
-        indices.steal_resources(*recv_idxs);
-        values.steal_resources(*recv_values);
+        indices.steal_resources(recv_idxs);
+        values.steal_resources(recv_values);
     }
 
     double compute_exact_fit(LowRankTensor &low_rank_tensor) {

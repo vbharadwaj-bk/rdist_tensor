@@ -16,7 +16,7 @@ def test_prefixes(axes):
 
 
 def test_grid():
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0 
     from exafac.sparse_tensor_e import DistSparseTensorE
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
@@ -32,14 +32,16 @@ def test_grid():
     low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)
     #low_rank_tensor.initialize_factors_deterministic()
     low_rank_tensor.initialize_factors_gaussian_random()
-    optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    print("Initialized accumulator stationary!")
+    exit(1)
     #optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
 
 
     fit = optimizer.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    optimizer.execute_ALS_rounds(40, 65536, 10)
+    optimizer.execute_ALS_rounds(10, 65536, 10)
     #optimizer.execute_ALS_rounds(5)
 
     fit = optimizer.compute_exact_fit()

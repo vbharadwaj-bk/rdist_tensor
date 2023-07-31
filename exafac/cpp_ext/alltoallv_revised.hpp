@@ -11,7 +11,7 @@ void alltoallv_matrix_rows(
         Buffer<VAL_T> &send_buffer,
 		Buffer<int> &processor_assignments,
 		Buffer<uint64_t> &send_counts_input,
-        unique_ptr<Buffer<VAL_T>> &recv_buffer,
+        Buffer<VAL_T> &recv_buffer,
         MPI_Comm &world
         ) {
 
@@ -50,7 +50,8 @@ void alltoallv_matrix_rows(
 				std::accumulate(send_counts(), send_counts(world_size), 0);
     uint64_t total_received_rows = 
 				std::accumulate(recv_counts(), recv_counts(world_size), 0);
-    recv_buffer.reset(new Buffer<VAL_T>({total_received_rows, cols}));
+
+    recv_buffer.initialize_to_shape({total_received_rows, cols});
 
     std::exclusive_scan(send_counts(), send_counts(world_size), send_offsets(), 0);
     std::exclusive_scan(recv_counts(), recv_counts(world_size), recv_offsets(), 0);
@@ -116,7 +117,7 @@ void alltoallv_matrix_rows(
                     send_counts_dcast(), 
                     send_offsets_dcast(), 
                     mpi_dtype,
-                    (*recv_buffer)(),
+                    recv_buffer(),
                     recv_counts_dcast(), 
                     recv_offsets_dcast(), 
                     mpi_dtype,

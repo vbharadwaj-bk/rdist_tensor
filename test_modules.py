@@ -27,8 +27,9 @@ def test_grid():
     rank = MPI.COMM_WORLD.Get_rank()
 
     #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5', grid) 
-    sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
-    #sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
+    #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
+
+    sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
     low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)
     #low_rank_tensor.initialize_factors_deterministic()
     low_rank_tensor.initialize_factors_gaussian_random()

@@ -34,8 +34,8 @@ def test_grid():
     low_rank_tensor.initialize_factors_gaussian_random()
 
     #optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    #optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    #optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
     optimizer.initialize_ground_truth_for_als()
 
     print("Initialized accumulator stationary!")

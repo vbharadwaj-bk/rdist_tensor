@@ -17,6 +17,7 @@
 #include "distmat.hpp"
 #include "low_rank_tensor.hpp"
 #include "sparse_tensor.hpp"
+#include "als_optimizer.hpp"
 #include "exact_als.hpp"
 #include "tensor_stationary_opt0.hpp"
 #include "accumulator_stationary_opt0.hpp"
@@ -42,19 +43,18 @@ PYBIND11_MODULE(py_module, m) {
             py::array_t<uint32_t>, 
             py::array_t<double>, 
             std::string>());
+    py::class_<ALS_Optimizer>(m, "ALS_Optimizer")
+        .def("initialize_ground_truth_for_als", &ALS_Optimizer::initialize_ground_truth_for_als)
+        .def("execute_ALS_rounds", &ALS_Optimizer::execute_ALS_rounds)
+        .def("compute_exact_fit", &ALS_Optimizer::compute_exact_fit);
     py::class_<ExactALS>(m, "ExactALS")
         .def(py::init<SparseTensor&, LowRankTensor&>())
         .def("execute_ALS_rounds", &ExactALS::execute_ALS_rounds)
         .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
-    py::class_<TensorStationaryOpt0>(m, "TensorStationaryOpt0")
-        .def(py::init<SparseTensor&, LowRankTensor&>())
-        .def("execute_ALS_rounds", &TensorStationaryOpt0::execute_ALS_rounds)
-        .def("compute_exact_fit", &TensorStationaryOpt0::compute_exact_fit) 
-        .def("initialize_ground_truth_for_als", &TensorStationaryOpt0::initialize_ground_truth_for_als);
-    py::class_<AccumulatorStationaryOpt0>(m, "AccumulatorStationaryOpt0")
-        .def(py::init<SparseTensor&, LowRankTensor&>())
-        .def("execute_ALS_rounds", &AccumulatorStationaryOpt0::execute_ALS_rounds)
-        .def("initialize_ground_truth_for_als", &AccumulatorStationaryOpt0::initialize_ground_truth_for_als);
+    py::class_<TensorStationaryOpt0, ALS_Optimizer>(m, "TensorStationaryOpt0")
+        .def(py::init<SparseTensor&, LowRankTensor&>());
+    py::class_<AccumulatorStationaryOpt0, ALS_Optimizer>(m, "AccumulatorStationaryOpt0")
+        .def(py::init<SparseTensor&, LowRankTensor&>());
 }
 
 /*
@@ -102,6 +102,7 @@ cfg['dependencies'] = [ 'common.h',
                         'sparse_tensor.hpp',
                         'sort_lookup.hpp',
                         'exact_als.hpp',
+                        'als_optimizer.hpp',
                         'tensor_stationary_opt0.hpp',
                         'accumulator_stationary_opt0.hpp',
                         '../../config.json' 

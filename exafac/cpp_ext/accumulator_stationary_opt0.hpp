@@ -8,10 +8,8 @@
 
 using namespace std;
 
-class __attribute__((visibility("hidden"))) AccumulatorStationaryOpt0 {
+class __attribute__((visibility("hidden"))) AccumulatorStationaryOpt0 : public ALS_Optimizer{
 public:
-    SparseTensor &ground_truth;
-    LowRankTensor &low_rank_tensor;
     TensorGrid &tensor_grid;
     Grid &grid;
 
@@ -23,8 +21,7 @@ public:
 
     AccumulatorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
-    ground_truth(ground_truth),
-    low_rank_tensor(low_rank_tensor),
+    ALS_Optimizer(ground_truth, low_rank_tensor),
     tensor_grid(ground_truth.tensor_grid),
     grid(ground_truth.tensor_grid.grid),
     dim(ground_truth.dim)
@@ -94,20 +91,20 @@ public:
                 tensor_grid.grid.world
             );
 
+            #pragma omp parallel for
             for(uint64_t j = 0; j < indices[i].shape[0]; j++) {
-                if(indices[i][j * dim + i] < row_start || indices[i][j * dim + i] > row_end) {
-                    cout << "ERROR! " << i << endl;
-                    cout << indices[i][j * dim + i] << " " << row_start << " " << row_end << endl;
-                    exit(1);
-                }
+                indices[i][j * dim + i] -= row_start; 
             }
 
-
+            lookups.emplace_back(
+                make_unique<SortIdxLookup<uint32_t, double>>(
+                    dim, i, indices[i](), values[i](), indices[i].shape[0]
+                ));
         }
     }
 
-    void execute_ALS_rounds(uint64_t num_rounds) {
-        // TODO: Implement! 
+    void execute_ALS_rounds(uint64_t num_rounds, uint64_t J, uint32_t epoch_interval) {
+        cout << "NOT IMPLEMENTED!" << endl;
+        exit(1);
     }
-
 };

@@ -61,6 +61,32 @@ public:
         }
     }
 
+    void initialize_ground_truth_for_als() {
+        ground_truth.check_tensor_invariants();
+        ground_truth.redistribute_to_grid(tensor_grid);
+        ground_truth.check_tensor_invariants();
+
+        uint64_t dim = ground_truth.dim;
+
+        for(uint64_t i = 0; i < dim; i++) {
+            ground_truth.offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
+        }
+
+        #pragma omp parallel for
+        for(uint64_t i = 0; i < ground_truth.indices.shape[0]; i++) {
+            for(uint64_t j = 0; j < dim; j++) {
+                ground_truth.indices[i * dim + j] -= ground_truth.offsets[j];
+            }
+        }
+
+        for(uint64_t i = 0; i < dim; i++) {
+            ground_truth.lookups.emplace_back(
+                make_unique<SortIdxLookup<uint32_t, double>>(
+                    dim, i, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
+                )); 
+        }
+    }
+
     void deduplicate_design_matrix(
             Buffer<uint32_t> &samples,
             Buffer<double> &weights,
@@ -256,13 +282,6 @@ public:
             weights_dedup,
             h_dedup);
 
-        /*#pragma omp parallel for 
-        for(uint64_t j = 0; j < local_sample_count; j++) {
-            for(uint64_t r = 0; r < R; r++) {
-                design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
-            }
-        }*/
-
         for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
@@ -281,13 +300,6 @@ public:
                     grid.slices[mode_to_leave]);
 
         compute_pinv_square(design_gram, design_gram_inv, R);
-
-        /*#pragma omp parallel for
-        for(uint64_t j = 0; j < local_sample_count; j++) {
-            for(uint64_t r = 0; r < R; r++) {
-                design_matrix[j * R + r] *= sqrt(filtered_weights[j]); 
-            }
-        }*/
 
         #pragma omp parallel for
         for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {

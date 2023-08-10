@@ -49,10 +49,12 @@ PYBIND11_MODULE(py_module, m) {
     py::class_<TensorStationaryOpt0>(m, "TensorStationaryOpt0")
         .def(py::init<SparseTensor&, LowRankTensor&>())
         .def("execute_ALS_rounds", &TensorStationaryOpt0::execute_ALS_rounds)
-        .def("compute_exact_fit", &TensorStationaryOpt0::compute_exact_fit);
+        .def("compute_exact_fit", &TensorStationaryOpt0::compute_exact_fit) 
+        .def("initialize_ground_truth_for_als", &TensorStationaryOpt0::initialize_ground_truth_for_als);
     py::class_<AccumulatorStationaryOpt0>(m, "AccumulatorStationaryOpt0")
         .def(py::init<SparseTensor&, LowRankTensor&>())
-        .def("execute_ALS_rounds", &AccumulatorStationaryOpt0::execute_ALS_rounds);
+        .def("execute_ALS_rounds", &AccumulatorStationaryOpt0::execute_ALS_rounds)
+        .def("initialize_ground_truth_for_als", &AccumulatorStationaryOpt0::initialize_ground_truth_for_als);
 }
 
 /*

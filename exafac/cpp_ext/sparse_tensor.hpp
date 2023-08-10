@@ -83,28 +83,6 @@ public:
                 indices[i * dim + j] = perms[j][indices[i * dim + j]];
             }
         }
-
-        check_tensor_invariants();
-        redistribute_to_grid(tensor_grid);
-        check_tensor_invariants();
-
-        for(uint64_t i = 0; i < dim; i++) {
-            offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
-        }
-
-        #pragma omp parallel for
-        for(uint64_t i = 0; i < indices.shape[0]; i++) {
-            for(uint64_t j = 0; j < dim; j++) {
-                indices[i * dim + j] -= offsets[j];
-            }
-        }
-
-        for(uint64_t i = 0; i < dim; i++) {
-            lookups.emplace_back(
-                make_unique<SortIdxLookup<uint32_t, double>>(
-                    dim, i, indices(), values(), indices.shape[0]
-                )); 
-        }
     }
 
     void check_tensor_invariants() {

@@ -164,7 +164,7 @@ public:
         uint64_t R = low_rank_tensor.rank; 
         for(int i = 0; i < grid.dim; i++) {
             DistMat1D &factor = low_rank_tensor.factors[i];
-            Buffer<double> &factor_data = *(factor.data);
+            Buffer<double> &factor_data = factor.data;
 
             int world_size;
             MPI_Comm_size(grid.slices[i], &world_size);

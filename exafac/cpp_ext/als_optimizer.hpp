@@ -42,6 +42,7 @@ public:
         dense_gather_time = 0.0; 
         dense_reduce_time = 0.0;
 
+        /*
         for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
                 cout << "Starting ALS round " << (round) << endl; 
@@ -63,6 +64,7 @@ public:
                 }
             }
         }
+        */
 
         stats["num_rounds"] = num_rounds;
         stats["als_total_time"] = als_total_time; 

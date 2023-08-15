@@ -26,13 +26,16 @@ public:
     grid(ground_truth.tensor_grid.grid),
     dim(ground_truth.dim)
     {
-
     }
 
     void initialize_ground_truth_for_als() {
         int world_size;
         MPI_Comm_size(MPI_COMM_WORLD, &world_size);
         // uint64_t R = low_rank_tensor.rank;
+
+        ground_truth.check_tensor_invariants();
+        ground_truth.redistribute_to_grid(tensor_grid);
+        ground_truth.check_tensor_invariants();
 
         for(uint64_t i = 0; i < dim; i++) {
             indices.emplace_back();
@@ -43,7 +46,7 @@ public:
 
             //uint64_t row_count = tensor_grid.padded_row_counts[i] * world_size; 
             uint32_t row_start = factor.row_position * factor.padded_rows;
-            uint32_t row_end = (factor.row_position + 1) * factor.padded_rows;
+            //uint32_t row_end = (factor.row_position + 1) * factor.padded_rows;
 
             factor.compute_leverage_scores();
 
@@ -102,9 +105,58 @@ public:
                     dim, i, indices[i](), values[i](), indices[i].shape[0]
                 ));
         }
+
+
+        // Only do this after we have constructed the parallel
+        // representations
+        for(uint64_t i = 0; i < dim; i++) {
+            ground_truth.offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
+        }
+
+        #pragma omp parallel for
+        for(uint64_t i = 0; i < ground_truth.indices.shape[0]; i++) {
+            for(uint64_t j = 0; j < dim; j++) {
+                ground_truth.indices[i * dim + j] -= ground_truth.offsets[j];
+            }
+        }
+
+        ground_truth.lookups.emplace_back(
+            make_unique<SortIdxLookup<uint32_t, double>>(
+                dim, 0, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
+            )); 
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
-        // TODO: Implement! 
+        // Step 1: Gather the factor matrices
+        vector<Buffer<double>> gathered_factors;
+
+        uint64_t R = low_rank_tensor.rank; 
+        for(uint64_t i = 0; i < dim; i++) {
+            /*
+            uint64_t row_count = tensor_grid.padded_row_counts[i] * grid.world_size;
+
+            gathered_factors.emplace_back(
+                Buffer<double>({row_count, low_rank_tensor.rank})
+            );
+
+            // Allgather factors into buffers and compute gram matrices
+            DistMat1D &factor = low_rank_tensor.factors[i];
+            Buffer<double> &factor_data = factor.data;
+
+            MPI_Allgather(
+                factor_data(),
+                factor_data.shape[0] * R,
+                MPI_DOUBLE,
+                gathered_factors[i](),
+                factor_data.shape[0] * R,
+                MPI_DOUBLE,
+                factor.ordered_world 
+            );
+
+            factor.compute_leverage_scores();
+            */
+        }
+        
+        cout << "Finished ALS step." << endl;
     }
 };

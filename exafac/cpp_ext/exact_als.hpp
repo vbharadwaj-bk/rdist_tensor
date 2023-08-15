@@ -42,7 +42,7 @@ public:
 
             // Allgather factors into buffers and compute gram matrices
             DistMat1D &factor = low_rank_tensor.factors[i];
-            Buffer<double> &factor_data = *(factor.data);
+            Buffer<double> &factor_data = factor.data;
 
             MPI_Allgather(
                 factor_data(),
@@ -80,7 +80,7 @@ public:
         );
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
-        Buffer<double> &target_factor_data = *(target_factor.data);
+        Buffer<double> &target_factor_data = target_factor.data;
         uint64_t target_factor_rows = target_factor_data.shape[0];
         Buffer<double> temp_local({target_factor_rows, R}); 
 

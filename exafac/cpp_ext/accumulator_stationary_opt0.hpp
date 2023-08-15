@@ -132,7 +132,6 @@ public:
 
         uint64_t R = low_rank_tensor.rank; 
         for(uint64_t i = 0; i < dim; i++) {
-            /*
             uint64_t row_count = tensor_grid.padded_row_counts[i] * grid.world_size;
 
             gathered_factors.emplace_back(
@@ -154,9 +153,111 @@ public:
             );
 
             factor.compute_leverage_scores();
-            */
         }
-        
-        cout << "Finished ALS step." << endl;
+
+        // Step 2: Gather and sample factor matrices 
+
+        Buffer<uint32_t> filtered_samples;
+        Buffer<double> filtered_weights;
+
+        gather_lk_samples_to_all(J, 
+                mode_to_leave, 
+                filtered_samples, 
+                filtered_weights);
+
+        uint64_t local_sample_count = filtered_samples.shape[0];
+
+        Buffer<double> design_matrix({local_sample_count, R});
+        std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
+
+        for(uint64_t i = 0; i < ground_truth.dim; i++) {
+            if(i == mode_to_leave) {
+                continue;
+            }
+
+            double *factor_data = gathered_factors[i]();
+
+            #pragma omp parallel for
+            for(uint64_t j = 0; j < local_sample_count; j++) {
+                uint32_t idx = filtered_samples[j * ground_truth.dim + i];
+
+                for(uint64_t r = 0; r < R; r++) {
+                    design_matrix[j * R + r] *= factor_data[idx * R + r]; 
+                }
+            }
+        }
+
+        Buffer<uint32_t> samples_dedup;
+        Buffer<double> weights_dedup;
+        Buffer<double> h_dedup;
+
+        deduplicate_design_matrix(
+            filtered_samples,
+            filtered_weights,
+            design_matrix,
+            mode_to_leave, 
+            samples_dedup,
+            weights_dedup,
+            h_dedup);
+
+        for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
+            for(uint64_t r = 0; r < R; r++) {
+                h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
+            }
+        }
+
+        Buffer<double> design_gram({R, R});
+        Buffer<double> design_gram_inv({R, R});
+        compute_gram(h_dedup, design_gram);
+
+        MPI_Allreduce(MPI_IN_PLACE, 
+                    design_gram(), 
+                    R * R, 
+                    MPI_DOUBLE, 
+                    MPI_SUM, 
+                    grid.slices[mode_to_leave]);
+
+        compute_pinv_square(design_gram, design_gram_inv, R);
+
+        #pragma omp parallel for
+        for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
+            for(uint64_t r = 0; r < R; r++) {
+                h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
+            }
+        }
+
+        DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
+
+        // Step 3: Compute the MTTKRP 
+        Buffer<double> mttkrp_res({target_factor.data.shape[0], R}); 
+
+        std::fill(mttkrp_res(), 
+            mttkrp_res(mttkrp_res.shape[0] * R), 
+            0.0);
+
+        auto t = start_clock();
+        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
+            samples_dedup, 
+            h_dedup,
+            mttkrp_res 
+            );
+        double elapsed = stop_clock_get_elapsed(t);
+
+        cblas_dsymm(
+            CblasRowMajor,
+            CblasRight,
+            CblasUpper,
+            (uint32_t) mttkrp_res.shape[0],
+            (uint32_t) R,
+            1.0,
+            design_gram_inv(),
+            R,
+            mttkrp_res(),
+            R,
+            0.0,
+            target_factor.data(),
+            R);
+
+        target_factor.renormalize_columns(&(low_rank_tensor.sigma));
     }
 };

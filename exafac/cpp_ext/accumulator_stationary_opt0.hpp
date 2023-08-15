@@ -26,6 +26,7 @@ public:
     grid(ground_truth.tensor_grid.grid),
     dim(ground_truth.dim)
     {
+
     }
 
     void initialize_ground_truth_for_als() {
@@ -103,8 +104,7 @@ public:
         }
     }
 
-    void execute_ALS_rounds(uint64_t num_rounds, uint64_t J, uint32_t epoch_interval) {
-        cout << "NOT IMPLEMENTED!" << endl;
-        exit(1);
+    void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
+        // TODO: Implement! 
     }
 };

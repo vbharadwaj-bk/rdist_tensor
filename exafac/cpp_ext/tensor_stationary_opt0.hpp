@@ -12,24 +12,16 @@ using namespace std;
 
 class __attribute__((visibility("hidden"))) TensorStationaryOpt0 : public ALS_Optimizer {
 public:
-    TensorGrid &tensor_grid;
-    Grid &grid;
-
-    uint64_t dim;
     vector<Buffer<double>> gathered_factors;
 
     // Related to benchmarking...
-    json stats;
 
     double leverage_computation_time, dense_gather_time, dense_reduce_time;
     double spmm_time, nonzeros_iterated;
 
     TensorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
-    ALS_Optimizer(ground_truth, low_rank_tensor),
-    tensor_grid(ground_truth.tensor_grid),
-    grid(ground_truth.tensor_grid.grid),
-    dim(ground_truth.dim)
+    ALS_Optimizer(ground_truth, low_rank_tensor)
     {
         uint64_t R = low_rank_tensor.rank; 
         for(uint64_t i = 0; i < dim; i++) {
@@ -88,82 +80,18 @@ public:
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank; 
 
-        Buffer<uint32_t> samples({J, ground_truth.dim});
-        Buffer<double> weights({J});
+        Buffer<uint32_t> filtered_samples;
+        Buffer<double> filtered_weights;
 
-        std::fill(samples(), samples(J * ground_truth.dim), 0);
-        std::fill(weights(), weights(J), 0.0 - log((double) J));
-        Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
+        gather_lk_samples_to_all(J, 
+                mode_to_leave, 
+                filtered_samples, 
+                filtered_weights);
 
-        // Collect all samples and randomly permute along each mode 
-        for(uint64_t i = 0; i < ground_truth.dim; i++) {
-            if(i == mode_to_leave) {
-                continue;
-            }
-
-            Buffer<uint32_t> sample_idxs;
-            Buffer<double> log_weights;
-            low_rank_tensor.factors[i].draw_leverage_score_samples(J, sample_idxs, log_weights);
-
-            Buffer<uint32_t> rand_perm({J});
-            std::iota(rand_perm(), rand_perm(J), 0);
-            std::shuffle(rand_perm(), rand_perm(J), global_rng.par_gen[0]);
-
-            apply_permutation(rand_perm, sample_idxs);
-            apply_permutation(rand_perm, log_weights);
-
-            #pragma omp parallel for
-            for(uint64_t j = 0; j < J; j++) {
-                samples[j * ground_truth.dim + i] = sample_idxs[j];
-                weights[j] += log_weights[j]; 
-            }
-        }
-
-        // Now filter out all samples that don't belong to this processor
-        Buffer<int> belongs_to_proc({J});
-        Buffer<int> packed_offsets({J});
-        std::fill(belongs_to_proc(), belongs_to_proc(J), 0);
-
-        uint64_t local_sample_count = 0;
-
-        #pragma omp parallel for reduction(+:local_sample_count)
-        for(uint64_t j = 0; j < J; j++) {
-            bool within_bounds = true;
-            for(uint64_t i = 0; i < ground_truth.dim; i++) {
-                if(i == mode_to_leave) {
-                    continue;
-                }
-
-                int idx = (int) samples[j * ground_truth.dim + i];
-                bool coord_within_bounds = idx >= tensor_grid.bound_starts[i] && idx < tensor_grid.bound_ends[i];
-
-                within_bounds = within_bounds && coord_within_bounds;
-            }
-            belongs_to_proc[j] = within_bounds ? 1 : 0;
-            local_sample_count += belongs_to_proc[j]; 
-        }
-
-        // If necessary, change to parallel execution policy 
-        std::exclusive_scan(belongs_to_proc(), belongs_to_proc(J), packed_offsets(), 0);
-
-        Buffer<uint32_t> filtered_samples({local_sample_count, ground_truth.dim});
-        Buffer<double> filtered_weights({local_sample_count});
-
-        //#pragma omp parallel for
-        for(uint64_t j = 0; j < J; j++) {
-            if(belongs_to_proc[j] == 1) {
-                for(uint64_t i = 0; i < ground_truth.dim; i++) {
-                    uint32_t result = samples[j * ground_truth.dim + i];
-                    result -= ground_truth.offsets[i];
-                    filtered_samples[packed_offsets[j] * ground_truth.dim + i] = result;
-                }
-                filtered_weights[packed_offsets[j]] = exp(weights[j]);
-            }
-        }
+        uint64_t local_sample_count = filtered_samples.shape[0];
 
         Buffer<double> design_matrix({local_sample_count, R});
         std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
-
 
         for(uint64_t i = 0; i < ground_truth.dim; i++) {
             if(i == mode_to_leave) {
@@ -288,52 +216,5 @@ public:
         dense_gather_time += stop_clock_get_elapsed(t);
 
         target_factor.compute_leverage_scores();
-    }
-
-    void execute_ALS_rounds(uint64_t num_rounds, uint64_t J, uint32_t epoch_interval) {
-        double als_total_time = 0.0;
-        double fit_computation_time = 0.0;
-
-        // Benchmarking timers 
-        spmm_time = 0.0;
-        nonzeros_iterated = 0.0;
-        leverage_computation_time = 0.0; 
-        dense_gather_time = 0.0; 
-        dense_reduce_time = 0.0;
-
-        for(uint64_t round = 1; round <= num_rounds; round++) {
-            if(grid.rank == 0) {
-                cout << "Starting ALS round " << (round) << endl; 
-            }
-
-            auto start = start_clock();
-            for(int i = 0; i < grid.dim; i++) {
-                execute_ALS_step(i, J);
-            }
-            als_total_time += stop_clock_get_elapsed(start);
-
-            if((round % epoch_interval) == 0) {
-                start = start_clock();
-                double exact_fit = compute_exact_fit();
-                fit_computation_time += stop_clock_get_elapsed(start);
-
-                if(grid.rank == 0) {
-                    cout << "Exact fit after " << round << " rounds: " << exact_fit << endl;
-                }
-            }
-        }
-
-        stats["num_rounds"] = num_rounds;
-        stats["als_total_time"] = als_total_time; 
-        stats["fit_computation_time"] = fit_computation_time; 
-        stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
-        stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
-        stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);
-        stats["dense_gather_time"] = compute_dstat(dense_gather_time, MPI_COMM_WORLD);
-        stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
-
-        if(grid.rank == 0) {
-            cout << stats.dump(4) << endl;
-        }
     }
 };

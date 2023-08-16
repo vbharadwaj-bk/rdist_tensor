@@ -210,14 +210,9 @@ public:
         Buffer<double> design_gram_inv({R, R});
         compute_gram(h_dedup, design_gram);
 
-        MPI_Allreduce(MPI_IN_PLACE, 
-                    design_gram(), 
-                    R * R, 
-                    MPI_DOUBLE, 
-                    MPI_SUM, 
-                    grid.slices[mode_to_leave]);
-
         compute_pinv_square(design_gram, design_gram_inv, R);
+
+
 
         #pragma omp parallel for
         for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
@@ -225,6 +220,7 @@ public:
                 h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
             }
         }
+
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
 
@@ -235,13 +231,15 @@ public:
             mttkrp_res(mttkrp_res.shape[0] * R), 
             0.0);
 
+
         auto t = start_clock();
-        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
+        nonzeros_iterated += lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             h_dedup,
             mttkrp_res 
             );
         double elapsed = stop_clock_get_elapsed(t);
+
 
         cblas_dsymm(
             CblasRowMajor,

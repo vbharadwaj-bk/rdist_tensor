@@ -162,15 +162,15 @@ public:
 
         // Step 2: Gather and sample factor matrices 
 
-        Buffer<uint32_t> filtered_samples;
-        Buffer<double> filtered_weights;
+        Buffer<uint32_t> samples({J, ground_truth.dim});
+        Buffer<double> weights({J});
 
         gather_lk_samples_to_all(J, 
                 mode_to_leave, 
-                filtered_samples, 
-                filtered_weights);
+                samples, 
+                weights);
 
-        uint64_t local_sample_count = filtered_samples.shape[0];
+        uint64_t local_sample_count = samples.shape[0];
 
         Buffer<double> design_matrix({local_sample_count, R});
         std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
@@ -184,7 +184,7 @@ public:
 
             #pragma omp parallel for
             for(uint64_t j = 0; j < local_sample_count; j++) {
-                uint32_t idx = filtered_samples[j * ground_truth.dim + i];
+                uint32_t idx = samples[j * ground_truth.dim + i];
 
                 for(uint64_t r = 0; r < R; r++) {
                     design_matrix[j * R + r] *= factor_data[idx * R + r]; 
@@ -197,8 +197,8 @@ public:
         Buffer<double> h_dedup;
 
         deduplicate_design_matrix(
-            filtered_samples,
-            filtered_weights,
+            samples,
+            weights,
             design_matrix,
             mode_to_leave, 
             samples_dedup,

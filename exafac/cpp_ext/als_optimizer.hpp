@@ -166,11 +166,8 @@ public:
     void gather_lk_samples_to_all(
             uint64_t J, 
             uint64_t mode_to_leave,
-            Buffer<uint32_t> &filtered_samples, 
-            Buffer<double> &filtered_weights) {
-
-        Buffer<uint32_t> samples({J, ground_truth.dim});
-        Buffer<double> weights({J});
+            Buffer<uint32_t> &samples, 
+            Buffer<double> &weights) {
 
         std::fill(samples(), samples(J * ground_truth.dim), 0);
         std::fill(weights(), weights(J), 0.0 - log((double) J));
@@ -197,48 +194,6 @@ public:
             for(uint64_t j = 0; j < J; j++) {
                 samples[j * ground_truth.dim + i] = sample_idxs[j];
                 weights[j] += log_weights[j]; 
-            }
-        }
-
-        // Now filter out all samples that don't belong to this processor
-        Buffer<int> belongs_to_proc({J});
-        Buffer<int> packed_offsets({J});
-        std::fill(belongs_to_proc(), belongs_to_proc(J), 0);
-
-        uint64_t local_sample_count = 0;
-
-        #pragma omp parallel for reduction(+:local_sample_count)
-        for(uint64_t j = 0; j < J; j++) {
-            bool within_bounds = true;
-            for(uint64_t i = 0; i < ground_truth.dim; i++) {
-                if(i == mode_to_leave) {
-                    continue;
-                }
-
-                int idx = (int) samples[j * ground_truth.dim + i];
-                bool coord_within_bounds = idx >= tensor_grid.bound_starts[i] && idx < tensor_grid.bound_ends[i];
-
-                within_bounds = within_bounds && coord_within_bounds;
-            }
-            belongs_to_proc[j] = within_bounds ? 1 : 0;
-            local_sample_count += belongs_to_proc[j]; 
-        }
-
-        // If necessary, change to parallel execution policy 
-        std::exclusive_scan(belongs_to_proc(), belongs_to_proc(J), packed_offsets(), 0);
-
-        filtered_samples.initialize_to_shape({local_sample_count, ground_truth.dim});
-        filtered_weights.initialize_to_shape({local_sample_count});
-
-        //#pragma omp parallel for
-        for(uint64_t j = 0; j < J; j++) {
-            if(belongs_to_proc[j] == 1) {
-                for(uint64_t i = 0; i < ground_truth.dim; i++) {
-                    uint32_t result = samples[j * ground_truth.dim + i];
-                    result -= ground_truth.offsets[i];
-                    filtered_samples[packed_offsets[j] * ground_truth.dim + i] = result;
-                }
-                filtered_weights[packed_offsets[j]] = exp(weights[j]);
             }
         }
     }

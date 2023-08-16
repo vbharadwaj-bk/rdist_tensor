@@ -52,7 +52,7 @@ public:
                 execute_ALS_step(i, J);
             }
             als_total_time += stop_clock_get_elapsed(start);
-
+ 
             if((round % epoch_interval) == 0) {
                 start = start_clock();
                 double exact_fit = compute_exact_fit();

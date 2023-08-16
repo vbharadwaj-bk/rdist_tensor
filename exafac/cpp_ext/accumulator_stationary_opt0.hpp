@@ -60,14 +60,15 @@ public:
             std::fill(send_counts(), send_counts(proc_count), 0);
             Buffer<int> processor_assignments({nnz}); 
 
+            int* proc_map = grid.row_order_to_procs[i].data();
+
             #pragma omp parallel
     {
             vector<uint64_t> send_counts_local(proc_count, 0);
 
             #pragma omp for
             for(uint64_t j = 0; j < nnz; j++) {
-                uint64_t target_proc = ground_truth.indices[j * dim + i] / factor.padded_rows; 
-                //uint64_t target_proc = 0;
+                uint64_t target_proc = proc_map[ground_truth.indices[j * dim + i] / factor.padded_rows]; 
 
                 send_counts_local[target_proc]++;
                 processor_assignments[j] = target_proc; 
@@ -97,7 +98,11 @@ public:
 
             #pragma omp parallel for
             for(uint64_t j = 0; j < indices[i].shape[0]; j++) {
-                indices[i][j * dim + i] -= row_start; 
+                indices[i][j * dim + i] -= row_start;
+                if(indices[i][j * dim + i] > factor.padded_rows) {
+                    cout << "Error: " << indices[i][j * dim + i] << " " << factor.padded_rows << endl;
+                    exit(1);
+                }
             }
 
             lookups.emplace_back(
@@ -212,15 +217,12 @@ public:
 
         compute_pinv_square(design_gram, design_gram_inv, R);
 
-
-
         #pragma omp parallel for
         for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
             }
         }
-
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
 
@@ -231,7 +233,6 @@ public:
             mttkrp_res(mttkrp_res.shape[0] * R), 
             0.0);
 
-
         auto t = start_clock();
         nonzeros_iterated += lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
@@ -239,7 +240,6 @@ public:
             mttkrp_res 
             );
         double elapsed = stop_clock_get_elapsed(t);
-
 
         cblas_dsymm(
             CblasRowMajor,

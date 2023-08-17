@@ -170,6 +170,11 @@ public:
                 samples, 
                 weights);
 
+        #pragma omp parallel for
+        for(uint64_t j = 0; j < J; j++) {
+            weights[j] = exp(weights[j]);
+        }
+
         uint64_t local_sample_count = samples.shape[0];
 
         Buffer<double> design_matrix({local_sample_count, R});

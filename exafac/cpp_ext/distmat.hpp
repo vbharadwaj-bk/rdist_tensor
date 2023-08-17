@@ -57,7 +57,7 @@ public:
 
         // Create a communicator that puts all slices in order 
         MPI_Group world_group; 
-        MPI_Comm_group(MPI_COMM_WORLD, &world_group);
+        MPI_Comm_group(grid.world, &world_group);
 
         MPI_Group ordered_group;
         MPI_Group_incl(world_group, 
@@ -65,7 +65,7 @@ public:
                     grid.row_order_to_procs[slice_dim].data(),
                     &ordered_group);
 
-        MPI_Comm_create_group(MPI_COMM_WORLD, ordered_group, 0, &ordered_world);
+        MPI_Comm_create_group(grid.world, ordered_group, 0, &ordered_world);
     }
 
     void compute_gram_matrix(Buffer<double> &gram) {

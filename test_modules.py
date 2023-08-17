@@ -35,15 +35,15 @@ def test_grid():
 
     #optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
 
-    #optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    #optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
     optimizer.initialize_ground_truth_for_als()
 
     fit = optimizer.compute_exact_fit()
 
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    optimizer.execute_ALS_rounds(40, 65536, 5)
+    optimizer.execute_ALS_rounds(5, 65536, 5)
 
     #optimizer.execute_ALS_rounds(5)
 

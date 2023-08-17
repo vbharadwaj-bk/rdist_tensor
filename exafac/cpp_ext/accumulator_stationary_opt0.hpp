@@ -175,10 +175,20 @@ public:
             weights[j] = exp(weights[j]);
         }
 
-        uint64_t local_sample_count = samples.shape[0];
+        Buffer<uint32_t> samples_dedup;
+        Buffer<double> weights_dedup;
 
-        Buffer<double> design_matrix({local_sample_count, R});
-        std::fill(design_matrix(), design_matrix(local_sample_count * R), 1.0);
+        deduplicate_design_matrix(
+            samples,
+            weights,
+            mode_to_leave, 
+            samples_dedup,
+            weights_dedup);
+
+        uint64_t sample_count_dedup = samples_dedup.shape[0];
+
+        Buffer<double> design_matrix({sample_count_dedup, R});
+        std::fill(design_matrix(), design_matrix(sample_count_dedup* R), 1.0);
 
         for(uint64_t i = 0; i < ground_truth.dim; i++) {
             if(i == mode_to_leave) {
@@ -188,8 +198,8 @@ public:
             double *factor_data = gathered_factors[i]();
 
             #pragma omp parallel for
-            for(uint64_t j = 0; j < local_sample_count; j++) {
-                uint32_t idx = samples[j * ground_truth.dim + i];
+            for(uint64_t j = 0; j < sample_count_dedup; j++) {
+                uint32_t idx = samples_dedup[j * ground_truth.dim + i];
 
                 for(uint64_t r = 0; r < R; r++) {
                     design_matrix[j * R + r] *= factor_data[idx * R + r]; 
@@ -197,35 +207,22 @@ public:
             }
         }
 
-        Buffer<uint32_t> samples_dedup;
-        Buffer<double> weights_dedup;
-        Buffer<double> h_dedup;
-
-        deduplicate_design_matrix(
-            samples,
-            weights,
-            design_matrix,
-            mode_to_leave, 
-            samples_dedup,
-            weights_dedup,
-            h_dedup);
-
         for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
             for(uint64_t r = 0; r < R; r++) {
-                h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
+                design_matrix[j * R + r] *= sqrt(weights_dedup[j]);
             }
         }
 
         Buffer<double> design_gram({R, R});
         Buffer<double> design_gram_inv({R, R});
-        compute_gram(h_dedup, design_gram);
 
+        compute_gram(design_matrix, design_gram);
         compute_pinv_square(design_gram, design_gram_inv, R);
 
         #pragma omp parallel for
         for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
             for(uint64_t r = 0; r < R; r++) {
-                h_dedup[j * R + r] *= sqrt(weights_dedup[j]);
+                design_matrix[j * R + r] *= sqrt(weights_dedup[j]);
             }
         }
 
@@ -241,7 +238,7 @@ public:
         auto t = start_clock();
         nonzeros_iterated += lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
-            h_dedup,
+            design_matrix,
             mttkrp_res 
             );
         double elapsed = stop_clock_get_elapsed(t);

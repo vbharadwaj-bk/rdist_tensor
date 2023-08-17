@@ -81,15 +81,13 @@ public:
     void deduplicate_design_matrix(
             Buffer<uint32_t> &samples,
             Buffer<double> &weights,
-            Buffer<double> &h,
             uint64_t j, 
             Buffer<uint32_t> &samples_dedup,
-            Buffer<double> &weights_dedup,
-            Buffer<double> &h_dedup) {
+            Buffer<double> &weights_dedup) {
 
         uint64_t J = samples.shape[0];
         uint64_t N = samples.shape[1];
-        uint64_t R = h.shape[1]; 
+        uint64_t R = 0;        
 
         Buffer<uint32_t*> sort_idxs({J});
         Buffer<uint32_t*> dedup_idxs({J});
@@ -130,7 +128,6 @@ public:
 
         samples_dedup.initialize_to_shape({num_unique, N});
         weights_dedup.initialize_to_shape({num_unique});
-        h_dedup.initialize_to_shape({num_unique, R});
 
         #pragma omp parallel for
         for(uint64_t i = 0; i < num_unique; i++) {
@@ -156,9 +153,6 @@ public:
 
             for(uint64_t k = 0; k < N; k++) {
                 samples_dedup[i * N + k] = buf[k];
-            }
-            for(uint64_t k = 0; k < R; k++) {
-                h_dedup[i * R + k] = h[offset * R + k]; 
             }
         }
     }

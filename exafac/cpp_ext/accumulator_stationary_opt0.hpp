@@ -131,36 +131,15 @@ public:
             make_unique<SortIdxLookup<uint32_t, double>>(
                 dim, 0, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
             )); 
+
+        for(uint64_t i = 0; i < dim; i++) {
+            DistMat1D &factor = low_rank_tensor.factors[i];
+            factor.compute_leverage_scores();
+        }
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
-        // Step 1: Gather the factor matrices
-        vector<Buffer<double>> gathered_factors;
-
         uint64_t R = low_rank_tensor.rank; 
-        for(uint64_t i = 0; i < dim; i++) {
-            uint64_t row_count = tensor_grid.padded_row_counts[i] * grid.world_size;
-
-            gathered_factors.emplace_back(
-                Buffer<double>({row_count, low_rank_tensor.rank})
-            );
-
-            // Allgather factors into buffers and compute gram matrices
-            DistMat1D &factor = low_rank_tensor.factors[i];
-            Buffer<double> &factor_data = factor.data;
-
-            MPI_Allgather(
-                factor_data(),
-                factor_data.shape[0] * R,
-                MPI_DOUBLE,
-                gathered_factors[i](),
-                factor_data.shape[0] * R,
-                MPI_DOUBLE,
-                factor.ordered_world 
-            );
-
-            factor.compute_leverage_scores();
-        }
 
         // Step 2: Gather and sample factor matrices 
 
@@ -238,11 +217,11 @@ public:
                 continue;
             }
 
-            double *factor_data = gathered_factors[i]();
+            double *factor_data = factors_compressed[i]();
 
             #pragma omp parallel for
             for(uint64_t j = 0; j < sample_count_dedup; j++) {
-                uint32_t idx = samples_dedup[j * ground_truth.dim + i];
+                uint32_t idx = sample_compressed_map[j * ground_truth.dim + i];
 
                 for(uint64_t r = 0; r < R; r++) {
                     design_matrix[j * R + r] *= factor_data[idx * R + r]; 
@@ -302,5 +281,6 @@ public:
             R);
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
+        target_factor.compute_leverage_scores();
     }
 };

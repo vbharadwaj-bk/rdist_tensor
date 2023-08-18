@@ -161,7 +161,8 @@ public:
             uint64_t J, 
             uint64_t mode_to_leave,
             Buffer<uint32_t> &samples, 
-            Buffer<double> &weights) {
+            Buffer<double> &weights, 
+            vector<Buffer<uint32_t>> unique_row_indices) {
 
         std::fill(samples(), samples(J * ground_truth.dim), 0);
         std::fill(weights(), weights(J), 0.0 - log((double) J));
@@ -175,7 +176,9 @@ public:
 
             Buffer<uint32_t> sample_idxs;
             Buffer<double> log_weights;
-            low_rank_tensor.factors[i].draw_leverage_score_samples(J, sample_idxs, log_weights);
+            
+            unique_row_indices.emplace_back();
+            low_rank_tensor.factors[i].draw_leverage_score_samples(J, sample_idxs, log_weights, unique_row_indices[i]);
 
             Buffer<uint32_t> rand_perm({J});
             std::iota(rand_perm(), rand_perm(J), 0);

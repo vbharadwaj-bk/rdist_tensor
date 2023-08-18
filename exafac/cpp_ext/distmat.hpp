@@ -4,6 +4,7 @@
 #include <cblas.h>
 #include <lapacke.h>
 #include <cmath>
+#include <algorithm>
 
 #include "grid.hpp"
 #include "random_util.hpp"
@@ -183,7 +184,6 @@ public:
             }
         }
 }
-
     }
 
     void compute_leverage_scores() {
@@ -195,7 +195,11 @@ public:
         compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
     }
 
-    void draw_leverage_score_samples(uint64_t J, Buffer<uint32_t> &sample_idxs, Buffer<double> &log_weights) {
+    void draw_leverage_score_samples(uint64_t J, 
+            Buffer<uint32_t> &sample_idxs, 
+            Buffer<double> &log_weights,
+            Buffer<uint32_t> &unique_local_samples
+            ) {
         Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
         Multistream_RNG local_rng;
 
@@ -234,7 +238,7 @@ public:
 
         uint32_t offset = row_position * padded_rows;
 
-        for(uint64_t i = 0; i < samples_per_process[grid.rank]; i++) {
+        for(uint64_t i = 0; i < local_samples; i++) {
             uint32_t sample = local_dist(local_rng.par_gen[0]);
             sample_idxs_local[i] = offset + sample; 
 
@@ -244,5 +248,15 @@ public:
 
         allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);
         allgatherv_buffer(sample_weights_local, log_weights, MPI_COMM_WORLD);
+
+        // Get a deduplicated list of unique samples per process
+        // Need to change the execution policy to parallel 
+        std::sort(samples_idxs_local(), sample_idxs_local(local_samples));
+        uint32_t* end_unique = std::unique(samples_idxs_local(), sample_idxs_local(local_samples));
+
+        uint32_t num_unique = end_unique - sample_idxs_local();
+        unique_local_samples.initialize_to_shape({num_unique});
+
+        std::copy(sample_idxs_local(), sample_idxs_local(num_unique), unique_local_samples());
     }
 };

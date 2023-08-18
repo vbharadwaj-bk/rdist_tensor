@@ -82,11 +82,13 @@ public:
 
         Buffer<uint32_t> samples({J, ground_truth.dim});
         Buffer<double> weights({J});
+        vector<Buffer<uint32_t>> unique_row_indices; 
 
         gather_lk_samples_to_all(J, 
                 mode_to_leave, 
                 samples, 
-                weights);
+                weights,
+                unique_row_indices);
 
         Buffer<uint32_t> filtered_samples;
         Buffer<double> filtered_weights;
@@ -166,7 +168,6 @@ public:
                 }
             }
         }
-
 
         for(uint64_t j = 0; j < sample_count_dedup; j++) {
             for(uint64_t r = 0; r < R; r++) {

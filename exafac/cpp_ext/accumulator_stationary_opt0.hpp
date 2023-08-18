@@ -164,11 +164,13 @@ public:
 
         Buffer<uint32_t> samples({J, ground_truth.dim});
         Buffer<double> weights({J});
+        vector<Buffer<uint32_t>> unique_row_indices; 
 
         gather_lk_samples_to_all(J, 
                 mode_to_leave, 
                 samples, 
-                weights);
+                weights,        
+                unique_row_indices);
 
         #pragma omp parallel for
         for(uint64_t j = 0; j < J; j++) {
@@ -184,6 +186,16 @@ public:
             mode_to_leave, 
             samples_dedup,
             weights_dedup);
+
+        for(uint64_t i = 0; i < dim; i++) {
+            compressed_row_indices.emplace_back();
+            factors_compressed.emplace_back();
+
+            /*low_rank_tensor.factors[i].gather_selected_rows(
+                samples_dedup,
+                compressed_row_indices[i],
+                factors_compressed[i]);*/
+        }
 
         uint64_t sample_count_dedup = samples_dedup.shape[0];
 

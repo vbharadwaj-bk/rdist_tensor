@@ -213,9 +213,9 @@ class __attribute__((visibility("hidden"))) Buffer {
     T* ptr;
     uint64_t dim0;
     uint64_t dim1;
-    bool initialized;
 
 public:
+    bool initialized;
     vector<uint64_t> shape;
 
     Buffer(Buffer&& other)
@@ -276,7 +276,9 @@ public:
 
     Buffer(initializer_list<uint64_t> args) {
         initialized = false;
-        initialize_to_shape(args);
+        if(args.size() > 0) {
+            initialize_to_shape(args);
+        }
     }
 
     Buffer(initializer_list<uint64_t> args, T* ptr) {

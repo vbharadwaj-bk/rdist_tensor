@@ -198,8 +198,7 @@ public:
     void draw_leverage_score_samples(uint64_t J, 
             Buffer<uint32_t> &sample_idxs, 
             Buffer<double> &log_weights,
-            Buffer<uint32_t> &unique_local_samples
-            ) {
+            Buffer<uint32_t> &unique_local_samples) {
         Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
         Multistream_RNG local_rng;
 
@@ -251,12 +250,37 @@ public:
 
         // Get a deduplicated list of unique samples per process
         // Need to change the execution policy to parallel 
-        std::sort(samples_idxs_local(), sample_idxs_local(local_samples));
-        uint32_t* end_unique = std::unique(samples_idxs_local(), sample_idxs_local(local_samples));
+        std::sort(sample_idxs_local(), sample_idxs_local(local_samples));
+        uint32_t* end_unique = std::unique(sample_idxs_local(), sample_idxs_local(local_samples));
 
         uint32_t num_unique = end_unique - sample_idxs_local();
         unique_local_samples.initialize_to_shape({num_unique});
 
         std::copy(sample_idxs_local(), sample_idxs_local(num_unique), unique_local_samples());
+    }
+
+    void gather_row_samples(
+                Buffer<uint32_t> &indices_local,  
+                Buffer<uint32_t> &indices_gathered,
+                Buffer<double> &rows_gathered) {
+            
+        uint64_t local_samples = indices_local.shape[0];
+        Buffer<double> rows_local({local_samples, cols});
+
+
+        uint32_t offset = row_position * padded_rows;
+
+
+        //#pragma omp parallel for
+        for(uint64_t i = 0; i < local_samples; i++) {
+            uint32_t sample = indices_local[i] - offset;
+
+            for(uint64_t j = 0; j < cols; j++) {
+                rows_local[i * cols + j] = data[sample * cols + j];
+            }
+        }
+
+        allgatherv_buffer(indices_local, indices_gathered, ordered_world);
+        allgatherv_buffer(rows_local, rows_gathered, ordered_world);
     }
 };

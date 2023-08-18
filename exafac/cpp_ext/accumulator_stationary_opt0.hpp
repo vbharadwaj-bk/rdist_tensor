@@ -172,6 +172,21 @@ public:
                 weights,        
                 unique_row_indices);
 
+        vector<Buffer<uint32_t>> compressed_row_indices;
+        vector<Buffer<double>> factors_compressed;
+
+        for(uint64_t i = 0; i < dim; i++) {
+            compressed_row_indices.emplace_back();
+            factors_compressed.emplace_back();
+
+            if(i != mode_to_leave) {
+                low_rank_tensor.factors[i].gather_row_samples(
+                    unique_row_indices[i],
+                    compressed_row_indices[i],
+                    factors_compressed[i]);
+            }
+        }
+
         #pragma omp parallel for
         for(uint64_t j = 0; j < J; j++) {
             weights[j] = exp(weights[j]);
@@ -188,9 +203,6 @@ public:
             weights_dedup);
 
         for(uint64_t i = 0; i < dim; i++) {
-            compressed_row_indices.emplace_back();
-            factors_compressed.emplace_back();
-
             /*low_rank_tensor.factors[i].gather_selected_rows(
                 samples_dedup,
                 compressed_row_indices[i],

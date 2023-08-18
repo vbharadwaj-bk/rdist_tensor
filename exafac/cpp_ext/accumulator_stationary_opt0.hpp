@@ -6,6 +6,8 @@
 #include "alltoallv_revised.hpp"
 #include "json.hpp"
 
+#include <algorithm>
+
 using namespace std;
 
 class __attribute__((visibility("hidden"))) AccumulatorStationaryOpt0 : public ALS_Optimizer{
@@ -202,12 +204,35 @@ public:
             samples_dedup,
             weights_dedup);
 
+        Buffer<uint32_t> sample_compressed_map({samples_dedup.shape[0], dim});
+
+
+        #pragma omp parallel
+{ 
         for(uint64_t i = 0; i < dim; i++) {
-            /*low_rank_tensor.factors[i].gather_selected_rows(
-                samples_dedup,
-                compressed_row_indices[i],
-                factors_compressed[i]);*/
+            if(i != mode_to_leave) {
+                continue;
+            }
+
+            uint32_t* start_range = compressed_row_indices[i]();
+            uint32_t* end_range = compressed_row_indices[i](compressed_row_indices[i].shape[0]);
+
+            #pragma omp for
+            for(uint64_t j = 0; j < samples_dedup.shape[0]; j++) {
+                //sample_compressed_map[j * dim + i] = 
+                
+                uint32_t* lb = std::lower_bound(
+                    start_range,
+                    end_range
+                    samples_dedup[j * dim + i]);
+
+                if(lb == end_range) {
+                    cout << "Error!" << endl;
+                }
+                sample_compressed_map[j * dim + i] = (uint32_t) (lb - start_range);
+            }
         }
+}
 
         uint64_t sample_count_dedup = samples_dedup.shape[0];
 

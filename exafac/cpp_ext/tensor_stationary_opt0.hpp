@@ -210,7 +210,6 @@ public:
             );
         double elapsed = stop_clock_get_elapsed(t);
         MPI_Barrier(MPI_COMM_WORLD);
-
         spmm_time += elapsed; 
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
@@ -232,6 +231,7 @@ public:
         );
         dense_reduce_time += stop_clock_get_elapsed(t);
 
+        t = start_clock();
         cblas_dsymm(
             CblasRowMajor,
             CblasRight,
@@ -246,8 +246,8 @@ public:
             0.0,
             target_factor_data(),
             R);
-
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
+        gram_mult_and_renorm_time += stop_clock_get_elapsed(t);
 
         t = start_clock();
         MPI_Allgather(
@@ -259,8 +259,10 @@ public:
             MPI_DOUBLE,
             grid.slices[mode_to_leave]
         );
-        dense_gather_time += stop_clock_get_elapsed(t);
+        row_gather_time += stop_clock_get_elapsed(t);
 
+        t = start_clock();
         target_factor.compute_leverage_scores();
+        leverage_computation_time += stop_clock_get_elapsed(t);
     }
 };

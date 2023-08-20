@@ -17,8 +17,9 @@ public:
 
     // Related to benchmarking 
     json stats;
-    double leverage_computation_time, dense_gather_time, dense_reduce_time;
+    double leverage_computation_time, row_gather_time, dense_reduce_time, gram_mult_and_renorm_time;
     double spmm_time, nonzeros_iterated;
+    double design_matrix_reindexing_time;
 
     ALS_Optimizer(SparseTensor &ground_truth, 
         LowRankTensor &low_rank_tensor) 
@@ -39,8 +40,10 @@ public:
         spmm_time = 0.0;
         nonzeros_iterated = 0.0;
         leverage_computation_time = 0.0; 
-        dense_gather_time = 0.0; 
+        row_gather_time = 0.0; 
         dense_reduce_time = 0.0;
+        gram_mult_and_renorm_time = 0.0;
+        design_matrix_reindexing_time = 0.0; 
 
         for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
@@ -70,8 +73,10 @@ public:
         stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
         stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
         stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);
-        stats["dense_gather_time"] = compute_dstat(dense_gather_time, MPI_COMM_WORLD);
+        stats["row_gather_time"] = compute_dstat(row_gather_time, MPI_COMM_WORLD);
         stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
+        stats["gram_mult_and_renorm_time"] = compute_dstat(gram_mult_and_renorm_time, MPI_COMM_WORLD);
+        stats["design_matrix_reindexing_time"] = compute_dstat(design_matrix_reindexing_time, MPI_COMM_WORLD);
 
         if(grid.rank == 0) {
             cout << stats.dump(4) << endl;

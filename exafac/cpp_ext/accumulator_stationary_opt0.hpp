@@ -156,6 +156,7 @@ public:
         vector<Buffer<uint32_t>> compressed_row_indices;
         vector<Buffer<double>> factors_compressed;
 
+        auto t = start_clock(); 
         for(uint64_t i = 0; i < dim; i++) {
             compressed_row_indices.emplace_back();
             factors_compressed.emplace_back();
@@ -167,6 +168,7 @@ public:
                     factors_compressed[i]);
             }
         }
+        row_gather_time += stop_clock_get_elapsed(t); 
 
         #pragma omp parallel for
         for(uint64_t j = 0; j < J; j++) {
@@ -185,6 +187,7 @@ public:
 
         Buffer<uint32_t> sample_compressed_map({samples_dedup.shape[0], dim});
 
+        t = start_clock();
         #pragma omp parallel
 { 
         for(uint64_t i = 0; i < dim; i++) {
@@ -206,6 +209,7 @@ public:
             }
         }
 }
+        design_matrix_reindexing_time += stop_clock_get_elapsed(t); 
 
         uint64_t sample_count_dedup = samples_dedup.shape[0];
 
@@ -257,14 +261,16 @@ public:
             mttkrp_res(mttkrp_res.shape[0] * R), 
             0.0);
 
-        auto t = start_clock();
+        t = start_clock();
         nonzeros_iterated += lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res 
             );
         double elapsed = stop_clock_get_elapsed(t);
+        spmm_time += elapsed; 
 
+        t = start_clock();
         cblas_dsymm(
             CblasRowMajor,
             CblasRight,
@@ -281,6 +287,10 @@ public:
             R);
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
+        gram_mult_and_renorm_time += stop_clock_get_elapsed(t);
+
+        t = start_clock();
         target_factor.compute_leverage_scores();
+        leverage_computation_time += stop_clock_get_elapsed(t);
     }
 };

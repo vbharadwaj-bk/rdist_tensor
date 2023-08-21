@@ -706,3 +706,33 @@ json compute_dstat(double quantity, MPI_Comm world) {
     result["max"] = max;
     return result;
 }
+
+/*
+* Multiplies a tall-skinny matrix A against a small symmetric
+* matrix G and stores output in result. Assuming a BLAS library that is not
+* threaded, the algorithm accelerates the computation using a 1D partitioning
+* of the matrix A and assigns one partition per thread. 
+*/
+/*
+void compute_dsymm_parallel(
+        Buffer<double> &A,
+        Buffer<double> &G,
+        Buffer<double> &result) {
+
+    uint64_t I = A.shape[0];
+    uint64_t R = A.shape[1];
+
+    #pragma omp parallel
+    {
+        int num_threads = omp_get_num_threads();
+        int thread_id = omp_get_thread_num();
+        uint64_t work = (I + num_threads - 1) / num_threads;
+        uint64_t start = min(work * thread_id, I);
+        uint64_t end = min(work * (thread_id + 1), I);
+
+        if(end - start > 0) {
+
+        }
+    }
+}
+*/

@@ -270,7 +270,6 @@ public:
         double elapsed = stop_clock_get_elapsed(t);
         spmm_time += elapsed; 
 
-        t = start_clock();
         cblas_dsymm(
             CblasRowMajor,
             CblasRight,
@@ -287,7 +286,6 @@ public:
             R);
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
-        gram_mult_and_renorm_time += stop_clock_get_elapsed(t);
 
         t = start_clock();
         target_factor.compute_leverage_scores();

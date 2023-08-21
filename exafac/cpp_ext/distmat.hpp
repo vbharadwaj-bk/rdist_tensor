@@ -135,7 +135,6 @@ public:
                 ); 
         }
 
-
         #pragma omp for
         for(uint64_t i = 0; i < cols; i++) {
             col_norms[i] = sqrt(col_norms[i]);
@@ -269,7 +268,6 @@ public:
 
 
         uint32_t offset = row_position * padded_rows;
-
 
         //#pragma omp parallel for
         for(uint64_t i = 0; i < local_samples; i++) {

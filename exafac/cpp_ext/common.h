@@ -401,6 +401,12 @@ void compute_gram(Buffer<double> &in, Buffer<double> &M) {
                 M[i] += local[i];
             }
         }
+
+        for(uint64_t i = 0; i < R; i++) {
+            for(uint64_t j = 0; j < i; j++) {
+                M[i * R + j] = M[j * R + i];
+            }
+        } 
     }
 }
 

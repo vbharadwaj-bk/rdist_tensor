@@ -73,22 +73,7 @@ public:
         std::fill(gram(), gram(cols * cols), 0.0);
         if (true_row_count != 0) {
             Buffer<double> local_data_view({true_row_count, cols}, data());
-            //compute_gram(local_data_view, gram);
-            cblas_dgemm(CblasRowMajor,
-                CblasTrans,
-                CblasNoTrans,
-                cols,
-                cols,
-                true_row_count,
-                1.0,
-                local_data_view(),
-                cols,
-                local_data_view(),
-                cols,
-                0.0,
-                gram(),
-                cols
-                );
+            compute_gram(local_data_view, gram);
         }
         
         MPI_Allreduce(MPI_IN_PLACE,

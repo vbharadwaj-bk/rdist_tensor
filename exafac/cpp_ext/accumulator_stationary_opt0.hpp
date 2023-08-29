@@ -261,14 +261,23 @@ public:
             mttkrp_res(mttkrp_res.shape[0] * R), 
             0.0);
 
+        /*
         t = start_clock();
         nonzeros_iterated += lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res 
             );
-        double elapsed = stop_clock_get_elapsed(t);
-        spmm_time += elapsed; 
+        spmm_time += stop_clock_get_elapsed(t);
+        */
+
+        t = start_clock();
+        nonzeros_iterated += lookups[mode_to_leave]->csr_based_spmm(
+            samples_dedup, 
+            design_matrix,
+            mttkrp_res 
+            );
+        spmm_time += stop_clock_get_elapsed(t);
 
         cblas_dsymm(
             CblasRowMajor,

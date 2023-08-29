@@ -15,6 +15,12 @@
 
 using namespace std;
 
+typedef struct Triple {
+    uint32_t r;
+    uint32_t c;
+    double value;
+} Triple;
+
 template<typename IDX_T, typename VAL_T>
 class __attribute__((visibility("hidden"))) SortIdxLookup {
 public:
@@ -125,6 +131,146 @@ public:
         }
       }
     }
+    return found_count;
+  }
+
+  uint64_t csr_based_spmm(
+      Buffer<IDX_T> &indices, 
+      Buffer<double> &input,
+      Buffer<double> &output) {
+
+    uint64_t J = indices.shape[0];
+    uint64_t R = output.shape[1];
+
+    int mode = this->mode_to_leave;
+    int Nval = this->N;
+    auto lambda_fcn = [mode, Nval](IDX_T* a, IDX_T* b) {
+                for(int i = 0; i < Nval; i++) {
+                    if(i != mode && a[i] != b[i]) {
+                        return a[i] < b[i];
+                    }
+                }
+                return false;  
+            };
+
+    uint64_t found_count = 0;
+
+    Buffer<Triple> all_indices;
+    Buffer<uint64_t> thread_sample_counts;
+    Buffer<uint64_t> offsets;
+
+    #pragma omp parallel 
+{
+    int tid = omp_get_thread_num(); 
+    uint64_t thread_count = (uint64_t) omp_get_num_threads();
+
+    #pragma omp single
+{
+    thread_sample_counts.initialize_to_shape({thread_count});
+    offsets.initialize_to_shape({thread_count+1});
+    std::fill(thread_sample_counts(), thread_sample_counts(thread_count), 0);
+}
+    vector<Triple> local_indices;
+
+    #pragma omp for reduction(+:found_count)
+    for(uint64_t j = 0; j < J; j++) {
+      IDX_T* buf = indices(j * N);
+
+      std::pair<IDX_T**, IDX_T**> bounds = 
+        std::equal_range(
+            sort_idxs(), 
+            sort_idxs(nnz),
+            buf,
+            lambda_fcn);
+
+      bool found = false;
+      if(bounds.first != sort_idxs(nnz)) {
+        found = true;
+        IDX_T* start = *(bounds.first);
+
+        for(int i = 0; i < N; i++) {
+            if(i != mode_to_leave && buf[i] != start[i]) {
+                found = false;
+            }
+        }
+      }
+
+      if(found) {
+        for(IDX_T** i = bounds.first; i < bounds.second; i++) {
+          found_count++;
+          thread_sample_counts[tid]++;
+          IDX_T* nonzero = *i;
+          uint64_t diff = (uint64_t) (nonzero - idx_ptr) / N;
+          double value = val_ptr[diff];
+          uint32_t output_offset = (uint32_t) nonzero[mode_to_leave]; 
+
+          local_indices.emplace_back();
+          Triple &last = local_indices.back();
+          last.r = output_offset;
+          last.c = (uint32_t) j;
+          last.value = value;
+        }
+      }
+    }
+
+    #pragma omp single
+{
+    all_indices.initialize_to_shape({found_count});
+
+    // Prefix sum the thread counts to get the offsets
+    std::exclusive_scan(
+        thread_sample_counts(), 
+        thread_sample_counts(thread_count), 
+        offsets(), 0);
+    offsets[thread_count] = found_count;
+}
+
+    uint64_t tid_offset = offsets[tid];
+    for(uint64_t i = 0; i < local_indices.size(); i++) {
+      all_indices[tid_offset + i] = local_indices[i];
+    }
+}
+ 
+    std::sort(std::execution::par_unseq, 
+        all_indices(),
+        all_indices(found_count), 
+        [](Triple a, Triple b) {
+          if(a.r != b.r) {
+            return a.r < b.r;
+          }
+          else {
+            return a.c < b.c;
+          }
+        });
+
+    #pragma omp parallel
+    {
+      int tid = omp_get_thread_num();
+      uint64_t thread_count = (uint64_t) omp_get_num_threads();
+
+      uint64_t chunksize = (found_count + thread_count - 1) / thread_count;
+      uint64_t lb = min(chunksize * tid, found_count);
+      uint64_t ub = min(chunksize * (tid + 1), found_count);
+
+      while(lb != 0 &&  lb < found_count && all_indices[lb].r == all_indices[lb-1].r) {
+        lb++;
+      }
+      while(ub < found_count && all_indices[ub].r == all_indices[ub-1].r) {
+        ub++;
+      }
+
+      for(uint64_t i = lb; i < ub; i++) {
+        Triple &triple = all_indices[i];
+        uint64_t output_offset = triple.r * R;
+        uint64_t input_offset = triple.c * R;
+        double value = triple.value;
+
+        for(uint64_t k = 0; k < R; k++) {
+          output[output_offset + k] += input[input_offset + k] * value; 
+        }
+      }
+    }
+
     return found_count;
   }
 

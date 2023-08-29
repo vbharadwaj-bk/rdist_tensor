@@ -115,14 +115,6 @@ public:
 };
 
 template<typename IDX_T, typename VAL_T>
-class Triple {
-public:
-    IDX_T row;
-    IDX_T col;
-    VAL_T val;
-};
-
-template<typename IDX_T, typename VAL_T>
 class COOSparse {
 public:
     vector<IDX_T> rows;

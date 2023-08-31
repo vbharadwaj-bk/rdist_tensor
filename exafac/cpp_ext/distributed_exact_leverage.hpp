@@ -62,9 +62,3 @@ public:
         cout << "Elapsed time: " << elapsed << endl;
     }
 };
-
-void benchmark_distributed_communication() {
-    MPI_Comm comm = MPI_COMM_WORLD;
-    ExactLeverageSampler sampler(comm);
-    sampler.test_alltoallv_efficiency();
-}

@@ -21,6 +21,7 @@
 #include "exact_als.hpp"
 #include "tensor_stationary_opt0.hpp"
 #include "accumulator_stationary_opt0.hpp"
+#include "distributed_exact_leverage.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -55,6 +56,8 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<SparseTensor&, LowRankTensor&>());
     py::class_<AccumulatorStationaryOpt0, ALS_Optimizer>(m, "AccumulatorStationaryOpt0")
         .def(py::init<SparseTensor&, LowRankTensor&>());
+
+    m.def("benchmark_distributed_communication", &benchmark_distributed_communication);
 }
 
 /*
@@ -105,6 +108,7 @@ cfg['dependencies'] = [ 'common.h',
                         'als_optimizer.hpp',
                         'tensor_stationary_opt0.hpp',
                         'accumulator_stationary_opt0.hpp',
+                        'distributed_exact_leverage.hpp',
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

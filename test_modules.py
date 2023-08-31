@@ -1,7 +1,6 @@
 from mpi4py import MPI
 import numpy as np
 import argparse
-import gc
 import cppimport
 import cppimport.import_hook
 
@@ -16,7 +15,11 @@ def test_prefixes(axes):
 
 
 def test_grid():
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0 
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0, benchmark_distributed_communication 
+
+    benchmark_distributed_communication()
+    exit(1)
+
     from exafac.sparse_tensor_e import DistSparseTensorE
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy
@@ -25,6 +28,8 @@ def test_grid():
 
     # Get the MPI rank with mpi4py
     rank = MPI.COMM_WORLD.Get_rank()
+
+
 
     sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5', grid) 
     #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
@@ -70,6 +75,7 @@ if __name__=='__main__':
     if rank == 0:
         print("Loading Python modules...")
         import exafac.cpp_ext.py_module
+        print("Modules loaded!")
 
     MPI.COMM_WORLD.Barrier()
 

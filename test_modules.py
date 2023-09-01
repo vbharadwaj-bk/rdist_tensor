@@ -15,9 +15,9 @@ def test_prefixes(axes):
 
 
 def test_grid():
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0, benchmark_distributed_communication 
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0, test_distributed_exact_leverage 
 
-    benchmark_distributed_communication()
+    test_distributed_exact_leverage()
     exit(1)
 
     from exafac.sparse_tensor_e import DistSparseTensorE

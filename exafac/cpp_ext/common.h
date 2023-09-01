@@ -704,6 +704,26 @@ json compute_dstat(double quantity, MPI_Comm world) {
     return result;
 }
 
+inline uint32_t divide_and_roundup(uint32_t n, uint32_t m) {
+    return (n + m - 1) / m;
+}
+
+inline void log2_round_down(uint32_t m, 
+        uint32_t& log2_res, 
+        uint32_t& lowest_power_2) {
+    
+    assert(m > 0);
+    log2_res = 0;
+    lowest_power_2 = 1;
+
+    while(lowest_power_2 * 2 <= m) {
+        log2_res++; 
+        lowest_power_2 *= 2;
+    }
+}
+
+
+
 /*
 * Multiplies a tall-skinny matrix A against a small symmetric
 * matrix G and stores output in result. Assuming a BLAS library that is not

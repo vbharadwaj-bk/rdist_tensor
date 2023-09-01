@@ -57,7 +57,7 @@ PYBIND11_MODULE(py_module, m) {
     py::class_<AccumulatorStationaryOpt0, ALS_Optimizer>(m, "AccumulatorStationaryOpt0")
         .def(py::init<SparseTensor&, LowRankTensor&>());
 
-    m.def("benchmark_distributed_communication", &benchmark_distributed_communication);
+    m.def("test_distributed_exact_leverage", &test_distributed_exact_leverage);
 }
 
 /*

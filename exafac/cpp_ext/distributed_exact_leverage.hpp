@@ -86,7 +86,58 @@ public:
             cout << endl;
         }
     }
-   
+
+    void get_exchange_assignments(int l_num) {
+        // Get the exchange assignments
+        vector<int> p1(world_size, -1);
+        vector<int> p2(world_size, -1);
+
+        vector<int> &level = ancestor_node_ids[l_num];
+
+        int c_idx = 0;
+        while(c_idx < world_size) {
+            int c = level[c_idx];
+            if(c == -1) {
+                c_idx++;
+                break; 
+            }
+            else {
+                int c = level[c_idx];
+                int first_segment_end = c_idx;
+                while(level[first_segment_end] == c)
+                    first_segment_end++;
+
+                int second_segment_c = level[first_segment_end];
+                int second_segment_end = c_idx + 2 * (first_segment_end - c_idx);
+
+                for(int i = 0; i < first_segment_end - c_idx; i++) {
+                    if(level[first_segment_end + i] == second_segment_c) {
+                        p1[c_idx + i] = first_segment_end + i;
+                        p1[first_segment_end + i] = c_idx + i;
+                    }
+                    else {
+                        p1[c_idx + i] = first_segment_end + i - 1;
+                        p2[first_segment_end + i - 1] = c_idx + i;
+                        second_segment_end -= 1;
+                    }
+                }
+                c_idx = second_segment_end;
+            }
+        }
+
+        cout << "----------------" << endl;
+        // Print p1 and p2
+        for(int i = 0; i < world_size; i++) {
+            cout << p1[i] << " ";
+        }
+        cout << endl;
+
+        for(int i = 0; i < world_size; i++) {
+            cout << p2[i] << " ";
+        }
+        cout << endl;
+    }
+
     bool is_leaf(int64_t c) {
         return 2 * c + 1 >= node_count; 
     }
@@ -143,4 +194,5 @@ public:
 
 void test_distributed_exact_leverage() {
     ExactLeverageTree tree(nullptr, MPI_COMM_WORLD);
+    tree.get_exchange_assignments(1);
 }

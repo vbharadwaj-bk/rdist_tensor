@@ -6,18 +6,23 @@
 
 #include "common.h"
 #include "distmat.hpp"
+#include "low_rank_tensor.hpp"
 #include "alltoallv_revised.hpp"
 
 using namespace std;
 
 class ExactLeverageTree {
 public:
-    DistMat1D &mat; 
+    DistMat1D &mat;
+
     MPI_Comm comm;
     int world_size;
     int rank;
 
+    uint64_t col_count;
+
     vector<Buffer<double>> ancestor_grams;
+    vector<Buffer<double>> left_sibling_grams;
     vector<vector<int>> ancestor_node_ids;
 
     // Related to the full, complete binary tree 
@@ -25,27 +30,28 @@ public:
 
     uint32_t leaf_count, node_count;
     uint32_t lfill_level, lfill_count;
-    uint32_t total_levels;
+    int total_levels;
     uint32_t nodes_upto_lfill, nodes_before_lfill;
     uint32_t complete_level_offset;
 
     int node_id, tree_depth;
 
-    ExactLeverageTree(DistMat1D *mat, MPI_Comm world)
+    ExactLeverageTree(DistMat1D &mat, MPI_Comm world)
         : 
-        mat(*mat), 
+        mat(mat), 
         comm(world) {
 
-        world_size = 5; 
-        //MPI_Comm_size(comm, &world_size);
+        col_count = mat.cols;
+
+        MPI_Comm_size(comm, &world_size);
         MPI_Comm_rank(comm, &rank);
 
         // Binary tree setup
-
         leaf_count = world_size; 
         node_count = 2 * leaf_count - 1;
 
         log2_round_down(leaf_count, lfill_level, lfill_count);
+
         total_levels = node_count > lfill_count ? lfill_level + 2 : lfill_level + 1;
 
         nodes_upto_lfill = lfill_count * 2 - 1;
@@ -54,7 +60,6 @@ public:
         uint32_t nodes_at_partial_level_div2 = (node_count - nodes_upto_lfill) / 2;
         complete_level_offset = nodes_before_lfill - nodes_at_partial_level_div2;
 
-        cout << total_levels << endl;
         for(uint32_t i = 0; i < total_levels; i++) {
             ancestor_node_ids.emplace_back(world_size, -1);
         }
@@ -73,13 +78,13 @@ public:
             // Reverse the ancestor list
             std::reverse(ancestors.begin(), ancestors.end());
 
-            for(int j = 0; j < ancestors.size(); j++) {
+            for(uint64_t j = 0; j < ancestors.size(); j++) {
                 ancestor_node_ids[j][i] = ancestors[j];
             }
         }
 
         // Print the ancestor node array
-        for(int i = 0; i < total_levels; i++) {
+        for(uint32_t i = 0; i < total_levels; i++) {
             for(int j = 0; j < world_size; j++) {
                 cout << ancestor_node_ids[i][j] << " ";
             }
@@ -87,10 +92,9 @@ public:
         }
     }
 
-    void get_exchange_assignments(int l_num) {
-        // Get the exchange assignments
-        vector<int> p1(world_size, -1);
-        vector<int> p2(world_size, -1);
+    void get_exchange_assignments(int l_num, vector<int> &p1, vector<int> &p2) {
+        std::fill(p1.begin(), p1.end(), -1);
+        std::fill(p2.begin(), p2.end(), -1);
 
         vector<int> &level = ancestor_node_ids[l_num];
 
@@ -124,19 +128,88 @@ public:
                 c_idx = second_segment_end;
             }
         }
-
-        cout << "----------------" << endl;
-        // Print p1 and p2
-        for(int i = 0; i < world_size; i++) {
-            cout << p1[i] << " ";
-        }
-        cout << endl;
-
-        for(int i = 0; i < world_size; i++) {
-            cout << p2[i] << " ";
-        }
-        cout << endl;
     }
+
+    void construct_gram_tree() {
+        cout << "Reconstructing Gram Tree..." << endl;
+        ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+        mat.compute_gram_local_slice(ancestor_grams[0]);
+
+        vector<int> p1(world_size, -1);
+        vector<int> p2(world_size, -1);
+
+        for(int level = total_levels - 1; level > 0; level--) {
+            ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+            left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+
+            uint64_t n_ancestor_grams = ancestor_grams.size();
+            uint64_t n_left_sibling_grams = left_sibling_grams.size();
+
+            vector<int> &level_ancestors = ancestor_node_ids[level];
+            int nid = level_ancestors[rank];
+            get_exchange_assignments(level, p1, p2);
+
+            Buffer<double> *target_mat;
+            if(nid % 2 == 1) { // Left child
+                std::copy(
+                        ancestor_grams[n_ancestor_grams - 2](),
+                        ancestor_grams[n_ancestor_grams - 2](col_count * col_count),
+                        left_sibling_grams[n_left_sibling_grams - 1]()
+                        );
+                target_mat = &(ancestor_grams[n_ancestor_grams - 1]);
+            }
+            else { // Right child
+                std::copy(
+                        ancestor_grams[n_ancestor_grams - 2](),
+                        ancestor_grams[n_ancestor_grams - 2](col_count * col_count),
+                        ancestor_grams[n_ancestor_grams - 1]()
+                        );
+                target_mat = &(left_sibling_grams[n_left_sibling_grams - 1]);
+            }
+
+            if(p1[rank] != -1) {
+                MPI_Sendrecv(
+                        ancestor_grams[n_ancestor_grams - 2](),
+                        col_count * col_count,
+                        MPI_DOUBLE,
+                        p1[rank],
+                        level,
+                        target_mat, 
+                        col_count * col_count,
+                        MPI_DOUBLE,
+                        p1[rank],
+                        level,
+                        comm,
+                        MPI_STATUS_IGNORE
+                        );
+            }
+            if(p2[rank] != -1) {
+                Buffer<double> temp({col_count, col_count});
+
+                MPI_Sendrecv(
+                        ancestor_grams[n_ancestor_grams - 2](),
+                        col_count * col_count,
+                        MPI_DOUBLE,
+                        p2[rank],
+                        level,
+                        target_mat, 
+                        col_count * col_count,
+                        MPI_DOUBLE,
+                        p2[rank],
+                        level,
+                        comm,
+                        MPI_STATUS_IGNORE
+                        );
+            }
+
+            // Add the last left_sibling_gram to the ancestor gram
+            #pragma omp parallel for
+            for(uint64_t i = 0; i < col_count * col_count; i++) {
+                ancestor_grams[n_ancestor_grams - 1][i] += left_sibling_grams[n_left_sibling_grams - 1][i];
+            }
+            }
+        }
+    } 
 
     bool is_leaf(int64_t c) {
         return 2 * c + 1 >= node_count; 
@@ -192,7 +265,7 @@ public:
     }
 };
 
-void test_distributed_exact_leverage() {
-    ExactLeverageTree tree(nullptr, MPI_COMM_WORLD);
-    tree.get_exchange_assignments(1);
+void test_distributed_exact_leverage(LowRankTensor &ten) {
+    ExactLeverageTree tree(ten.factors[0], MPI_COMM_WORLD);
+    tree.construct_gram_tree();
 }

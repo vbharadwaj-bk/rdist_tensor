@@ -69,13 +69,17 @@ public:
         MPI_Comm_create_group(grid.world, ordered_group, 0, &ordered_world);
     }
 
-    void compute_gram_matrix(Buffer<double> &gram) {
+    void compute_gram_local_slice(Buffer<double> &gram) {
         std::fill(gram(), gram(cols * cols), 0.0);
         if (true_row_count != 0) {
             Buffer<double> local_data_view({true_row_count, cols}, data());
             compute_gram(local_data_view, gram);
         }
-        
+    }
+
+    void compute_gram_matrix(Buffer<double> &gram) {
+        compute_gram_local_slice(gram);
+
         MPI_Allreduce(MPI_IN_PLACE,
             gram(),
             cols * cols,

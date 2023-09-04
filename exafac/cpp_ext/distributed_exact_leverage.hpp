@@ -52,10 +52,10 @@ public:
 
         log2_round_down(leaf_count, lfill_level, lfill_count);
 
-        total_levels = node_count > lfill_count ? lfill_level + 2 : lfill_level + 1;
-
         nodes_upto_lfill = lfill_count * 2 - 1;
         nodes_before_lfill = lfill_count - 1;
+
+        total_levels = node_count > nodes_upto_lfill ? lfill_level + 2 : lfill_level + 1;
 
         uint32_t nodes_at_partial_level_div2 = (node_count - nodes_upto_lfill) / 2;
         complete_level_offset = nodes_before_lfill - nodes_at_partial_level_div2;
@@ -83,13 +83,18 @@ public:
             }
         }
 
-        // Print the ancestor node array
-        for(uint32_t i = 0; i < total_levels; i++) {
-            for(int j = 0; j < world_size; j++) {
-                cout << ancestor_node_ids[i][j] << " ";
+        /*if(rank == 0) {
+            cout << "Total levels in tree: " << total_levels << endl;
+            cout << "-------------" << endl;
+            // Print the ancestor node array
+            for(uint32_t i = 0; i < total_levels; i++) {
+                for(int j = 0; j < world_size; j++) {
+                    cout << ancestor_node_ids[i][j] << " ";
+                }
+                cout << endl;
             }
-            cout << endl;
-        }
+            cout << "-------------" << endl;
+        }*/
     }
 
     void get_exchange_assignments(int l_num, vector<int> &p1, vector<int> &p2) {
@@ -131,12 +136,14 @@ public:
     }
 
     void construct_gram_tree() {
-        cout << "Reconstructing Gram Tree..." << endl;
         ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
         mat.compute_gram_local_slice(ancestor_grams[0]);
 
         vector<int> p1(world_size, -1);
         vector<int> p2(world_size, -1);
+
+        MPI_Barrier(comm);
+        auto start = MPI_Wtime();
 
         for(int level = total_levels - 1; level > 0; level--) {
             ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
@@ -174,7 +181,7 @@ public:
                         MPI_DOUBLE,
                         p1[rank],
                         level,
-                        target_mat, 
+                        (*target_mat)(), 
                         col_count * col_count,
                         MPI_DOUBLE,
                         p1[rank],
@@ -192,7 +199,7 @@ public:
                         MPI_DOUBLE,
                         p2[rank],
                         level,
-                        target_mat, 
+                        temp(), 
                         col_count * col_count,
                         MPI_DOUBLE,
                         p2[rank],
@@ -207,8 +214,12 @@ public:
             for(uint64_t i = 0; i < col_count * col_count; i++) {
                 ancestor_grams[n_ancestor_grams - 1][i] += left_sibling_grams[n_left_sibling_grams - 1][i];
             }
-            }
         }
+
+        MPI_Barrier(comm);
+        double elapsed = MPI_Wtime() - start;
+
+        cout << "Elapsed time to construct gram tree: " << elapsed << endl;
     } 
 
     bool is_leaf(int64_t c) {

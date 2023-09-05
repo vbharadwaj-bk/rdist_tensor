@@ -152,10 +152,12 @@ public:
         for(int level = total_levels - 1; level > 0; level--) {
             get_exchange_assignments(level, p1, p2);
 
-            if(p1[rank] != -1) {
-                ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
-                left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+            if(p1[rank] == -1) {
+                continue;
             }
+
+            ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+            left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
 
             uint64_t n_ancestor_grams = ancestor_grams.size();
             uint64_t n_left_sibling_grams = left_sibling_grams.size();
@@ -176,10 +178,6 @@ public:
                             left_sibling_grams[n_left_sibling_grams - 1]()
                             );
                     target_mat = &(ancestor_grams[n_ancestor_grams - 1]);
-
-                    if(rank == 0) {
-                        cout << "Rank 0 is a left child" << endl;
-                    }
                 }
                 else { // Right child
                     std::copy(
@@ -188,10 +186,6 @@ public:
                             ancestor_grams[n_ancestor_grams - 1]()
                             );
                     target_mat = &(left_sibling_grams[n_left_sibling_grams - 1]);
-
-                    if(rank == 0) {
-                        cout << "Rank 0 is a right child" << endl;
-                    }
                 }
             }
 
@@ -231,24 +225,8 @@ public:
                         );
             }
 
-
-            MPI_Barrier(comm);
-
-            if(rank == 0) {
-                cout << ancestor_grams[n_ancestor_grams - 1][6] << endl;
-            }
-
-            // Add the last left_sibling_gram to the ancestor gram
-            if(p1[rank] != -1) {
-                //#pragma omp parallel for
-                for(uint64_t i = 0; i < col_count * col_count; i++) {
-                    (ancestor_grams[n_ancestor_grams - 1])[i] += (left_sibling_grams[n_left_sibling_grams - 1])[i];
-                }
-            }
-
-            if(rank == 0 && p1[rank] != -1) {
-                cout << left_sibling_grams[n_left_sibling_grams - 1][6] << endl;
-                cout << ancestor_grams[n_ancestor_grams - 1][6] << endl;
+            for(uint64_t i = 0; i < col_count * col_count; i++) {
+                (ancestor_grams[n_ancestor_grams - 1])[i] += (left_sibling_grams[n_left_sibling_grams - 1])[i];
             }
         }
 

@@ -34,7 +34,7 @@ public:
     uint32_t nodes_upto_lfill, nodes_before_lfill;
     uint32_t complete_level_offset;
 
-    int node_id, tree_depth;
+    int node_id, self_depth;
 
     ExactLeverageTree(DistMat1D &mat, MPI_Comm world)
         : 
@@ -61,7 +61,7 @@ public:
         complete_level_offset = nodes_before_lfill - nodes_at_partial_level_div2;
 
         for(int i = 0; i < total_levels; i++) {
-            ancestor_node_ids.emplace_back(world_size, -1);
+            ancestor_node_ids.emplace_back(world_size, node_count);
         }
 
         vector<int> leaf_nodes(world_size, 0);
@@ -77,6 +77,11 @@ public:
             }
             // Reverse the ancestor list
             std::reverse(ancestors.begin(), ancestors.end());
+
+            if(i == rank) {
+                self_depth = ancestors.size(); 
+            }
+
 
             for(uint64_t j = 0; j < ancestors.size(); j++) {
                 ancestor_node_ids[j][i] = ancestors[j];
@@ -106,7 +111,7 @@ public:
         int c_idx = 0;
         while(c_idx < world_size) {
             int c = level[c_idx];
-            if(c == -1) {
+            if(c == node_count) {
                 break; 
             }
             else {
@@ -272,7 +277,8 @@ public:
     }
 
     void dsymm(Buffer<double> &sym, Buffer<double> &mat, Buffer<double> &out) {
-        // Should parallelize, but that can wait 
+        uint32_t R = (uint32_t) mat.shape[1];
+
         cblas_dsymm(
             CblasRowMajor,
             CblasRight,
@@ -295,11 +301,142 @@ public:
             Buffer<double> &draws) {
         uint64_t row_count = h.shape[0];
         Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
+
         Buffer<int> target_procs({row_count}); // Processor to send each element to
         Buffer<double> temp1({h.shape[0], h.shape[1]});
+        Buffer<double> mL({row_count, 1});
+        Buffer<int> branch_left({row_count});
+        Buffer<int> pfx_sum_left({row_count});
+        Buffer<int> branch_right({row_count});
+        Buffer<int> pfx_sum_right({row_count});
+        Buffer<int> target_nodes({row_count});
+
+        Buffer<uint64_t> send_counts({world_size});
+
+        for(uint64_t i = 0; i < row_count; i++) {
+            mData[0] = 0.0;
+            mData[1] = 1.0;
+            mData[3] = draws[i];
+        }
 
         dsymm(ancestor_grams.back(), h, temp1);
-        batch_dot_product(h, temp1, mData);
+        batch_dot_product(h, temp1, mData, 2);
+
+        uint64_t n_left = left_sibling_grams.size();
+
+        for(int level = 0; level < self_depth - 1; level++) {     
+            dsymm(left_sibling_grams[n_left - 1 - level], h, temp1);
+            batch_dot_product(h, temp1, mL, 0);
+
+            int c = ancestor_node_ids[level][rank];
+            int left_child = 2 * c + 1;
+            int right_child = 2 * c + 2;
+
+            // Use std::equal_range to find the range of indices
+            // for the left and right children
+
+            //#pragma omp for
+            for(int64_t i = 0; i < row_count; i++) {
+                double low = mData[4 * i];
+                double high = mData[4 * i + 1];
+                double m = mData[4 * i + 2];
+                double cutoff = low + mL[i] / m;
+                int target_node;
+                if(random_draws[i] <= cutoff) { // Branch left
+                    branch_left[i] = 1;
+                    branch_right[i] = 0;
+                    mData[4 * i + 1] = cutoff; // Set high
+                }
+                else { // Branch right
+                    branch_left[i] = 0;
+                    branch_right[i] = 1; 
+                    target_node = 2 * c + 2;
+                    mData[4 * i] = cutoff; // Set low 
+                }
+            }
+
+            // Load balance and redistribute the rows for the
+            // next pass
+            auto left_range = std::equal_range(
+                    ancestor_node_ids[level + 1].begin(),
+                    ancestor_node_ids[level + 1].end(),
+                    left_child
+                    );
+
+            auto right_range = std::equal_range(
+                    ancestor_node_ids[level + 1].begin(),
+                    ancestor_node_ids[level + 1].end(),
+                    right_child
+                    );
+
+            // Get integer values for the left and right ranges
+            int left_start = left_range.first - ancestor_node_ids[level + 1].begin();
+            int left_end = left_range.second - ancestor_node_ids[level + 1].begin();
+
+            int right_start = right_range.first - ancestor_node_ids[level + 1].begin();
+            int right_end = right_range.second - ancestor_node_ids[level + 1].begin();
+
+            uint64_t num_left = left_range.second - left_range.first;
+            uint64_t num_right = right_range.second - right_range.first;
+
+            std::exclusive_scan(
+                    branch_left(),
+                    branch_left(row_count),
+                    pfx_sum_left()
+                    );
+
+            std::exclusive_scan(
+                    branch_right(),
+                    branch_right(row_count),
+                    pfx_sum_right()
+                    );
+
+
+            std::fill(send_counts(), send_counts(world_size), 0);
+
+            for(uint64_t i = 0; i < row_count; i++) {
+                int target = 0;
+                if(branch_left[i] == 1) {
+                    target = left_start + (pfx_sum_left[i] % num_left);
+                    target_nodes[i] = target;
+                }
+                else {
+                    target = right_start + (pfx_sum_right[i] % num_right);
+                    target_nodes[i] = target;
+                }
+                // #pragma omp atomic
+                send_counts[target]++; 
+            }
+
+            Buffer<double> new_h;
+            Buffer<double> new_mData;
+            Buffer<uint32_t> new_indices;
+
+            /*
+            alltoallv_matrix_rows(
+                    h,
+                    target_procs, 
+                    send_counts, 
+                    new_h,
+                    mat.ordered_world 
+                    );
+
+            alltoallv_matrix_rows(
+                    mData,
+                    target_procs, 
+                    send_counts, 
+                    new_mData,
+                    mat.ordered_world 
+                    );
+
+            alltoallv_matrix_rows(
+                    indices,
+                    target_procs, 
+                    send_counts, 
+                    new_indices,
+                    mat.ordered_world 
+                    );
+            */
     }
 };
 
@@ -314,7 +451,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
 
     uint64_t n_samples = 20;
 
-    uint64_t rounded_sample_count = (n_samples + world_size - 1) / world_size; 
+    uint64_t work = (n_samples + world_size - 1) / world_size; 
 
     uint64_t start = min(work * rank, n_samples);
     uint64_t end = min(work * (rank + 1), n_samples);
@@ -323,7 +460,6 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     Buffer<uint32_t> indices({end - start, 3});
  
     std::fill(h(), h((end - start) * ten.factors[0].cols), 1.0);
-    tree.execute_tree_computation(h, indices);
 
     Multistream_RNG local_rng;
     Buffer<double> draws({end - start});
@@ -338,5 +474,5 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
         }
     } 
 
-    execute_tree_computation(h, indices, draws);
+    tree.execute_tree_computation(h, indices, draws);
 }

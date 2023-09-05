@@ -30,11 +30,10 @@ def test_grid():
     sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
 
     #sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
-    low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)    
+    low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 
     test_distributed_exact_leverage(low_rank_tensor)
-    print("Terminating...")
     exit(0)
 
     #optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 

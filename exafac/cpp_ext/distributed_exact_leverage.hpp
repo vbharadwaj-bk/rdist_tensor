@@ -60,7 +60,7 @@ public:
         uint32_t nodes_at_partial_level_div2 = (node_count - nodes_upto_lfill) / 2;
         complete_level_offset = nodes_before_lfill - nodes_at_partial_level_div2;
 
-        for(uint32_t i = 0; i < total_levels; i++) {
+        for(int i = 0; i < total_levels; i++) {
             ancestor_node_ids.emplace_back(world_size, -1);
         }
 
@@ -107,27 +107,31 @@ public:
         while(c_idx < world_size) {
             int c = level[c_idx];
             if(c == -1) {
-                c_idx++;
                 break; 
             }
             else {
-                int c = level[c_idx];
                 int first_segment_end = c_idx;
                 while(level[first_segment_end] == c)
                     first_segment_end++;
 
                 int second_segment_c = level[first_segment_end];
-                int second_segment_end = c_idx + 2 * (first_segment_end - c_idx);
+                int second_segment_end = first_segment_end;
+
+                while((second_segment_end < world_size) &&
+                    (level[second_segment_end] == second_segment_c))
+                    second_segment_end++;
+
+                int second_segment_size = second_segment_end - first_segment_end;
 
                 for(int i = 0; i < first_segment_end - c_idx; i++) {
-                    if(level[first_segment_end + i] == second_segment_c) {
+                    if(first_segment_end + i < second_segment_end) {
                         p1[c_idx + i] = first_segment_end + i;
                         p1[first_segment_end + i] = c_idx + i;
                     }
                     else {
-                        p1[c_idx + i] = first_segment_end + i - 1;
-                        p2[first_segment_end + i - 1] = c_idx + i;
-                        second_segment_end -= 1;
+                        int target_idx = first_segment_end + (i % second_segment_size); 
+                        p1[c_idx + i] = target_idx;
+                        p2[target_idx] = c_idx + i;
                     }
                 }
                 c_idx = second_segment_end;
@@ -146,33 +150,51 @@ public:
         auto start = MPI_Wtime();
 
         for(int level = total_levels - 1; level > 0; level--) {
-            ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
-            left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+            get_exchange_assignments(level, p1, p2);
+
+            if(p1[rank] != -1) {
+                ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+                left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+            }
 
             uint64_t n_ancestor_grams = ancestor_grams.size();
             uint64_t n_left_sibling_grams = left_sibling_grams.size();
 
+
             vector<int> &level_ancestors = ancestor_node_ids[level];
             int nid = level_ancestors[rank];
-            get_exchange_assignments(level, p1, p2);
+
+            // Print both p1 and p2
 
             Buffer<double> *target_mat;
-            if(nid % 2 == 1) { // Left child
-                std::copy(
-                        ancestor_grams[n_ancestor_grams - 2](),
-                        ancestor_grams[n_ancestor_grams - 2](col_count * col_count),
-                        left_sibling_grams[n_left_sibling_grams - 1]()
-                        );
-                target_mat = &(ancestor_grams[n_ancestor_grams - 1]);
+
+            if(p1[rank] != -1) {
+                if(nid % 2 == 1) { // Left child
+                    std::copy(
+                            ancestor_grams[n_ancestor_grams - 2](),
+                            ancestor_grams[n_ancestor_grams - 2](col_count * col_count),
+                            left_sibling_grams[n_left_sibling_grams - 1]()
+                            );
+                    target_mat = &(ancestor_grams[n_ancestor_grams - 1]);
+
+                    if(rank == 0) {
+                        cout << "Rank 0 is a left child" << endl;
+                    }
+                }
+                else { // Right child
+                    std::copy(
+                            ancestor_grams[n_ancestor_grams - 2](),
+                            ancestor_grams[n_ancestor_grams - 2](col_count * col_count),
+                            ancestor_grams[n_ancestor_grams - 1]()
+                            );
+                    target_mat = &(left_sibling_grams[n_left_sibling_grams - 1]);
+
+                    if(rank == 0) {
+                        cout << "Rank 0 is a right child" << endl;
+                    }
+                }
             }
-            else { // Right child
-                std::copy(
-                        ancestor_grams[n_ancestor_grams - 2](),
-                        ancestor_grams[n_ancestor_grams - 2](col_count * col_count),
-                        ancestor_grams[n_ancestor_grams - 1]()
-                        );
-                target_mat = &(left_sibling_grams[n_left_sibling_grams - 1]);
-            }
+
 
             if(p1[rank] != -1) {
                 MPI_Sendrecv(
@@ -209,17 +231,43 @@ public:
                         );
             }
 
+
+            MPI_Barrier(comm);
+
+            if(rank == 0) {
+                cout << ancestor_grams[n_ancestor_grams - 1][6] << endl;
+            }
+
             // Add the last left_sibling_gram to the ancestor gram
-            #pragma omp parallel for
-            for(uint64_t i = 0; i < col_count * col_count; i++) {
-                ancestor_grams[n_ancestor_grams - 1][i] += left_sibling_grams[n_left_sibling_grams - 1][i];
+            if(p1[rank] != -1) {
+                //#pragma omp parallel for
+                for(uint64_t i = 0; i < col_count * col_count; i++) {
+                    (ancestor_grams[n_ancestor_grams - 1])[i] += (left_sibling_grams[n_left_sibling_grams - 1])[i];
+                }
+            }
+
+            if(rank == 0 && p1[rank] != -1) {
+                cout << left_sibling_grams[n_left_sibling_grams - 1][6] << endl;
+                cout << ancestor_grams[n_ancestor_grams - 1][6] << endl;
             }
         }
 
         MPI_Barrier(comm);
         double elapsed = MPI_Wtime() - start;
 
-        cout << "Elapsed time to construct gram tree: " << elapsed << endl;
+        Buffer<double> comparison_gram({col_count, col_count});
+        mat.compute_gram_matrix(comparison_gram);
+
+        if(rank == 0) {
+            cout << "Elapsed time to construct gram tree: " << elapsed << endl;
+            cout << "-------------" << endl;
+            cout << "Comparison gram: " << endl;
+            comparison_gram.print();
+            cout << "-------------" << endl;
+            cout << "Gram tree: " << endl;
+            ancestor_grams.back().print(); 
+            cout << "-------------" << endl;
+        }
     } 
 
     bool is_leaf(int64_t c) {
@@ -238,7 +286,6 @@ public:
     void test_alltoallv_efficiency() {
         uint64_t global_row_count = (65000 / world_size) * world_size;
         uint64_t local_row_count = global_row_count / world_size;
-        uint64_t col_count = 25;
 
         //h.initialize_to_shape({local_row_count, col_count});
         Buffer<int> destinations({local_row_count});
@@ -277,6 +324,6 @@ public:
 };
 
 void test_distributed_exact_leverage(LowRankTensor &ten) {
-    ExactLeverageTree tree(ten.factors[0], MPI_COMM_WORLD);
+    ExactLeverageTree tree(ten.factors[0], ten.factors[0].ordered_world);
     tree.construct_gram_tree();
 }

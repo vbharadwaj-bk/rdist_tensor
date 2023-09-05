@@ -140,7 +140,12 @@ public:
     }
 
     void construct_gram_tree() {
+        ancestor_grams.clear();
+        left_sibling_grams.clear();
+
         ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+        left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
+
         mat.compute_gram_local_slice(ancestor_grams[0]);
 
         vector<int> p1(world_size, -1);
@@ -231,21 +236,6 @@ public:
         }
 
         MPI_Barrier(comm);
-        double elapsed = MPI_Wtime() - start;
-
-        Buffer<double> comparison_gram({col_count, col_count});
-        mat.compute_gram_matrix(comparison_gram);
-
-        if(rank == 0) {
-            cout << "Elapsed time to construct gram tree: " << elapsed << endl;
-            cout << "-------------" << endl;
-            cout << "Comparison gram: " << endl;
-            comparison_gram.print();
-            cout << "-------------" << endl;
-            cout << "Gram tree: " << endl;
-            ancestor_grams.back().print(); 
-            cout << "-------------" << endl;
-        }
     } 
 
     bool is_leaf(int64_t c) {
@@ -261,47 +251,92 @@ public:
         }
     }
 
-    void test_alltoallv_efficiency() {
-        uint64_t global_row_count = (65000 / world_size) * world_size;
-        uint64_t local_row_count = global_row_count / world_size;
+    void batch_dot_product(
+                Buffer<double> &A, 
+                Buffer<double> &B, 
+                Buffer<double> &result,
+                uint64_t offset
+                ) {
+        uint64_t J = A.shape[0];
+        uint64_t R = A.shape[1];
+        uint64_t res_col_count = result.shape[1];
 
-        //h.initialize_to_shape({local_row_count, col_count});
-        Buffer<int> destinations({local_row_count});
-        Buffer<uint64_t> send_counts({(uint64_t) world_size});
-
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> dis(0, world_size - 1);
-
-        for(uint64_t i = 0; i < local_row_count; i++) {
-            destinations[i] = dis(gen);
+        //#pragma omp for
+        for(uint64_t i = 0; i < J; i++) {
+            double res = 0.0; 
+            for(uint64_t j = 0; j < R; j++) {
+                res += A[i * R + j] * B[i * R + j];
+            }
+            result[i * res_col_count + offset] = res;
         }
+    }
 
-        std::fill(send_counts(), send_counts(world_size), 0);
-        for(uint64_t i = 0; i < local_row_count; i++) {
+    void dsymm(Buffer<double> &sym, Buffer<double> &mat, Buffer<double> &out) {
+        // Should parallelize, but that can wait 
+        cblas_dsymm(
+            CblasRowMajor,
+            CblasRight,
+            CblasUpper,
+            (uint32_t) mat.shape[0],
+            (uint32_t) sym.shape[1],
+            1.0,
+            sym(),
+            R,
+            mat(),
+            R,
+            0.0,
+            out(),
+            R
+        );
+    }
 
-            // #pragma omp atomic
-            send_counts[destinations[i]]++;
-        }
+    void execute_tree_computation(Buffer<double> &h, 
+            Buffer<uint32_t> &indices, 
+            Buffer<double> &draws) {
+        uint64_t row_count = h.shape[0];
+        Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
+        Buffer<int> target_procs({row_count}); // Processor to send each element to
+        Buffer<double> temp1({h.shape[0], h.shape[1]});
 
-        Buffer<double> recv_buffer;
-
-        MPI_Barrier(comm);
-        auto start = MPI_Wtime();
-        /*alltoallv_matrix_rows(
-                h,
-                destinations, 
-                send_counts, 
-                recv_buffer,
-                comm 
-                );*/
-        double elapsed = MPI_Wtime() - start; 
-
-        cout << "Elapsed time: " << elapsed << endl;
+        dsymm(ancestor_grams.back(), h, temp1);
+        batch_dot_product(h, temp1, mData);
     }
 };
 
 void test_distributed_exact_leverage(LowRankTensor &ten) {
     ExactLeverageTree tree(ten.factors[0], ten.factors[0].ordered_world);
+
+    int world_size, rank;
+    MPI_Comm_size(ten.factors[0].ordered_world, &world_size);
+    MPI_Comm_rank(ten.factors[0].ordered_world, &rank);
+
     tree.construct_gram_tree();
+
+    uint64_t n_samples = 20;
+
+    uint64_t rounded_sample_count = (n_samples + world_size - 1) / world_size; 
+
+    uint64_t start = min(work * rank, n_samples);
+    uint64_t end = min(work * (rank + 1), n_samples);
+
+    Buffer<double> h({end - start, ten.factors[0].cols});
+    Buffer<uint32_t> indices({end - start, 3});
+ 
+    std::fill(h(), h((end - start) * ten.factors[0].cols), 1.0);
+    tree.execute_tree_computation(h, indices);
+
+    Multistream_RNG local_rng;
+    Buffer<double> draws({end - start});
+    std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+    #pragma omp parallel
+    {
+        int tid = omp_get_thread_num();
+
+        for(uint64_t i = 0; i < end - start; i++) {
+            draws[i] = dist(local_rng.par_gen[tid]);
+        }
+    } 
+
+    execute_tree_computation(h, indices, draws);
 }

@@ -445,11 +445,13 @@ public:
 };
 
 void test_distributed_exact_leverage(LowRankTensor &ten) {
-    int world_size, rank;
-    MPI_Comm_size(ten.factors[0].ordered_world, &world_size);
-    MPI_Comm_rank(ten.factors[0].ordered_world, &rank);
+    DistMat1D &mat = ten.factors[0];
 
-    ExactLeverageTree tree(ten.factors[0], ten.factors[0].ordered_world);
+    int world_size, rank;
+    MPI_Comm_size(mat.ordered_world, &world_size);
+    MPI_Comm_rank(mat.ordered_world, &rank);
+
+    ExactLeverageTree tree(mat, mat.ordered_world);
     tree.construct_gram_tree();
 
     if(rank == 0) {
@@ -463,10 +465,10 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     uint64_t start = min(work * rank, n_samples);
     uint64_t end = min(work * (rank + 1), n_samples);
 
-    Buffer<double> h({end - start, ten.factors[0].cols});
+    Buffer<double> h({end - start, mat.cols});
     Buffer<uint32_t> indices({end - start, 3});
  
-    std::fill(h(), h((end - start) * ten.factors[0].cols), 1.0);
+    std::fill(h(), h((end - start) * mat.cols), 1.0);
 
     Multistream_RNG local_rng;
     Buffer<double> draws({end - start});
@@ -482,4 +484,27 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     } 
 
     tree.execute_tree_computation(h, indices, draws);
+
+    // Now check correctness 
+    Buffer<double> local_gram({mat.cols, mat.cols});
+    mat.compute_gram_local_slice(local_gram);
+    
+    double sum_of_gram_elements = std::accumulate(local_gram(), local_gram(mat.cols * mat.cols), 0.0);
+
+    double global_sum_of_gram_elements = -1.0;
+    MPI_ALLreduce(&sum_of_gram_elements, &global_sum_of_gram_elements, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
+
+    double sum_normalized = sum_of_gram_elements / global_sum_of_gram_elements;
+
+    double exscan_value = -1.0;
+    MPI_Exscan(&sum_normalized, &exscan_value, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
+
+    // For each rank, print out the normalized sum and the exscan value
+
+    for(int i = 0; i < world_size; i++) {
+        if(i == rank) {
+            cout << "Rank " << rank << " has normalized sum " << sum_normalized << " and exscan value " << exscan_value << endl;
+        }
+        MPI_Barrier(mat.ordered_world);
+    } 
 }

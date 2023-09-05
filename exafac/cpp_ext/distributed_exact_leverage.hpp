@@ -111,7 +111,7 @@ public:
         int c_idx = 0;
         while(c_idx < world_size) {
             int c = level[c_idx];
-            if(c == node_count) {
+            if(c == (int) node_count) {
                 break; 
             }
             else {
@@ -155,9 +155,6 @@ public:
 
         vector<int> p1(world_size, -1);
         vector<int> p2(world_size, -1);
-
-        MPI_Barrier(comm);
-        auto start = MPI_Wtime();
 
         for(int level = total_levels - 1; level > 0; level--) {
             get_exchange_assignments(level, p1, p2);
@@ -302,16 +299,7 @@ public:
         uint64_t row_count = h.shape[0];
         Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
 
-        Buffer<int> target_procs({row_count}); // Processor to send each element to
-        Buffer<double> temp1({h.shape[0], h.shape[1]});
-        Buffer<double> mL({row_count, 1});
-        Buffer<int> branch_left({row_count});
-        Buffer<int> pfx_sum_left({row_count});
-        Buffer<int> branch_right({row_count});
-        Buffer<int> pfx_sum_right({row_count});
-        Buffer<int> target_nodes({row_count});
-
-        Buffer<uint64_t> send_counts({world_size});
+        Buffer<uint64_t> send_counts({(uint64_t) world_size});
 
         for(uint64_t i = 0; i < row_count; i++) {
             mData[0] = 0.0;
@@ -319,135 +307,154 @@ public:
             mData[3] = draws[i];
         }
 
+        Buffer<double> temp1({h.shape[0], h.shape[1]});
         dsymm(ancestor_grams.back(), h, temp1);
         batch_dot_product(h, temp1, mData, 2);
 
         uint64_t n_left = left_sibling_grams.size();
 
-        for(int level = 0; level < self_depth - 1; level++) {     
-            dsymm(left_sibling_grams[n_left - 1 - level], h, temp1);
-            batch_dot_product(h, temp1, mL, 0);
-
-            int c = ancestor_node_ids[level][rank];
-            int left_child = 2 * c + 1;
-            int right_child = 2 * c + 2;
-
-            // Use std::equal_range to find the range of indices
-            // for the left and right children
-
-            //#pragma omp for
-            for(int64_t i = 0; i < row_count; i++) {
-                double low = mData[4 * i];
-                double high = mData[4 * i + 1];
-                double m = mData[4 * i + 2];
-                double cutoff = low + mL[i] / m;
-                int target_node;
-                if(random_draws[i] <= cutoff) { // Branch left
-                    branch_left[i] = 1;
-                    branch_right[i] = 0;
-                    mData[4 * i + 1] = cutoff; // Set high
-                }
-                else { // Branch right
-                    branch_left[i] = 0;
-                    branch_right[i] = 1; 
-                    target_node = 2 * c + 2;
-                    mData[4 * i] = cutoff; // Set low 
-                }
-            }
-
-            // Load balance and redistribute the rows for the
-            // next pass
-            auto left_range = std::equal_range(
-                    ancestor_node_ids[level + 1].begin(),
-                    ancestor_node_ids[level + 1].end(),
-                    left_child
-                    );
-
-            auto right_range = std::equal_range(
-                    ancestor_node_ids[level + 1].begin(),
-                    ancestor_node_ids[level + 1].end(),
-                    right_child
-                    );
-
-            // Get integer values for the left and right ranges
-            int left_start = left_range.first - ancestor_node_ids[level + 1].begin();
-            int left_end = left_range.second - ancestor_node_ids[level + 1].begin();
-
-            int right_start = right_range.first - ancestor_node_ids[level + 1].begin();
-            int right_end = right_range.second - ancestor_node_ids[level + 1].begin();
-
-            uint64_t num_left = left_range.second - left_range.first;
-            uint64_t num_right = right_range.second - right_range.first;
-
-            std::exclusive_scan(
-                    branch_left(),
-                    branch_left(row_count),
-                    pfx_sum_left()
-                    );
-
-            std::exclusive_scan(
-                    branch_right(),
-                    branch_right(row_count),
-                    pfx_sum_right()
-                    );
-
-
-            std::fill(send_counts(), send_counts(world_size), 0);
-
-            for(uint64_t i = 0; i < row_count; i++) {
-                int target = 0;
-                if(branch_left[i] == 1) {
-                    target = left_start + (pfx_sum_left[i] % num_left);
-                    target_nodes[i] = target;
-                }
-                else {
-                    target = right_start + (pfx_sum_right[i] % num_right);
-                    target_nodes[i] = target;
-                }
-                // #pragma omp atomic
-                send_counts[target]++; 
-            }
+        for(int level = 0; level < total_levels-1; level++) {
+            uint64_t row_count = h.shape[0];
+            Buffer<double> temp2({row_count, h.shape[1]});
+            Buffer<double> mL({row_count, 1});
+            Buffer<int> branch_left({row_count});
+            Buffer<int> pfx_sum_left({row_count});
+            Buffer<int> branch_right({row_count});
+            Buffer<int> pfx_sum_right({row_count});
+            Buffer<int> target_nodes({row_count});
 
             Buffer<double> new_h;
             Buffer<double> new_mData;
             Buffer<uint32_t> new_indices;
 
-            /*
-            alltoallv_matrix_rows(
-                    h,
-                    target_procs, 
-                    send_counts, 
-                    new_h,
-                    mat.ordered_world 
-                    );
+            int c = ancestor_node_ids[level][rank];
+            int left_child = 2 * c + 1;
+            int right_child = 2 * c + 2;
 
-            alltoallv_matrix_rows(
-                    mData,
-                    target_procs, 
-                    send_counts, 
-                    new_mData,
-                    mat.ordered_world 
-                    );
+            if(! is_leaf(c)) {
+                dsymm(left_sibling_grams[n_left - 1 - level], h, temp2);
+                batch_dot_product(h, temp2, mL, 0);
 
-            alltoallv_matrix_rows(
-                    indices,
-                    target_procs, 
-                    send_counts, 
-                    new_indices,
-                    mat.ordered_world 
-                    );
-            */
+                // Use std::equal_range to find the range of indices
+                // for the left and right children
+
+                //#pragma omp for
+                for(uint64_t i = 0; i < row_count; i++) {
+                    double low = mData[4 * i];
+                    double m = mData[4 * i + 2];
+                    double draw = mData[4 * i + 3];
+
+                    double cutoff = low + mL[i] / m;
+                    if(draw <= cutoff) { // Branch left
+                        branch_left[i] = 1;
+                        branch_right[i] = 0;
+                        mData[4 * i + 1] = cutoff; // Set high
+                    }
+                    else { // Branch right
+                        branch_left[i] = 0;
+                        branch_right[i] = 1; 
+                        mData[4 * i] = cutoff; // Set low 
+                    }
+                }
+
+                // Load balance and redistribute the rows for the
+                // next pass
+                auto left_range = std::equal_range(
+                        ancestor_node_ids[level + 1].begin(),
+                        ancestor_node_ids[level + 1].end(),
+                        left_child
+                        );
+
+                auto right_range = std::equal_range(
+                        ancestor_node_ids[level + 1].begin(),
+                        ancestor_node_ids[level + 1].end(),
+                        right_child
+                        );
+
+                // Get integer values for the left and right ranges
+                int left_start = left_range.first - ancestor_node_ids[level + 1].begin();
+                //int left_end = left_range.second - ancestor_node_ids[level + 1].begin();
+
+                int right_start = right_range.first - ancestor_node_ids[level + 1].begin();
+                //int right_end = right_range.second - ancestor_node_ids[level + 1].begin();
+
+                uint64_t num_left = left_range.second - left_range.first;
+                uint64_t num_right = right_range.second - right_range.first;
+
+                std::exclusive_scan(
+                        branch_left(),
+                        branch_left(row_count),
+                        pfx_sum_left(),
+                        0
+                        );
+
+                std::exclusive_scan(
+                        branch_right(),
+                        branch_right(row_count),
+                        pfx_sum_right(),
+                        0
+                        );
+
+                std::fill(send_counts(), send_counts(world_size), 0);
+
+                // This is a primitive way to load balance, but at low sample
+                // counts could result in high load imbalances
+                for(uint64_t i = 0; i < row_count; i++) {
+                    int target = 0;
+                    if(branch_left[i] == 1) {
+                        target = left_start + (pfx_sum_left[i] % num_left);
+                        target_nodes[i] = target;
+                    }
+                    else {
+                        target = right_start + (pfx_sum_right[i] % num_right);
+                        target_nodes[i] = target;
+                    }
+                    // #pragma omp atomic
+                    send_counts[target]++; 
+                }
+
+
+                alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
+                alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
+                alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
+
+                h.steal_resources(new_h);
+                mData.steal_resources(new_mData);
+                indices.steal_resources(new_indices);
+
+            }
+            else {
+                Buffer<double> dummy_h({0, 0});
+                Buffer<double> dummy_mData({0, 0});
+                Buffer<uint32_t> dummy_new_indices({0, 0});
+
+                std::fill(send_counts(), send_counts(world_size), 0);
+
+                // Participate in the exchange, but don't send any data and
+                // ignore any received data 
+                alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
+                alltoallv_matrix_rows(dummy_mData, target_nodes, send_counts, new_mData, mat.ordered_world);
+                alltoallv_matrix_rows(dummy_new_indices, target_nodes, send_counts, new_indices, mat.ordered_world);
+            }
+            if(rank == 0) {
+                cout << "Completed exchange for level " << level << 
+                " out of " << total_levels - 1 << endl;
+            }
+        }
     }
 };
 
 void test_distributed_exact_leverage(LowRankTensor &ten) {
-    ExactLeverageTree tree(ten.factors[0], ten.factors[0].ordered_world);
-
     int world_size, rank;
     MPI_Comm_size(ten.factors[0].ordered_world, &world_size);
     MPI_Comm_rank(ten.factors[0].ordered_world, &rank);
 
+    ExactLeverageTree tree(ten.factors[0], ten.factors[0].ordered_world);
     tree.construct_gram_tree();
+
+    if(rank == 0) {
+        cout << "Constructed gram tree" << endl;
+    }
 
     uint64_t n_samples = 20;
 

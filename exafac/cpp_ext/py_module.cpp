@@ -109,6 +109,7 @@ cfg['dependencies'] = [ 'common.h',
                         'tensor_stationary_opt0.hpp',
                         'accumulator_stationary_opt0.hpp',
                         'distributed_exact_leverage.hpp',
+                        'partition_tree.hpp',
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

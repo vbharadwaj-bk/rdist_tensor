@@ -8,6 +8,7 @@
 #include "distmat.hpp"
 #include "low_rank_tensor.hpp"
 #include "alltoallv_revised.hpp"
+#include "partition_tree.hpp"
 
 using namespace std;
 
@@ -36,10 +37,14 @@ public:
 
     int node_id, self_depth;
 
+    PartitionTree local_tree;
+
     ExactLeverageTree(DistMat1D &mat, MPI_Comm world)
         : 
         mat(mat), 
-        comm(world) {
+        comm(world),
+        local_tree(mat.true_row_count, mat.cols, mat.cols) 
+        {
 
         col_count = mat.cols;
 

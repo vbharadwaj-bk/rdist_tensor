@@ -72,7 +72,7 @@ void alltoallv_matrix_rows(
         int owner = processor_assignments[i];
         uint64_t idx;
 
-        #pragma omp atomic capture 
+        //#pragma omp atomic capture 
         idx = r_offset_ptr[owner]++;
 
         for(uint64_t j = 0; j < cols; j++) {

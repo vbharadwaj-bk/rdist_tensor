@@ -206,10 +206,12 @@ public:
     void PTSample(Buffer<double> &U, 
             Buffer<double> &h,
             Buffer<double> &scaled_h,
-            Buffer<uint64_t> &samples,
+            Buffer<uint32_t> &samples,
             Buffer<double> &random_draws,
-            ScratchBuffer &scratch) {
-        
+            ScratchBuffer &scratch,
+            int64_t sample_offset) {
+
+        uint64_t sample_matrix_width = samples.shape[1];
         int64_t J = (int64_t) h.shape[0];
 
         Buffer<int64_t> &c = scratch.c;
@@ -371,7 +373,7 @@ public:
             }
 
             int64_t idx = leaf_idx(c[i]);
-            samples[i] = res + idx * F;
+            samples[sample_matrix_width * i + sample_offset] = (uint32_t) (res + idx * F);
             
             for(int64_t j = 0; j < R; j++) {
                 h[i * R + j] *= U[(res + idx * F) * R + j];

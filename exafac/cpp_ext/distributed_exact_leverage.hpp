@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <random>
+#include <memory>
 #include <mpi.h>
 
 #include "common.h"
@@ -37,14 +38,17 @@ public:
 
     int node_id, self_depth;
 
-    PartitionTree local_tree;
+    unique_ptr<PartitionTree> local_tree;
 
     ExactLeverageTree(DistMat1D &mat, MPI_Comm world)
         : 
         mat(mat), 
-        comm(world),
-        local_tree(mat.true_row_count, mat.cols, mat.cols) 
+        comm(world)
         {
+
+        if(mat.true_row_count > 0) {
+            local_tree.reset(new PartitionTree(mat.true_row_count, mat.cols, mat.cols));
+        }
 
         col_count = mat.cols;
 
@@ -149,14 +153,22 @@ public:
         }
     }
 
-    void construct_gram_tree() {
+    void build_tree() {
         ancestor_grams.clear();
         left_sibling_grams.clear();
 
         ancestor_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
         left_sibling_grams.emplace_back((initializer_list<uint64_t>){col_count, col_count});
 
-        mat.compute_gram_local_slice(ancestor_grams[0]);
+        Buffer<double> local_data_view({mat.true_row_count, mat.cols}, mat.data());
+
+        if(mat.true_row_count > 0) {
+            local_tree->build_tree(local_data_view); 
+            mat.compute_gram_local_slice(ancestor_grams[0]);
+        }
+        else {
+            std::fill(ancestor_grams[0](), ancestor_grams[0](col_count * col_count), 0.0);
+        }
 
         vector<int> p1(world_size, -1);
         vector<int> p2(world_size, -1);
@@ -298,14 +310,17 @@ public:
         );
     }
 
-    void execute_tree_computation(Buffer<double> &h, 
+    void execute_tree_computation(
+            Buffer<double> &h,
+            Buffer<double> &scaled_h, 
             Buffer<uint32_t> &indices, 
-            Buffer<double> &draws) {
+            Buffer<double> &draws,
+            int64_t sample_offset) {
 
         double dsymm_time = 0.0;
         double alltoallv_time = 0.0;
 
-        uint64_t row_count = h.shape[0];
+        uint64_t row_count = scaled_h.shape[0];
         Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
 
         Buffer<uint64_t> send_counts({(uint64_t) world_size});
@@ -316,19 +331,19 @@ public:
             mData[4 * i + 3] = draws[i];
         }
 
-        Buffer<double> temp1({h.shape[0], h.shape[1]});
+        Buffer<double> temp1({scaled_h.shape[0], scaled_h.shape[1]});
 
         //auto start = MPI_Wtime();
-        dsymm(ancestor_grams.back(), h, temp1);
-        batch_dot_product(h, temp1, mData, 2);
+        dsymm(ancestor_grams.back(), scaled_h, temp1);
+        batch_dot_product(scaled_h, temp1, mData, 2);
         //dsymm_time += MPI_Wtime() - start;
         //cout << "DSYMM TIME: " << dsymm_time << endl;
 
         uint64_t n_left = left_sibling_grams.size();
 
         for(int level = 0; level < total_levels-1; level++) {
-            uint64_t row_count = h.shape[0];
-            Buffer<double> temp2({row_count, h.shape[1]});
+            uint64_t row_count = scaled_h.shape[0];
+            Buffer<double> temp2({row_count, scaled_h.shape[1]});
             Buffer<double> mL({row_count, 1});
             Buffer<int> branch_left({row_count});
             Buffer<int> pfx_sum_left({row_count});
@@ -337,6 +352,7 @@ public:
             Buffer<int> target_nodes({row_count});
 
             Buffer<double> new_h;
+            Buffer<double> new_scaled_h;
             Buffer<double> new_mData;
             Buffer<uint32_t> new_indices;
 
@@ -346,8 +362,8 @@ public:
 
             if(! is_leaf(c)) {
                 auto start = MPI_Wtime();
-                dsymm(left_sibling_grams[n_left - 1 - level], h, temp2);
-                batch_dot_product(h, temp2, mL, 0);
+                dsymm(left_sibling_grams[n_left - 1 - level], scaled_h, temp2);
+                batch_dot_product(scaled_h, temp2, mL, 0);
                 dsymm_time += MPI_Wtime() - start;
 
                 // Use std::equal_range to find the range of indices
@@ -432,16 +448,19 @@ public:
                 //MPI_Barrier(comm);
                 start = MPI_Wtime();
                 alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
+                alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
                 alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
                 alltoallv_time += MPI_Wtime() - start;
 
-                h.steal_resources(new_h);
+                h.steal_resoruces(new_h)
+                scaled_h.steal_resources(new_scaled_h);
                 mData.steal_resources(new_mData);
                 indices.steal_resources(new_indices);
             }
             else {
                 Buffer<double> dummy_h({0, 0});
+                Buffer<double> dummy_scaled_h({0, 0});
                 Buffer<double> dummy_mData({0, 0});
                 Buffer<uint32_t> dummy_new_indices({0, 0});
 
@@ -453,13 +472,33 @@ public:
                 //MPI_Barrier(comm);
                 auto start = MPI_Wtime();
                 alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
+                alltoallv_matrix_rows(dummy_scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_new_indices, target_nodes, send_counts, new_indices, mat.ordered_world);
                 alltoallv_time += MPI_Wtime() - start;
             }
         }
-        //cout << "DSYMM Time: " << dsymm_time << endl;
-        //cout << "Alltoallv Time: " << alltoallv_time << endl;
+
+        if(mat->true_row_count > 0 && scaled_h.shape[0] > 0) {
+            Buffer<double> local_data_view({mat.true_row_count, mat.cols}, mat.data());
+            ScratchBuffer scratch(mat.cols, scaled_h.shape[0], mat.cols);
+
+            Buffer<double> draws({scaled_h.shape[0]});
+            for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
+                double low = mData[4 * i];
+                double high = mData[4 * i + 1];
+                double draw = mData[4 * i + 3];
+                draws[i] = (draw - low) / (high - low);
+            }
+
+            local_tree->PTSample(local_data_view, 
+                h,
+                scaled_h,
+                indices,
+                draws,
+                scratch,
+                sample_offset);
+        }
     }
 };
 
@@ -471,7 +510,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     MPI_Comm_rank(mat.ordered_world, &rank);
 
     ExactLeverageTree tree(mat, mat.ordered_world);
-    tree.construct_gram_tree();
+    tree.build_tree();
 
     if(rank == 0) {
         cout << "Constructed gram tree" << endl;
@@ -485,6 +524,8 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     uint64_t end = min(work * (rank + 1), n_samples);
 
     Buffer<double> h({end - start, mat.cols});
+    Buffer<double> scaled_h({end - start, mat.cols});
+
     Buffer<uint32_t> indices({end - start, 1});
 
     for(uint32_t i = 0; i < (uint32_t) (end - start); i++) {
@@ -492,6 +533,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     }
  
     std::fill(h(), h((end - start) * mat.cols), 1.0);
+    std::copy(h(), h((end - start) * mat.cols), scaled_h());
 
     Multistream_RNG local_rng;
     Buffer<double> draws({end - start});
@@ -508,7 +550,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     auto start_time = MPI_Wtime();
-    tree.execute_tree_computation(h, indices, draws);
+    tree.execute_tree_computation(h, scaled_h, indices, draws, 0);
     double elapsed = MPI_Wtime() - start_time;
 
     if(rank == 0) {
@@ -517,7 +559,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
 
     MPI_Barrier(MPI_COMM_WORLD);
     start_time = MPI_Wtime();
-    tree.execute_tree_computation(h, indices, draws);
+    //tree.execute_tree_computation(h, scaled_h, indices, draws, 0);
     elapsed = MPI_Wtime() - start_time;
 
     if(rank == 0) {

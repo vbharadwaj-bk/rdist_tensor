@@ -312,6 +312,7 @@ public:
         batch_dot_product(h, temp1, mData, 2);
 
         uint64_t n_left = left_sibling_grams.size();
+        double alltoallv_time = 0.0;
 
         for(int level = 0; level < total_levels-1; level++) {
             uint64_t row_count = h.shape[0];
@@ -413,15 +414,16 @@ public:
                     send_counts[target]++; 
                 }
 
-
+                MPI_Barrier(comm);
+                auto start_time = MPI_Wtime();
                 alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
+                alltoallv_time += MPI_Wtime() - start_time; 
 
                 h.steal_resources(new_h);
                 mData.steal_resources(new_mData);
                 indices.steal_resources(new_indices);
-
             }
             else {
                 Buffer<double> dummy_h({0, 0});
@@ -432,21 +434,19 @@ public:
 
                 // Participate in the exchange, but don't send any data and
                 // ignore any received data 
+
+
+                MPI_Barrier(comm);
+                auto start_time = MPI_Wtime();
+
                 alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_new_indices, target_nodes, send_counts, new_indices, mat.ordered_world);
-            }
-            if(rank == 0) {
-                cout << "Completed exchange for level " << level << 
-                " out of " << total_levels - 1 << endl;
+
+                alltoallv_time += MPI_Wtime() - start_time; 
             }
         }
-
-        // Print the draws and indices held by this rank
-        for(uint64_t i = 0; i < indices.shape[0]; i++) {
-            cout << "Rank " << rank << " has index " << indices[i] << " and draw " << mData[4 * i + 3] << endl;
-        }
-
+        cout << "Alltoallv time: " << alltoallv_time << endl;
     }
 };
 
@@ -464,7 +464,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
         cout << "Constructed gram tree" << endl;
     }
 
-    uint64_t n_samples = 20;
+    uint64_t n_samples = 65000;
 
     uint64_t work = (n_samples + world_size - 1) / world_size; 
 
@@ -493,27 +493,12 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
         }
     } 
 
+    MPI_Barrier(MPI_COMM_WORLD);
+    auto start_time = MPI_Wtime();
     tree.execute_tree_computation(h, indices, draws);
+    double elapsed = MPI_Wtime() - start_time;
 
-    // Now check correctness 
-    Buffer<double> local_gram({mat.cols, mat.cols});
-    mat.compute_gram_local_slice(local_gram);
-    
-    double sum_of_gram_elements = std::accumulate(local_gram(), local_gram(mat.cols * mat.cols), 0.0);
-
-    double global_sum_of_gram_elements = -1.0;
-    MPI_Allreduce(&sum_of_gram_elements, &global_sum_of_gram_elements, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
-
-    double sum_normalized = sum_of_gram_elements / global_sum_of_gram_elements;
-    double exscan_value = 0.0;
-    MPI_Exscan(&sum_normalized, &exscan_value, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
-
-    // For each rank, print out the normalized sum and the exscan value
-
-    for(int i = 0; i < world_size; i++) {
-        if(i == rank) {
-            cout << "Rank " << rank << " has normalized sum " << sum_normalized << " and exscan value " << exscan_value << endl;
-        }
-        MPI_Barrier(mat.ordered_world);
+    if(rank == 0) {
+        cout << "Time taken: " << elapsed << endl;
     }
 }

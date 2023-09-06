@@ -296,6 +296,10 @@ public:
     void execute_tree_computation(Buffer<double> &h, 
             Buffer<uint32_t> &indices, 
             Buffer<double> &draws) {
+
+        double dsymm_time = 0.0;
+        double alltoallv_time = 0.0;
+
         uint64_t row_count = h.shape[0];
         Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
 
@@ -308,11 +312,14 @@ public:
         }
 
         Buffer<double> temp1({h.shape[0], h.shape[1]});
+
+        //auto start = MPI_Wtime();
         dsymm(ancestor_grams.back(), h, temp1);
         batch_dot_product(h, temp1, mData, 2);
+        //dsymm_time += MPI_Wtime() - start;
+        //cout << "DSYMM TIME: " << dsymm_time << endl;
 
         uint64_t n_left = left_sibling_grams.size();
-        double alltoallv_time = 0.0;
 
         for(int level = 0; level < total_levels-1; level++) {
             uint64_t row_count = h.shape[0];
@@ -333,8 +340,10 @@ public:
             int right_child = 2 * c + 2;
 
             if(! is_leaf(c)) {
+                auto start = MPI_Wtime();
                 dsymm(left_sibling_grams[n_left - 1 - level], h, temp2);
                 batch_dot_product(h, temp2, mL, 0);
+                dsymm_time += MPI_Wtime() - start;
 
                 // Use std::equal_range to find the range of indices
                 // for the left and right children
@@ -400,6 +409,7 @@ public:
 
                 // This is a primitive way to load balance, but at low sample
                 // counts could result in high load imbalances
+
                 for(uint64_t i = 0; i < row_count; i++) {
                     int target = 0;
                     if(branch_left[i] == 1) {
@@ -414,12 +424,12 @@ public:
                     send_counts[target]++; 
                 }
 
-                MPI_Barrier(comm);
-                auto start_time = MPI_Wtime();
+                //MPI_Barrier(comm);
+                start = MPI_Wtime();
                 alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
-                alltoallv_time += MPI_Wtime() - start_time; 
+                alltoallv_time += MPI_Wtime() - start;
 
                 h.steal_resources(new_h);
                 mData.steal_resources(new_mData);
@@ -435,18 +445,16 @@ public:
                 // Participate in the exchange, but don't send any data and
                 // ignore any received data 
 
-
-                MPI_Barrier(comm);
-                auto start_time = MPI_Wtime();
-
+                //MPI_Barrier(comm);
+                auto start = MPI_Wtime();
                 alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_new_indices, target_nodes, send_counts, new_indices, mat.ordered_world);
-
-                alltoallv_time += MPI_Wtime() - start_time; 
+                alltoallv_time += MPI_Wtime() - start;
             }
         }
-        cout << "Alltoallv time: " << alltoallv_time << endl;
+        //cout << "DSYMM Time: " << dsymm_time << endl;
+        //cout << "Alltoallv Time: " << alltoallv_time << endl;
     }
 };
 
@@ -497,6 +505,15 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     auto start_time = MPI_Wtime();
     tree.execute_tree_computation(h, indices, draws);
     double elapsed = MPI_Wtime() - start_time;
+
+    if(rank == 0) {
+        cout << "Time taken: " << elapsed << endl;
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    start_time = MPI_Wtime();
+    tree.execute_tree_computation(h, indices, draws);
+    elapsed = MPI_Wtime() - start_time;
 
     if(rank == 0) {
         cout << "Time taken: " << elapsed << endl;

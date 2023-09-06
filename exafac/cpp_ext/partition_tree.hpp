@@ -18,6 +18,7 @@ using namespace std;
 */
 class __attribute__((visibility("hidden"))) ScratchBuffer {
 public:
+    uint64_t J;
     Buffer<int64_t> c;
     Buffer<double> temp1;
     Buffer<double> q;
@@ -30,7 +31,8 @@ public:
     Buffer<double*> x_array;
     Buffer<double*> y_array;
 
-    ScratchBuffer(uint32_t F, uint64_t J, uint64_t R) : 
+    ScratchBuffer(uint32_t F, uint64_t J, uint64_t R) :
+            J(J),
             c({J}),
             temp1({J, R}),
             q({J, F}),
@@ -64,7 +66,7 @@ public:
 
     void execute_mkl_dsymv_batch(ScratchBuffer &scratch) {
         #pragma omp for
-        for(int64_t i = 0; i < J; i++) {
+        for(uint64_t i = 0; i < scratch.J; i++) {
             cblas_dsymv(CblasRowMajor, 
                     CblasUpper, 
                     R, 
@@ -173,6 +175,19 @@ public:
         } 
     }
 
+    void multiply_matrices_against_provided(Buffer<double> &mat) {
+        if(! G_unmultiplied) {
+            G_unmultiplied.reset(new Buffer<double>({node_count, static_cast<unsigned long>(R2)}));
+            std::copy(G(), G(node_count * R2), (*G_unmultiplied)());
+        }
+        #pragma omp parallel for
+        for(int64_t i = 0; i < node_count; i++) {
+            for(int j = 0; j < R2; j++) {
+                G[i * R2 + j] = (*G_unmultiplied)[i * R2 + j] * mat[j];
+            }
+        }
+    }
+
     void batch_dot_product(
                 double* A, 
                 double* B, 
@@ -188,23 +203,7 @@ public:
         }
     }
 
-    void PTSample(py::array_t<double> U_py, 
-            py::array_t<double> h_py,  
-            py::array_t<double> scaled_h_py,
-            py::array_t<uint64_t> samples_py,
-            py::array_t<double> random_draws_py 
-            ) {
-
-        Buffer<double> U(U_py);
-        Buffer<double> h(h_py);
-        Buffer<double> scaled_h(scaled_h_py);
-        Buffer<uint64_t> samples(samples_py);
-        Buffer<double> random_draws(random_draws_py);
-
-        PTSample_internal(U, h, scaled_h, samples, random_draws);
-    }
-
-    void PTSample_internal(Buffer<double> &U, 
+    void PTSample(Buffer<double> &U, 
             Buffer<double> &h,
             Buffer<double> &scaled_h,
             Buffer<uint64_t> &samples,

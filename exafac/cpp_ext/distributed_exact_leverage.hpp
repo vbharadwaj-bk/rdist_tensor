@@ -302,9 +302,9 @@ public:
         Buffer<uint64_t> send_counts({(uint64_t) world_size});
 
         for(uint64_t i = 0; i < row_count; i++) {
-            mData[0] = 0.0;
-            mData[1] = 1.0;
-            mData[3] = draws[i];
+            mData[4 * i] = 0.0;
+            mData[4 * i + 1] = 1.0;
+            mData[4 * i + 3] = draws[i];
         }
 
         Buffer<double> temp1({h.shape[0], h.shape[1]});
@@ -441,6 +441,12 @@ public:
                 " out of " << total_levels - 1 << endl;
             }
         }
+
+        // Print the draws and indices held by this rank
+        for(uint64_t i = 0; i < indices.shape[0]; i++) {
+            cout << "Rank " << rank << " has index " << indices[i] << " and draw " << mData[4 * i + 3] << endl;
+        }
+
     }
 };
 
@@ -466,7 +472,11 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     uint64_t end = min(work * (rank + 1), n_samples);
 
     Buffer<double> h({end - start, mat.cols});
-    Buffer<uint32_t> indices({end - start, 3});
+    Buffer<uint32_t> indices({end - start, 1});
+
+    for(uint32_t i = 0; i < (uint32_t) (end - start); i++) {
+        indices[i] = i + (uint32_t) start;
+    }
  
     std::fill(h(), h((end - start) * mat.cols), 1.0);
 
@@ -492,11 +502,10 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     double sum_of_gram_elements = std::accumulate(local_gram(), local_gram(mat.cols * mat.cols), 0.0);
 
     double global_sum_of_gram_elements = -1.0;
-    MPI_ALLreduce(&sum_of_gram_elements, &global_sum_of_gram_elements, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
+    MPI_Allreduce(&sum_of_gram_elements, &global_sum_of_gram_elements, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
 
     double sum_normalized = sum_of_gram_elements / global_sum_of_gram_elements;
-
-    double exscan_value = -1.0;
+    double exscan_value = 0.0;
     MPI_Exscan(&sum_normalized, &exscan_value, 1, MPI_DOUBLE, MPI_SUM, mat.ordered_world);
 
     // For each rank, print out the normalized sum and the exscan value
@@ -506,5 +515,5 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
             cout << "Rank " << rank << " has normalized sum " << sum_normalized << " and exscan value " << exscan_value << endl;
         }
         MPI_Barrier(mat.ordered_world);
-    } 
+    }
 }

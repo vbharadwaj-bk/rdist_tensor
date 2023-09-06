@@ -445,7 +445,6 @@ public:
                     send_counts[target]++; 
                 }
 
-                //MPI_Barrier(comm);
                 start = MPI_Wtime();
                 alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
@@ -453,7 +452,7 @@ public:
                 alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
                 alltoallv_time += MPI_Wtime() - start;
 
-                h.steal_resoruces(new_h)
+                h.steal_resources(new_h);
                 scaled_h.steal_resources(new_scaled_h);
                 mData.steal_resources(new_mData);
                 indices.steal_resources(new_indices);
@@ -469,7 +468,6 @@ public:
                 // Participate in the exchange, but don't send any data and
                 // ignore any received data 
 
-                //MPI_Barrier(comm);
                 auto start = MPI_Wtime();
                 alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
@@ -479,7 +477,7 @@ public:
             }
         }
 
-        if(mat->true_row_count > 0 && scaled_h.shape[0] > 0) {
+        if(mat.true_row_count > 0 && scaled_h.shape[0] > 0) {
             Buffer<double> local_data_view({mat.true_row_count, mat.cols}, mat.data());
             ScratchBuffer scratch(mat.cols, scaled_h.shape[0], mat.cols);
 
@@ -548,21 +546,14 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
         }
     } 
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    auto start_time = MPI_Wtime();
-    tree.execute_tree_computation(h, scaled_h, indices, draws, 0);
-    double elapsed = MPI_Wtime() - start_time;
+    for(int i = 0; i < 2; i++) {
+        MPI_Barrier(MPI_COMM_WORLD);
+        auto start_time = MPI_Wtime();
+        tree.execute_tree_computation(h, scaled_h, indices, draws, 0);
+        double elapsed = MPI_Wtime() - start_time;
 
-    if(rank == 0) {
-        cout << "Time taken: " << elapsed << endl;
-    }
-
-    MPI_Barrier(MPI_COMM_WORLD);
-    start_time = MPI_Wtime();
-    //tree.execute_tree_computation(h, scaled_h, indices, draws, 0);
-    elapsed = MPI_Wtime() - start_time;
-
-    if(rank == 0) {
-        cout << "Time taken: " << elapsed << endl;
+        if(rank == 0) {
+            cout << "Time taken: " << elapsed << endl;
+        }
     }
 }

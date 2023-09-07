@@ -40,8 +40,9 @@ def test_grid():
     if rank == 0:
         import matplotlib.pyplot as plt
         print(np.sum(histogram))
-        plt.plot(histogram)
-        plt.plot(exact_scores / np.sum(exact_scores))
+        plt.plot(histogram, label="histogram")
+        plt.plot(exact_scores / np.sum(exact_scores), label="exact_scores")
+        plt.legend()
         plt.savefig("histogram.png")
 
     #print(exact_scores)

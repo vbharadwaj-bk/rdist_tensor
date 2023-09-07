@@ -255,7 +255,6 @@ public:
         uint64_t local_samples = indices_local.shape[0];
         Buffer<double> rows_local({local_samples, cols});
 
-
         uint32_t offset = row_position * padded_rows;
 
         //#pragma omp parallel for

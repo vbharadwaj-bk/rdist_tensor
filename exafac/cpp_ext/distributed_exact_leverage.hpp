@@ -496,11 +496,22 @@ public:
                 draws,
                 scratch,
                 sample_offset);
+
+            uint32_t sample_offset = (uint32_t) (mat.row_position * mat.padded_rows);
+
+            for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
+                indices[i] += sample_offset;
+            }
         }
     }
 };
 
-void test_distributed_exact_leverage(LowRankTensor &ten) {
+void test_distributed_exact_leverage(LowRankTensor &ten, 
+        py::array_t<double> &sample_hist_py, 
+        py::array_t<double> &exact_scores_py) {
+    Buffer<double> sample_hist(sample_hist_py);
+    Buffer<double> exact_scores(exact_scores_py); 
+
     DistMat1D &mat = ten.factors[0];
 
     int world_size, rank;
@@ -556,4 +567,47 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
             cout << "Time taken: " << elapsed << endl;
         }
     }
+
+    Buffer<uint32_t> gathered_indices;
+    MPI_Barrier(MPI_COMM_WORLD); 
+    allgatherv_buffer(indices, gathered_indices, mat.ordered_world);
+
+    std::fill(sample_hist(), sample_hist(mat.rows), 0.0);
+    std::fill(exact_scores(), exact_scores(mat.rows), 0.0);
+
+    for(uint64_t i = 0; i < gathered_indices.shape[0]; i++) {
+        sample_hist[gathered_indices[i]] += 1.0;
+    }
+
+    double total_samples = std::accumulate(sample_hist(), sample_hist(mat.rows), 0.0);
+    cout << "Total samples recovered: " << total_samples << endl; 
+
+    for(uint64_t i = 0; i < sample_hist.shape[0]; i++) {
+        sample_hist[i] /= total_samples; 
+    }
+
+    Buffer<double> row_norms_squared({mat.true_row_count});
+
+    for(uint64_t i = 0; i < mat.true_row_count; i++) {
+        double sum_of_elements = 0.0;
+        for(uint64_t j = 0; j < mat.cols; j++) {
+            sum_of_elements += mat.data[i * mat.cols + j]; 
+        }
+        row_norms_squared[i] = sum_of_elements * sum_of_elements; 
+    }
+
+
+    Buffer<double> gathered_leverage_scores;
+    allgatherv_buffer(row_norms_squared,
+            gathered_leverage_scores, 
+            mat.ordered_world);
+
+    double leverage_sum = std::accumulate(gathered_leverage_scores(), 
+            gathered_leverage_scores(mat.rows), 0.0);
+
+    cout << leverage_sum << endl;
+
+    std::copy(gathered_leverage_scores(), 
+            gathered_leverage_scores(mat.rows), 
+            exact_scores()); 
 }

@@ -499,10 +499,11 @@ public:
                 scratch,
                 sample_offset);
 
-            uint32_t sample_offset = (uint32_t) (mat.row_position * mat.padded_rows);
+            uint64_t sample_matrix_width = indices.shape[1];
+            uint32_t row_offset = (uint32_t) (mat.row_position * mat.padded_rows);
 
             for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
-                indices[i] += sample_offset;
+                indices[sample_matrix_width * i + sample_offset] += row_offset;
             }
         }
     }

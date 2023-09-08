@@ -200,13 +200,13 @@ uint64_t round_to_nearest_integer(uint64_t n, uint64_t m) {
 //#pragma GCC visibility push(hidden)
 template<typename T>
 class __attribute__((visibility("hidden"))) Buffer {
+public:
     py::buffer_info info;
     unique_ptr<T[]> managed_ptr;
     T* ptr;
     uint64_t dim0;
     uint64_t dim1;
 
-public:
     bool initialized;
     vector<uint64_t> shape;
 

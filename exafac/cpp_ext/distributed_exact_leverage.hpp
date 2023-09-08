@@ -342,7 +342,10 @@ public:
         uint64_t n_left = left_sibling_grams.size();
 
         for(int level = 0; level < total_levels-1; level++) {
-            uint64_t row_count = scaled_h.shape[0];
+            row_count = scaled_h.shape[0];
+
+            // For each rank, print the metadata buffer
+
             Buffer<double> temp2({row_count, scaled_h.shape[1]});
             Buffer<double> mL({row_count, 1});
             Buffer<int> branch_left({row_count});
@@ -445,7 +448,6 @@ public:
                     send_counts[target]++; 
                 }
 
-                start = MPI_Wtime();
                 alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
                 alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
@@ -500,6 +502,13 @@ public:
             uint32_t sample_offset = (uint32_t) (mat.row_position * mat.padded_rows);
 
             for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
+                if(indices[i] + sample_offset == 184) {
+                    /*cout << "Found 184 index!" << endl;
+                    cout << indices[i] << "("
+                        << draws[i] << ")"
+                        << mat.true_row_count << " "
+                        << sample_offset << endl;*/
+                }
                 indices[i] += sample_offset;
             }
         }
@@ -548,16 +557,17 @@ void test_distributed_exact_leverage(LowRankTensor &ten,
     Buffer<double> draws({end - start});
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-    #pragma omp parallel
+    //#pragma omp parallel
     {
         int tid = omp_get_thread_num();
 
         for(uint64_t i = 0; i < end - start; i++) {
             draws[i] = dist(local_rng.par_gen[tid]);
         }
-    } 
+    }
+    
 
-    for(int i = 0; i < 2; i++) {
+    for(int i = 0; i < 1; i++) {
         MPI_Barrier(MPI_COMM_WORLD);
         auto start_time = MPI_Wtime();
         tree.execute_tree_computation(h, scaled_h, indices, draws, 0);
@@ -580,7 +590,6 @@ void test_distributed_exact_leverage(LowRankTensor &ten,
     }
 
     double total_samples = std::accumulate(sample_hist(), sample_hist(mat.rows), 0.0);
-    cout << "Total samples recovered: " << total_samples << endl; 
 
     for(uint64_t i = 0; i < sample_hist.shape[0]; i++) {
         sample_hist[i] /= total_samples; 
@@ -601,11 +610,6 @@ void test_distributed_exact_leverage(LowRankTensor &ten,
     allgatherv_buffer(row_norms_squared,
             gathered_leverage_scores, 
             mat.ordered_world);
-
-    double leverage_sum = std::accumulate(gathered_leverage_scores(), 
-            gathered_leverage_scores(mat.rows), 0.0);
-
-    cout << leverage_sum << endl;
 
     std::copy(gathered_leverage_scores(), 
             gathered_leverage_scores(mat.rows), 

@@ -220,14 +220,16 @@ public:
 
         // Samples is an array of size N x J 
         computeM(j);
-        std::fill(h(), h(J, 0), 1.0);
+        std::fill(h(), h({end - start}, 0), 1.0);
 
         for(uint32_t k = 0; k < N; k++) {
             if(k != j) {
                 uint64_t row_count = scaled_h.shape[0];
-                std::copy(h(), h(row_count, 0), scaled_h());
-                ScratchBuffer eigen_scratch(1, row_count, R);
+                std::copy(h(), h(h.shape[0] * h.shape[1]), scaled_h());
+
                 Buffer<double> random_draws({row_count});
+                ScratchBuffer eigen_scratch(1, scaled_h.shape[0], R);
+
                 fill_buffer_random_draws(random_draws(), row_count);
 
                 int offset = (k + 1 == j) ? k + 2 : k + 1;
@@ -277,7 +279,14 @@ public:
 
 
 void test_distributed_exact_leverage(LowRankTensor &ten) {
+    int rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
     EfficientKRPSampler sampler(65000, ten.factors);
+
+    if(rank == 0) {
+        cout << "Constructed sampler..." << endl;
+    }
 
     Buffer<uint32_t> samples;
     Buffer<double> weights;

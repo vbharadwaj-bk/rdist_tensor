@@ -10,19 +10,19 @@
 #include "omp.h"
 #include "cblas.h"
 #include "lapacke.h"
+#include "distmat.hpp"
+#include "exact_leverage_tree.hpp"
 
 using namespace std;
 
 class __attribute__((visibility("hidden"))) EfficientKRPSampler: public Sampler {
 public:
-    ScratchBuffer scratch;
     Buffer<double> M;
     Buffer<double> lambda;
 
-    Buffer<double> scaled_h;
     vector<Buffer<double>> scaled_eigenvecs;
 
-    vector<PartitionTree*> gram_trees;
+    vector<ExactLeverageTree*> gram_trees;
     vector<PartitionTree*> eigen_trees;
     double eigenvalue_tolerance;
 
@@ -31,34 +31,27 @@ public:
 
     EfficientKRPSampler(
             uint64_t J, 
-            uint64_t R, 
-            vector<Buffer<double>> &U_matrices)
+            vector<DistMat1D> &U_matrices)
     :       
             Sampler(J, R, U_matrices),
-            scratch(R, J, R),
             M({U_matrices.size() + 2, R * R}),
             lambda({U_matrices.size() + 1, R}),
-            scaled_h({J, R}),
             dis(0.0, 1.0) 
     {   
         eigenvalue_tolerance = 1e-8; // Tolerance of eigenvalues for symmetric PINV 
     
         for(uint32_t i = 0; i < N; i++) {
             uint32_t n = U[i].shape[0];
-            assert(U[i].shape.size() == 2);
-            assert(U[i].shape[1] == R);
-            //assert(n % R == 0);  // Should check these assertions outside this class!
-
-            uint64_t F = R < n ? R : n;
-            gram_trees.push_back(new PartitionTree(n, F, J, R, scratch));
-            eigen_trees.push_back(new PartitionTree(R, 1, J, R, scratch));
+            //uint64_t F = R < n ? R : n;
+            gram_trees.push_back(new ExactLeverageTree(U[i], U[i].ordered_world));
+            eigen_trees.push_back(new PartitionTree(R, 1, R));
         }
 
         // Should move the data structure initialization to another routine,
         // but this is fine for now.
 
         for(uint32_t i = 0; i < N; i++) {
-            gram_trees[i]->build_tree(U[i]); 
+            gram_trees[i]->build_tree(); 
         }
 
         for(uint32_t i = 0; i < N + 1; i++) {
@@ -71,7 +64,7 @@ public:
     * updated. 
     */
     void update_sampler(uint64_t j) {
-        gram_trees[j]->build_tree(U[j]); 
+        gram_trees[j]->build_tree(); 
     }
 
     /*
@@ -95,9 +88,11 @@ public:
         uint32_t last_buffer = N;
         for(int k = N - 1; k >= 0; k--) {
             if((uint32_t) k != j) {
+                Buffer<double> &G = (gram_trees[k]->ancestor_grams).back();
+
                 #pragma omp for
                 for(uint32_t i = 0; i < R2; i++) {
-                    M[k * R2 + i] = gram_trees[k]->G[i] * M[(last_buffer * R2) + i];   
+                    M[k * R2 + i] = G[i] * M[(last_buffer * R2) + i];   
                 } 
 
                 last_buffer = k;
@@ -206,7 +201,7 @@ public:
 }
     }
 
-    void KRPDrawSamples(uint32_t j, Buffer<uint64_t> &samples, Buffer<double> *random_draws) {
+    void KRPDrawSamples(uint32_t j, Buffer<uint32_t> &samples) {
         // Samples is an array of size N x J 
         computeM(j);
         std::fill(h(), h(J, 0), 1.0);
@@ -218,38 +213,21 @@ public:
                 Buffer<uint64_t> row_buffer({J}, samples(k, 0));
                 int offset = (k + 1 == j) ? k + 2 : k + 1;
 
-                if(random_draws != nullptr) {
-                    Buffer<double> eigen_draws({J}, (*random_draws)(k * J));    
-                    eigen_trees[k]->PTSample_internal(scaled_eigenvecs[offset], 
-                            scaled_h,
-                            h,
-                            row_buffer,
-                            eigen_draws
-                            );
-                    Buffer<double> gram_draws({J}, (*random_draws)(N * J + k * J));
-                    gram_trees[k]->PTSample_internal(U[k], 
-                            h,
-                            scaled_h,
-                            row_buffer,
-                            gram_draws
-                            );
-                }
-                else {
-                    fill_buffer_random_draws(scratch.random_draws(), J);
-                    eigen_trees[k]->PTSample_internal(scaled_eigenvecs[offset], 
-                            scaled_h,
-                            h,
-                            row_buffer,
-                            scratch.random_draws 
-                            );
-                    fill_buffer_random_draws(scratch.random_draws(), J);
-                    gram_trees[k]->PTSample_internal(U[k], 
-                            h,
-                            scaled_h,
-                            row_buffer,
-                            scratch.random_draws 
-                            );
-                }
+                fill_buffer_random_draws(scratch.random_draws(), J);
+                eigen_trees[k]->PTSample_internal(scaled_eigenvecs[offset], 
+                        scaled_h,
+                        h,
+                        row_buffer,
+                        scratch.random_draws 
+                        );
+                fill_buffer_random_draws(scratch.random_draws(), J);
+                gram_trees[k]->PTSample_internal(U[k], 
+                        h,
+                        scaled_h,
+                        row_buffer,
+                        scratch.random_draws 
+                        );
+
             }
         }
 

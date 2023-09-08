@@ -26,7 +26,6 @@ public:
     Buffer<double> mL;
     Buffer<double> low;
     Buffer<double> high;
-    Buffer<double> random_draws;
     Buffer<double*> a_array;
     Buffer<double*> x_array;
     Buffer<double*> y_array;
@@ -221,7 +220,6 @@ public:
         Buffer<double> &mL = scratch.mL;
         Buffer<double> &low = scratch.low;
         Buffer<double> &high = scratch.high;
-        //Buffer<double> &random_draws = scratch.random_draws;
         Buffer<double*> &a_array = scratch.a_array;
         Buffer<double*> &x_array = scratch.x_array;
         Buffer<double*> &y_array = scratch.y_array;

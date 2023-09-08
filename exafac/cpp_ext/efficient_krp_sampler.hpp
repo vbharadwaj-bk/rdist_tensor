@@ -201,35 +201,54 @@ public:
 }
     }
 
-    void KRPDrawSamples(uint32_t j, Buffer<uint32_t> &samples) {
+    void KRPDrawSamples(uint32_t j, 
+            Buffer<uint32_t> &samples,
+            Buffer<double> &weights) {
         // Samples is an array of size N x J 
         computeM(j);
         std::fill(h(), h(J, 0), 1.0);
 
+        MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+        MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+        uint64_t work = (J + world_size - 1) / world_size; 
+        uint64_t start = min(work * rank, J);
+        uint64_t end = min(work * (rank + 1), J);
+
+        Buffer<double> h({end - start, R});
+        Buffer<double> scaled_h({end - start, R});
+        samples.initialize_to_shape({end - start, 1});
+
         for(uint32_t k = 0; k < N; k++) {
             if(k != j) {
-                // Sample an eigenvector component of the mixture distribution 
-                std::copy(h(), h(J, 0), scaled_h());
-                Buffer<uint64_t> row_buffer({J}, samples(k, 0));
+                uint64_t row_count = scaled_h.shape[0];
+                std::copy(h(), h(row_count, 0), scaled_h());
+                ScratchBuffer eigen_scratch(1, end-start, R);
+                Buffer<double> random_draws({row_count});
+                fill_buffer_random_draws(random_draws(), row_count);
+
                 int offset = (k + 1 == j) ? k + 2 : k + 1;
 
-                fill_buffer_random_draws(scratch.random_draws(), J);
-                eigen_trees[k]->PTSample_internal(scaled_eigenvecs[offset], 
+                eigen_trees[k]->PTSample(scaled_eigenvecs[offset], 
                         scaled_h,
                         h,
-                        row_buffer,
-                        scratch.random_draws 
-                        );
-                fill_buffer_random_draws(scratch.random_draws(), J);
-                gram_trees[k]->PTSample_internal(U[k], 
-                        h,
-                        scaled_h,
-                        row_buffer,
-                        scratch.random_draws 
-                        );
+                        samples,
+                        random_draws, 
+                        eigen_scratch,
+                        k);
 
+                fill_buffer_random_draws(random_draws(), row_count);
+
+                gram_trees[k]->execute_tree_computation(
+                        h,
+                        scaled_h, 
+                        samples, 
+                        random_draws, 
+                        k);    
             }
         }
+
+        weights.initialize_to_shape({h.shape[0]});
 
         // Compute the weights associated with the samples
         compute_DAGAT(
@@ -240,7 +259,7 @@ public:
             R);
 
         #pragma omp parallel for 
-        for(uint32_t i = 0; i < J; i++) {
+        for(uint32_t i = 0; i < h.shape[0]; i++) {
             weights[i] = (double) R / (weights[i] * J);
         }
     }

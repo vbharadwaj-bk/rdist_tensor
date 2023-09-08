@@ -15,7 +15,7 @@ def test_prefixes(axes):
 
 
 def test_grid():
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0, test_distributed_exact_leverage 
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0, AccumulatorStationaryOpt1, test_distributed_exact_leverage 
 
     from exafac.sparse_tensor_e import DistSparseTensorE
     from exafac.grid import Grid as GridPy
@@ -30,14 +30,14 @@ def test_grid():
     sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
 
     #sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
-    low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)    
+    low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 
     #histogram = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
     #exact_scores = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
     #test_distributed_exact_leverage(low_rank_tensor, histogram, exact_scores)
 
-    test_distributed_exact_leverage(low_rank_tensor)
+    #test_distributed_exact_leverage(low_rank_tensor)
 
     #if rank == 0:
     #    import matplotlib.pyplot as plt
@@ -49,16 +49,15 @@ def test_grid():
 
     #print(exact_scores)
     #print(histogram)
-    exit(0)
+    #exit(0)
 
     #optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
 
     #optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    optimizer = AccumulatorStationaryOpt1(sparse_tensor.sparse_tensor, low_rank_tensor) 
     optimizer.initialize_ground_truth_for_als()
 
     fit = optimizer.compute_exact_fit()
-
     if rank == 0:
         print(f"Initial Fit: {fit}")
     optimizer.execute_ALS_rounds(10, 65536, 5)

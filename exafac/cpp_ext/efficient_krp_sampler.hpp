@@ -30,10 +30,9 @@ public:
     std::uniform_real_distribution<> dis;
 
     EfficientKRPSampler(
-            uint64_t J, 
             vector<DistMat1D> &U_matrices)
     :       
-            Sampler(J, U_matrices),
+            Sampler(U_matrices),
             M({U_matrices.size() + 2, R * R}),
             lambda({U_matrices.size() + 1, R}),
             dis(0.0, 1.0) 
@@ -202,7 +201,8 @@ public:
 }
     }
 
-    void KRPDrawSamples(uint32_t j, 
+    void KRPDrawSamples(uint64_t J,
+            uint32_t j,
             Buffer<uint32_t> &samples,
             Buffer<double> &weights,    
             vector<Buffer<uint32_t>> &unique_row_indices) {
@@ -308,7 +308,8 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    EfficientKRPSampler sampler(65000, ten.factors);
+    uint64_t J = 65000;
+    EfficientKRPSampler sampler(ten.factors);
 
     if(rank == 0) {
         cout << "Constructed sampler..." << endl;
@@ -318,5 +319,5 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     Buffer<double> weights;
     vector<Buffer<uint32_t>> unique_row_indices; 
 
-    sampler.KRPDrawSamples(0, samples, weights, unique_row_indices);
+    sampler.KRPDrawSamples(J, 0, samples, weights, unique_row_indices);
 }

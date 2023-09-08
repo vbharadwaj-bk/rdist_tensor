@@ -16,7 +16,7 @@ using namespace std;
 class __attribute__((visibility("hidden"))) Sampler {
 public:
     vector<DistMat1D> &U;
-    uint64_t N, J, R, R2;
+    uint64_t N, R, R2;
 
     // Related to random number generation 
     std::random_device rd;  
@@ -27,15 +27,13 @@ public:
     int thread_count;
     vector<std::mt19937> par_gen; 
 
-    Sampler(uint64_t J, 
-            vector<DistMat1D> &U_matrices) : 
+    Sampler(vector<DistMat1D> &U_matrices) : 
         U(U_matrices),
         R(U_matrices[0].cols),
         rd(),
         gen(rd())
         {
         this->N = U.size();
-        this->J = J;
         R2 = R * R;
 
         // Set up independent random streams for different threads.
@@ -63,7 +61,8 @@ public:
     }
 
     virtual void update_sampler(uint64_t j) = 0;
-    virtual void KRPDrawSamples(uint32_t j, 
+    virtual void KRPDrawSamples(uint64_t J,
+            uint32_t j, 
             Buffer<uint32_t> &samples, 
             Buffer<double> &weights,
             vector<Buffer<uint32_t>> &unique_row_indices) = 0;

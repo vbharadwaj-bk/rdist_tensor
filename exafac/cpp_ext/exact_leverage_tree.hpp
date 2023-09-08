@@ -508,7 +508,7 @@ public:
     }
 };
 
-void test_distributed_exact_leverage(LowRankTensor &ten, 
+void test_distributed_exact_leverage_tree(LowRankTensor &ten, 
         py::array_t<double> &sample_hist_py, 
         py::array_t<double> &exact_scores_py) {
     Buffer<double> sample_hist(sample_hist_py);

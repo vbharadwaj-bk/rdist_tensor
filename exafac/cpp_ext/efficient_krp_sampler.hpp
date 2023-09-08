@@ -33,7 +33,7 @@ public:
             uint64_t J, 
             vector<DistMat1D> &U_matrices)
     :       
-            Sampler(J, R, U_matrices),
+            Sampler(J, U_matrices),
             M({U_matrices.size() + 2, R * R}),
             lambda({U_matrices.size() + 1, R}),
             dis(0.0, 1.0) 
@@ -41,7 +41,6 @@ public:
         eigenvalue_tolerance = 1e-8; // Tolerance of eigenvalues for symmetric PINV 
     
         for(uint32_t i = 0; i < N; i++) {
-            uint32_t n = U[i].shape[0];
             //uint64_t F = R < n ? R : n;
             gram_trees.push_back(new ExactLeverageTree(U[i], U[i].ordered_world));
             eigen_trees.push_back(new PartitionTree(R, 1, R));
@@ -181,9 +180,11 @@ public:
 
         for(int k = N-1; k >= 0; k--) {
             if((uint32_t) k != j) {
+                Buffer<double> &G = (gram_trees[k]->ancestor_grams).back();
+
                 int offset = (k + 1 == (int) j) ? k + 2 : k + 1;
                 eigen_trees[k]->build_tree(scaled_eigenvecs[offset]);
-                eigen_trees[k]->multiply_matrices_against_provided(gram_trees[k]->G);
+                eigen_trees[k]->multiply_matrices_against_provided(G);
             }
         } 
     }
@@ -204,10 +205,8 @@ public:
     void KRPDrawSamples(uint32_t j, 
             Buffer<uint32_t> &samples,
             Buffer<double> &weights) {
-        // Samples is an array of size N x J 
-        computeM(j);
-        std::fill(h(), h(J, 0), 1.0);
 
+        int world_size, rank;
         MPI_Comm_size(MPI_COMM_WORLD, &world_size);
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
@@ -217,7 +216,11 @@ public:
 
         Buffer<double> h({end - start, R});
         Buffer<double> scaled_h({end - start, R});
-        samples.initialize_to_shape({end - start, 1});
+        samples.initialize_to_shape({end - start, N});
+
+        // Samples is an array of size N x J 
+        computeM(j);
+        std::fill(h(), h(J, 0), 1.0);
 
         for(uint32_t k = 0; k < N; k++) {
             if(k != j) {
@@ -271,3 +274,15 @@ public:
         }
     }
 };
+
+
+void test_distributed_exact_leverage(LowRankTensor &ten) {
+    EfficientKRPSampler sampler(65000, ten.factors);
+
+    Buffer<uint32_t> samples;
+    Buffer<double> weights;
+
+    sampler.KRPDrawSamples(0, samples, weights);
+
+    cout << "Finished drawing samples!!!" << endl;
+}

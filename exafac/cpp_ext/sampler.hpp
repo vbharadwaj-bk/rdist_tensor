@@ -15,8 +15,8 @@ using namespace std;
 
 class __attribute__((visibility("hidden"))) Sampler {
 public:
-    uint64_t N, J, R, R2;
     vector<DistMat1D> &U;
+    uint64_t N, J, R, R2;
 
     // Related to random number generation 
     std::random_device rd;  
@@ -63,7 +63,7 @@ public:
     }
 
     virtual void update_sampler(uint64_t j) = 0;
-    virtual void KRPDrawSamples(uint32_t j, Buffer<uint32_t> &samples) = 0;
+    virtual void KRPDrawSamples(uint32_t j, Buffer<uint32_t> &samples, Buffer<double> &weights) = 0;
 
     virtual ~Sampler() {};
 };

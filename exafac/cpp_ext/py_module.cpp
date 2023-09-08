@@ -21,7 +21,9 @@
 #include "exact_als.hpp"
 #include "tensor_stationary_opt0.hpp"
 #include "accumulator_stationary_opt0.hpp"
-#include "distributed_exact_leverage.hpp"
+#include "sampler.hpp"
+#include "exact_leverage_tree.hpp"
+#include "efficient_krp_sampler.hpp"
 
 using namespace std;
 namespace py = pybind11;

@@ -33,17 +33,19 @@ def test_grid():
     low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 
-    histogram = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
-    exact_scores = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
-    test_distributed_exact_leverage(low_rank_tensor, histogram, exact_scores)
+    #histogram = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
+    #exact_scores = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
+    #test_distributed_exact_leverage(low_rank_tensor, histogram, exact_scores)
 
-    if rank == 0:
-        import matplotlib.pyplot as plt
-        print(np.sum(histogram))
-        plt.plot(histogram, label="histogram")
-        plt.plot(exact_scores / np.sum(exact_scores), label="exact_scores")
-        plt.legend()
-        plt.savefig("histogram.png")
+    test_distributed_exact_leverage(low_rank_tensor)
+
+    #if rank == 0:
+    #    import matplotlib.pyplot as plt
+    #    print(np.sum(histogram))
+    #    plt.plot(histogram, label="histogram")
+    #    plt.plot(exact_scores / np.sum(exact_scores), label="exact_scores")
+    #    plt.legend()
+    #    plt.savefig("histogram.png")
 
     #print(exact_scores)
     #print(histogram)

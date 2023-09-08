@@ -39,7 +39,6 @@ public:
             mL({J}),
             low({J}),
             high({J}),
-            random_draws({J}),
             a_array({J}),
             x_array({J}),
             y_array({J})

@@ -226,7 +226,7 @@ public:
             if(k != j) {
                 uint64_t row_count = scaled_h.shape[0];
                 std::copy(h(), h(row_count, 0), scaled_h());
-                ScratchBuffer eigen_scratch(1, end-start, R);
+                ScratchBuffer eigen_scratch(1, row_count, R);
                 Buffer<double> random_draws({row_count});
                 fill_buffer_random_draws(random_draws(), row_count);
 

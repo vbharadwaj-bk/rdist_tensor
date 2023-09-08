@@ -222,6 +222,7 @@ public:
         computeM(j);
         std::fill(h(), h({end - start}, 0), 1.0);
 
+
         for(uint32_t k = 0; k < N; k++) {
             if(k != j) {
                 uint64_t row_count = scaled_h.shape[0];
@@ -253,14 +254,16 @@ public:
             }
         }
 
+
         weights.initialize_to_shape({h.shape[0]});
+
 
         // Compute the weights associated with the samples
         compute_DAGAT(
             h(),
             M(),
             weights(),
-            J,
+            h.shape[0],
             R);
 
         #pragma omp parallel for 

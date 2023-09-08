@@ -143,6 +143,9 @@ public:
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
+        int comm_rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+
         uint64_t R = low_rank_tensor.rank; 
 
         // Step 2: Gather and sample factor matrices 
@@ -175,11 +178,6 @@ public:
             }
         }
         row_gather_time += stop_clock_get_elapsed(t); 
-
-        #pragma omp parallel for
-        for(uint64_t j = 0; j < J; j++) {
-            weights[j] = exp(weights[j]);
-        }
 
         Buffer<uint32_t> samples_dedup;
         Buffer<double> weights_dedup;

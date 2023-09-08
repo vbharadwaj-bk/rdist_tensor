@@ -63,7 +63,10 @@ public:
     }
 
     virtual void update_sampler(uint64_t j) = 0;
-    virtual void KRPDrawSamples(uint32_t j, Buffer<uint32_t> &samples, Buffer<double> &weights) = 0;
+    virtual void KRPDrawSamples(uint32_t j, 
+            Buffer<uint32_t> &samples, 
+            Buffer<double> &weights,
+            vector<Buffer<uint32_t>> &unique_row_indices) = 0;
 
     virtual ~Sampler() {};
 };

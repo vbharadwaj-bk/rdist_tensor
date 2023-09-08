@@ -260,11 +260,11 @@ public:
                 }
 
                 std::sort(sample_idxs_local(), sample_idxs_local(row_count));
-                uint32_t* end_unique = std::unique(sample_idxs_local(), sample_idxs_local(local_samples));
+                uint32_t* end_unique = std::unique(sample_idxs_local(), sample_idxs_local(row_count));
 
-                uint32_t num_unique = end_unique - sample_idxs_local();
+                uint64_t num_unique = end_unique - sample_idxs_local();
                 unique_row_indices.back().initialize_to_shape({num_unique});
-                std::copy(sample_idxs_local(), sample_idxs_local(num_unique), unique_row_indices.back());
+                std::copy(sample_idxs_local(), sample_idxs_local(num_unique), unique_row_indices.back()() );
             }
         }
 
@@ -286,8 +286,8 @@ public:
 
         Buffer<uint32_t> gathered_samples;
         Buffer<double> gathered_weights;
-        allgatherv_buffer(samples, gathered_samples);
-        allgatherv_buffer(weights, gathered_weights);
+        allgatherv_buffer(samples, gathered_samples, MPI_COMM_WORLD);
+        allgatherv_buffer(weights, gathered_weights, MPI_COMM_WORLD);
         samples.steal_resources(gathered_samples);
         weights.steal_resources(gathered_weights);
 
@@ -308,8 +308,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    vector<Buffer<uint32_t>> unique_row_indices; 
-    EfficientKRPSampler sampler(65000, ten.factors, unique_row_indices);
+    EfficientKRPSampler sampler(65000, ten.factors);
 
     if(rank == 0) {
         cout << "Constructed sampler..." << endl;
@@ -317,6 +316,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
 
     Buffer<uint32_t> samples;
     Buffer<double> weights;
+    vector<Buffer<uint32_t>> unique_row_indices; 
 
-    sampler.KRPDrawSamples(0, samples, weights);
+    sampler.KRPDrawSamples(0, samples, weights, unique_row_indices);
 }

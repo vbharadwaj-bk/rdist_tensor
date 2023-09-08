@@ -110,6 +110,8 @@ cfg['dependencies'] = [ 'common.h',
                         'accumulator_stationary_opt0.hpp',
                         'distributed_exact_leverage.hpp',
                         'partition_tree.hpp',
+                        'efficient_krp_sampler.hpp',
+                        'sampler.hpp',
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

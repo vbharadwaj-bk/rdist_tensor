@@ -502,13 +502,6 @@ public:
             uint32_t sample_offset = (uint32_t) (mat.row_position * mat.padded_rows);
 
             for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
-                if(indices[i] + sample_offset == 184) {
-                    /*cout << "Found 184 index!" << endl;
-                    cout << indices[i] << "("
-                        << draws[i] << ")"
-                        << mat.true_row_count << " "
-                        << sample_offset << endl;*/
-                }
                 indices[i] += sample_offset;
             }
         }

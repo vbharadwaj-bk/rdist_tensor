@@ -204,7 +204,8 @@ public:
 
     void KRPDrawSamples(uint32_t j, 
             Buffer<uint32_t> &samples,
-            Buffer<double> &weights) {
+            Buffer<double> &weights,    
+            vector<Buffer<uint32_t>> &unique_row_indices) {
 
         int world_size, rank;
         MPI_Comm_size(MPI_COMM_WORLD, &world_size);
@@ -224,6 +225,8 @@ public:
 
 
         for(uint32_t k = 0; k < N; k++) {
+            unique_row_indices.emplace_back();
+
             if(k != j) {
                 uint64_t row_count = scaled_h.shape[0];
                 std::copy(h(), h(h.shape[0] * h.shape[1]), scaled_h());
@@ -232,9 +235,7 @@ public:
                 ScratchBuffer eigen_scratch(1, scaled_h.shape[0], R);
 
                 fill_buffer_random_draws(random_draws(), row_count);
-
                 int offset = (k + 1 == j) ? k + 2 : k + 1;
-
                 eigen_trees[k]->PTSample(scaled_eigenvecs[offset], 
                         scaled_h,
                         h,
@@ -244,19 +245,31 @@ public:
                         k);
 
                 fill_buffer_random_draws(random_draws(), row_count);
-
                 gram_trees[k]->execute_tree_computation(
                         h,
                         scaled_h, 
                         samples, 
                         random_draws, 
-                        k);    
+                        k);
+
+                // Get a list of unique local samples
+                row_count = h.shape[0];
+                Buffer<uint32_t> sample_idxs_local({row_count});
+                for(uint64_t i = 0; i < row_count; i++) {
+                    sample_idxs_local[i] = samples[i * N + k];
+                }
+
+                std::sort(sample_idxs_local(), sample_idxs_local(row_count));
+                uint32_t* end_unique = std::unique(sample_idxs_local(), sample_idxs_local(local_samples));
+
+                uint32_t num_unique = end_unique - sample_idxs_local();
+                unique_row_indices.back().initialize_to_shape({num_unique});
+                std::copy(sample_idxs_local(), sample_idxs_local(num_unique), unique_row_indices.back());
             }
         }
 
 
         weights.initialize_to_shape({h.shape[0]});
-
 
         // Compute the weights associated with the samples
         compute_DAGAT(
@@ -270,6 +283,16 @@ public:
         for(uint32_t i = 0; i < h.shape[0]; i++) {
             weights[i] = (double) R / (weights[i] * J);
         }
+
+        Buffer<uint32_t> gathered_samples;
+        Buffer<double> gathered_weights;
+        allgatherv_buffer(samples, gathered_samples);
+        allgatherv_buffer(weights, gathered_weights);
+        samples.steal_resources(gathered_samples);
+        weights.steal_resources(gathered_weights);
+
+
+
     }
 
     ~EfficientKRPSampler() {
@@ -285,7 +308,8 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     int rank;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-    EfficientKRPSampler sampler(65000, ten.factors);
+    vector<Buffer<uint32_t>> unique_row_indices; 
+    EfficientKRPSampler sampler(65000, ten.factors, unique_row_indices);
 
     if(rank == 0) {
         cout << "Constructed sampler..." << endl;
@@ -295,6 +319,4 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     Buffer<double> weights;
 
     sampler.KRPDrawSamples(0, samples, weights);
-
-    cout << "Finished drawing samples!!!" << endl;
 }

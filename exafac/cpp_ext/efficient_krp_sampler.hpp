@@ -223,7 +223,6 @@ public:
         computeM(j);
         std::fill(h(), h({end - start}, 0), 1.0);
 
-
         for(uint32_t k = 0; k < N; k++) {
             unique_row_indices.emplace_back();
 
@@ -290,8 +289,6 @@ public:
         allgatherv_buffer(weights, gathered_weights, MPI_COMM_WORLD);
         samples.steal_resources(gathered_samples);
         weights.steal_resources(gathered_weights);
-
-
 
     }
 

@@ -147,8 +147,8 @@ public:
 
         // Step 2: Gather and sample factor matrices 
 
-        Buffer<uint32_t> samples({J, ground_truth.dim});
-        Buffer<double> weights({J});
+        Buffer<uint32_t> samples;
+        Buffer<double> weights;
         vector<Buffer<uint32_t>> unique_row_indices; 
 
         sampler.KRPDrawSamples(J, mode_to_leave, samples, weights, unique_row_indices);

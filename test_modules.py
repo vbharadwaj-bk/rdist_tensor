@@ -30,7 +30,7 @@ def test_grid():
     sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
 
     #sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
-    low_rank_tensor = LowRankTensor(5, sparse_tensor.tensor_grid)    
+    low_rank_tensor = LowRankTensor(25, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 
     #histogram = np.zeros(sparse_tensor.max_idxs[0] + 1, dtype=np.double)
@@ -60,7 +60,7 @@ def test_grid():
     fit = optimizer.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    optimizer.execute_ALS_rounds(10, 65536, 5)
+    optimizer.execute_ALS_rounds(40, 65536, 5)
 
     #optimizer.execute_ALS_rounds(5)
 

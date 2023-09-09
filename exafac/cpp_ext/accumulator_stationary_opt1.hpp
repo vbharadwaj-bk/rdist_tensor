@@ -54,8 +54,6 @@ public:
             uint32_t row_start = factor.row_position * factor.padded_rows;
             //uint32_t row_end = (factor.row_position + 1) * factor.padded_rows;
 
-            factor.compute_leverage_scores();
-
             uint64_t nnz = ground_truth.indices.shape[0];
             uint64_t proc_count = tensor_grid.grid.world_size;
 
@@ -154,13 +152,9 @@ public:
         Buffer<double> weights;
         vector<Buffer<uint32_t>> unique_row_indices; 
 
+        auto t = start_clock();
         sampler.KRPDrawSamples(J, mode_to_leave, samples, weights, unique_row_indices);
-
-        //gather_lk_samples_to_all(J, 
-        //        mode_to_leave, 
-        //        samples, 
-        //        weights,        
-        //        unique_row_indices);
+        leverage_sampling_time += stop_clock_get_elapsed(t);
 
         vector<Buffer<uint32_t>> compressed_row_indices;
         vector<Buffer<double>> factors_compressed;

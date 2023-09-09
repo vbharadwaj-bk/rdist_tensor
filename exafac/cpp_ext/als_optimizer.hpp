@@ -17,6 +17,7 @@ public:
 
     // Related to benchmarking 
     json stats;
+    double leverage_sampling_time;
     double leverage_computation_time, row_gather_time, dense_reduce_time, gram_mult_and_renorm_time;
     double spmm_time, nonzeros_iterated;
     double design_matrix_reindexing_time;
@@ -37,6 +38,7 @@ public:
         double fit_computation_time = 0.0;
 
         // Benchmarking timers 
+        leverage_sampling_time = 0.0;
         spmm_time = 0.0;
         nonzeros_iterated = 0.0;
         leverage_computation_time = 0.0; 
@@ -70,6 +72,7 @@ public:
         stats["num_rounds"] = num_rounds;
         stats["als_total_time"] = als_total_time; 
         stats["fit_computation_time"] = fit_computation_time; 
+        stats["leverage_sampling_time"] = compute_dstat(leverage_sampling_time, MPI_COMM_WORLD);
         stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
         stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
         stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);

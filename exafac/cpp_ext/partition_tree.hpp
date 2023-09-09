@@ -13,32 +13,39 @@
 
 using namespace std;
 
+// Create a struct with 5 double fields, q, m, mL, low, and high
+
+typedef struct {
+    double m;
+    double mL;
+    double low;
+    double high;
+} mdata_t;
+
 /*
 * Collection of temporary buffers that can be reused by all tree samplers 
 */
 class __attribute__((visibility("hidden"))) ScratchBuffer {
 public:
     uint64_t J;
-    Buffer<int64_t> c;
     Buffer<double> temp1;
+    Buffer<int64_t> c;
+    Buffer<mdata_t> mdata;
     Buffer<double> q;
-    Buffer<double> m;
-    Buffer<double> mL;
-    Buffer<double> low;
-    Buffer<double> high;
     Buffer<double*> a_array;
     Buffer<double*> x_array;
     Buffer<double*> y_array;
 
     ScratchBuffer(uint32_t F, uint64_t J, uint64_t R) :
             J(J),
-            c({J}),
             temp1({J, R}),
+            c({J}),
+            mdata({J}),
+            //m({J}),
+            //mL({J}),
+            //low({J}),
+            //high({J}),
             q({J, F}),
-            m({J}),
-            mL({J}),
-            low({J}),
-            high({J}),
             a_array({J}),
             x_array({J}),
             y_array({J})
@@ -212,13 +219,10 @@ public:
         uint64_t sample_matrix_width = samples.shape[1];
         int64_t J = (int64_t) h.shape[0];
 
-        Buffer<int64_t> &c = scratch.c;
         Buffer<double> &temp1 = scratch.temp1;
+        Buffer<int64_t> &c = scratch.c;
+        Buffer<mdata_t> &mdata = scratch.mdata;
         Buffer<double> &q = scratch.q;
-        Buffer<double> &m = scratch.m;
-        Buffer<double> &mL = scratch.mL;
-        Buffer<double> &low = scratch.low;
-        Buffer<double> &high = scratch.high;
         Buffer<double*> &a_array = scratch.a_array;
         Buffer<double*> &x_array = scratch.x_array;
         Buffer<double*> &y_array = scratch.y_array;
@@ -227,13 +231,13 @@ public:
 {
         #pragma omp for
         for(int64_t i = 0; i < J; i++) {
+            a_array[i] = G(0);
             x_array[i] = scaled_h(i, 0);
             y_array[i] = temp1(i, 0); 
 
             c[i] = 0;
-            low[i] = 0.0;
-            high[i] = 1.0;
-            a_array[i] = G(0);
+            mdata[i].low = 0.0;
+            mdata[i].high = 1.0;
         }
 
         execute_mkl_dsymv_batch(scratch);
@@ -264,14 +268,14 @@ public:
 
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
-                double cutoff = low[i] + mL[i] / m[i];
+                double cutoff = mdata[i].low + mdata[i].mL / mdata[i].m;
                 if(random_draws[i] <= cutoff) {
                     c[i] = 2 * c[i] + 1;
-                    high[i] = cutoff;
+                    mdata[i].high = cutoff;
                 }
                 else {
                     c[i] = 2 * c[i] + 2;
-                    low[i] = cutoff;
+                    mdata[i].low = cutoff;
                 }
             }
         }
@@ -294,14 +298,14 @@ public:
 
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
-                double cutoff = low[i] + mL[i] / m[i];
+                double cutoff = mdata[i].low + mdata[i].mL / mdata[i].m;
                 if((! is_leaf(c[i])) && random_draws[i] <= cutoff) {
                     c[i] = 2 * c[i] + 1;
-                    high[i] = cutoff;
+                    mdata[i].high = cutoff;
                 }
                 else if((! is_leaf(c[i])) && random_draws[i] > cutoff) {
                     c[i] = 2 * c[i] + 2;
-                    low[i] = cutoff;
+                    mdata[i].low = cutoff;
                 }
             }
         }
@@ -311,7 +315,7 @@ public:
         if(F > 1) {
             #pragma omp for
             for(int i = 0; i < J; i++) {
-                m[i] = (random_draws[i] - low[i]) / (high[i] - low[i]);
+                mdata[i].m = (random_draws[i] - mdata[i].low) / (mdata[i].high - mdata[i].low);
 
                 int64_t leaf_idx;
                 if(c[i] >= nodes_upto_lfill) {
@@ -359,7 +363,7 @@ public:
                 }
 
                 for(int64_t j = 0; j < F - 1; j++) {
-                    if(m[i] < q[i * F + j + 1]) {
+                    if(mdata[i].m < q[i * F + j + 1]) {
                         res = j; 
                         break;
                     }

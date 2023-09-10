@@ -16,9 +16,14 @@ using namespace std;
 // Create a struct with 5 double fields, q, m, mL, low, and high
 
 typedef struct {
+    int64_t c;
     double m;
     double low;
     double high;
+    double* a;
+    double* x;
+    double* y;
+    
 } mdata_t;
 
 /*
@@ -28,27 +33,14 @@ class __attribute__((visibility("hidden"))) ScratchBuffer {
 public:
     uint64_t J;
     Buffer<double> temp1;
-    Buffer<int64_t> c;
     Buffer<mdata_t> mdata;
-
     Buffer<double> q;
-    Buffer<double*> a_array;
-    Buffer<double*> x_array;
-    Buffer<double*> y_array;
 
     ScratchBuffer(uint32_t F, uint64_t J, uint64_t R) :
             J(J),
             temp1({J, R}),
-            c({J}),
             mdata({J}),
-            //m({J}),
-            //mL({J}),
-            //low({J}),
-            //high({J}),
-            q({J, F}),
-            a_array({J}),
-            x_array({J}),
-            y_array({J})
+            q({J, F})
     {}
 };
 
@@ -76,12 +68,12 @@ public:
                     CblasUpper, 
                     R, 
                     1.0, 
-                    (const double*) scratch.a_array[i],
+                    (const double*) scratch.mdata[i].a,
                     R, 
-                    (const double*) scratch.x_array[i], 
+                    (const double*) scratch.mdata[i].x, 
                     1, 
                     0.0, 
-                    scratch.y_array[i], 
+                    scratch.mdata[i].y, 
                     1);
         }
     }
@@ -220,12 +212,8 @@ public:
         int64_t J = (int64_t) h.shape[0];
 
         Buffer<double> &temp1 = scratch.temp1;
-        Buffer<int64_t> &c = scratch.c;
         Buffer<mdata_t> &mdata = scratch.mdata;
         Buffer<double> &q = scratch.q;
-        Buffer<double*> &a_array = scratch.a_array;
-        Buffer<double*> &x_array = scratch.x_array;
-        Buffer<double*> &y_array = scratch.y_array;
 
         Buffer<double> symv_do({J});
 
@@ -233,11 +221,11 @@ public:
 {
         #pragma omp for
         for(int64_t i = 0; i < J; i++) {
-            a_array[i] = G(0);
-            x_array[i] = scaled_h(i, 0);
-            y_array[i] = temp1(i, 0); 
+            mdata[i].a = G(0);
+            mdata[i].x = scaled_h(i, 0);
+            mdata[i].y = temp1(i, 0); 
 
-            c[i] = 0;
+            mdata[i].c = 0;
             mdata[i].low = 0.0;
             mdata[i].high = 1.0;
         }
@@ -260,7 +248,7 @@ public:
 
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
-                a_array[i] = G((2 * c[i] + 1) * R2); 
+                mdata[i].a = G((2 * mdata[i].c + 1) * R2); 
             }
 
             execute_mkl_dsymv_batch(scratch);
@@ -276,11 +264,11 @@ public:
             for(int64_t i = 0; i < J; i++) {
                 double cutoff = mdata[i].low + symv_do[i] / mdata[i].m;
                 if(random_draws[i] <= cutoff) {
-                    c[i] = 2 * c[i] + 1;
+                    mdata[i].c = 2 * mdata[i].c + 1;
                     mdata[i].high = cutoff;
                 }
                 else {
-                    c[i] = 2 * c[i] + 2;
+                    mdata[i].c = 2 * mdata[i].c + 2;
                     mdata[i].low = cutoff;
                 }
             }
@@ -290,7 +278,7 @@ public:
         if(node_count > nodes_before_lfill) {
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
-                a_array[i] = is_leaf(c[i]) ? a_array[i] : G((2 * c[i] + 1) * R2); 
+                mdata[i].a = is_leaf(mdata[i].c) ? mdata[i].a : G((2 * mdata[i].c + 1) * R2); 
             }
 
             execute_mkl_dsymv_batch(scratch);
@@ -305,12 +293,12 @@ public:
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
                 double cutoff = mdata[i].low + symv_do[i] / mdata[i].m;
-                if((! is_leaf(c[i])) && random_draws[i] <= cutoff) {
-                    c[i] = 2 * c[i] + 1;
+                if((! is_leaf(mdata[i].c)) && random_draws[i] <= cutoff) {
+                    mdata[i].c = 2 * mdata[i].c + 1;
                     mdata[i].high = cutoff;
                 }
-                else if((! is_leaf(c[i])) && random_draws[i] > cutoff) {
-                    c[i] = 2 * c[i] + 2;
+                else if((! is_leaf(mdata[i].c)) && random_draws[i] > cutoff) {
+                    mdata[i].c = 2 * mdata[i].c + 2;
                     mdata[i].low = cutoff;
                 }
             }
@@ -324,15 +312,15 @@ public:
                 mdata[i].m = (random_draws[i] - mdata[i].low) / (mdata[i].high - mdata[i].low);
 
                 int64_t leaf_idx;
-                if(c[i] >= nodes_upto_lfill) {
-                    leaf_idx = c[i] - nodes_upto_lfill;
+                if(mdata[i].c >= nodes_upto_lfill) {
+                    leaf_idx = mdata[i].c - nodes_upto_lfill;
                 }
                 else {
-                    leaf_idx = c[i] - complete_level_offset; 
+                    leaf_idx = mdata[i].c - complete_level_offset; 
                 }
 
-                a_array[i] = U(leaf_idx * F, 0);
-                y_array[i] = q(i * F);
+                mdata[i].a = U(leaf_idx * F, 0);
+                mdata[i].y = q(i * F);
                 
                 std::fill(q(i * F), q((i + 1) * F), 0.0);
                 uint64_t row_count = min((uint64_t) F, U.shape[0] - leaf_idx * F);
@@ -342,12 +330,12 @@ public:
                         row_count,
                         R, 
                         1.0, 
-                        (const double*) scratch.a_array[i],
+                        (const double*) mdata[i].a,
                         R, 
-                        (const double*) scratch.x_array[i], 
+                        (const double*) mdata[i].x, 
                         1, 
                         0.0, 
-                        scratch.y_array[i], 
+                        mdata[i].y, 
                         1);
             }
         }
@@ -379,7 +367,7 @@ public:
                 res = 0;
             }
 
-            int64_t idx = leaf_idx(c[i]);
+            int64_t idx = leaf_idx(mdata[i].c);
             samples[sample_matrix_width * i + sample_offset] = (uint32_t) (res + idx * F);
             
             for(int64_t j = 0; j < R; j++) {

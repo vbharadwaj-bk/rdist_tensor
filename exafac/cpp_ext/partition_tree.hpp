@@ -16,6 +16,8 @@ using namespace std;
 // Create a struct with 5 double fields, q, m, mL, low, and high
 
 typedef struct {
+    int64_t original_idx;
+    double draw;
     int64_t c;
     double m;
     double low;
@@ -215,12 +217,14 @@ public:
         Buffer<mdata_t> &mdata = scratch.mdata;
         Buffer<double> &q = scratch.q;
 
-        Buffer<double> symv_do({J});
+        Buffer<double> symv_do({(uint64_t) J});
 
         #pragma omp parallel
 {
         #pragma omp for
         for(int64_t i = 0; i < J; i++) {
+            mdata[i].original_idx = i;
+            mdata[i].draw = random_draws[i];
             mdata[i].a = G(0);
             mdata[i].x = scaled_h(i, 0);
             mdata[i].y = temp1(i, 0); 
@@ -239,7 +243,7 @@ public:
             );
 
         #pragma omp for
-        for(uint64_t i = 0; i < J; i++) {
+        for(uint64_t i = 0; i < (uint64_t) J; i++) {
             mdata[i].m = symv_do[i];
         }
 
@@ -263,7 +267,7 @@ public:
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
                 double cutoff = mdata[i].low + symv_do[i] / mdata[i].m;
-                if(random_draws[i] <= cutoff) {
+                if(mdata[i].draw <= cutoff) {
                     mdata[i].c = 2 * mdata[i].c + 1;
                     mdata[i].high = cutoff;
                 }
@@ -293,11 +297,11 @@ public:
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
                 double cutoff = mdata[i].low + symv_do[i] / mdata[i].m;
-                if((! is_leaf(mdata[i].c)) && random_draws[i] <= cutoff) {
+                if((! is_leaf(mdata[i].c)) && mdata[i].draw <= cutoff) {
                     mdata[i].c = 2 * mdata[i].c + 1;
                     mdata[i].high = cutoff;
                 }
-                else if((! is_leaf(mdata[i].c)) && random_draws[i] > cutoff) {
+                else if((! is_leaf(mdata[i].c)) && mdata[i].draw > cutoff) {
                     mdata[i].c = 2 * mdata[i].c + 2;
                     mdata[i].low = cutoff;
                 }
@@ -309,7 +313,7 @@ public:
         if(F > 1) {
             #pragma omp for
             for(int i = 0; i < J; i++) {
-                mdata[i].m = (random_draws[i] - mdata[i].low) / (mdata[i].high - mdata[i].low);
+                mdata[i].m = (mdata[i].draw - mdata[i].low) / (mdata[i].high - mdata[i].low);
 
                 int64_t leaf_idx;
                 if(mdata[i].c >= nodes_upto_lfill) {

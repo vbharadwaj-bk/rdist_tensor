@@ -17,7 +17,6 @@ using namespace std;
 
 typedef struct {
     double m;
-    double mL;
     double low;
     double high;
 } mdata_t;
@@ -31,6 +30,7 @@ public:
     Buffer<double> temp1;
     Buffer<int64_t> c;
     Buffer<mdata_t> mdata;
+
     Buffer<double> q;
     Buffer<double*> a_array;
     Buffer<double*> x_array;
@@ -227,6 +227,8 @@ public:
         Buffer<double*> &x_array = scratch.x_array;
         Buffer<double*> &y_array = scratch.y_array;
 
+        Buffer<double> symv_do({J});
+
         #pragma omp parallel
 {
         #pragma omp for
@@ -241,13 +243,17 @@ public:
         }
 
         execute_mkl_dsymv_batch(scratch);
-
         batch_dot_product(
             scaled_h(), 
             temp1(), 
-            m(),
+            symv_do(),
             J, R 
             );
+
+        #pragma omp for
+        for(uint64_t i = 0; i < J; i++) {
+            mdata[i].m = symv_do[i];
+        }
 
         for(uint32_t c_level = 0; c_level < lfill_level; c_level++) {
             // Prepare to compute m(L(v)) for all v
@@ -262,13 +268,13 @@ public:
             batch_dot_product(
                 scaled_h(), 
                 temp1(), 
-                mL(),
+                symv_do(),
                 J, R 
                 );
 
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
-                double cutoff = mdata[i].low + mdata[i].mL / mdata[i].m;
+                double cutoff = mdata[i].low + symv_do[i] / mdata[i].m;
                 if(random_draws[i] <= cutoff) {
                     c[i] = 2 * c[i] + 1;
                     mdata[i].high = cutoff;
@@ -292,13 +298,13 @@ public:
             batch_dot_product(
                 scaled_h(), 
                 temp1(), 
-                mL(),
+                symv_do(),
                 J, R 
                 );
 
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
-                double cutoff = mdata[i].low + mdata[i].mL / mdata[i].m;
+                double cutoff = mdata[i].low + symv_do[i] / mdata[i].m;
                 if((! is_leaf(c[i])) && random_draws[i] <= cutoff) {
                     c[i] = 2 * c[i] + 1;
                     mdata[i].high = cutoff;

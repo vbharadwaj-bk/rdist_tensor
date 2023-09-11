@@ -223,7 +223,7 @@ public:
 
     void PTSample(Buffer<double> &U, 
             Buffer<double> &h,
-            Buffer<double> &scaled_h,
+            Buffer<double> &scaled_h_in,
             Buffer<uint32_t> &samples,
             Buffer<double> &random_draws,
             ScratchBuffer &scratch,
@@ -240,9 +240,21 @@ public:
 
         Buffer<double> symv_do({(uint64_t) J});
         Buffer<uint32_t> perm({(uint64_t) J});
+        Buffer<double> scaled_h({(uint64_t) J, (uint64_t) R});
+        std::copy(scaled_h_in(), scaled_h_in(J * R), scaled_h());
 
         #pragma omp parallel
 {
+
+        #pragma omp for
+        for(int64_t i = 0; i < J; i++) {
+            mdata[i].original_idx = i;
+            mdata[i].draw = random_draws[i];
+
+            mdata[i].c = 0;
+            mdata[i].low = 0.0;
+            mdata[i].high = 1.0;
+        }
 
         #pragma omp single
         {
@@ -264,15 +276,9 @@ public:
 
         #pragma omp for
         for(int64_t i = 0; i < J; i++) {
-            mdata[i].original_idx = i;
-            mdata[i].draw = random_draws[i];
             mdata[i].a = G(0);
             mdata[i].x = scaled_h(i, 0);
             mdata[i].y = temp1(i, 0); 
-
-            mdata[i].c = 0;
-            mdata[i].low = 0.0;
-            mdata[i].high = 1.0;
         }
 
         execute_mkl_dsymv_batch(scratch);
@@ -353,23 +359,6 @@ public:
             }
         }
 
-        #pragma omp single
-        {
-            new_mdata = new Buffer<mdata_t>({(uint64_t) J});
-            new_scaled_h = new Buffer<double>({(uint64_t) J, (uint64_t) R});
-        }
-        apply_permutation_parallel(mdata, perm, *new_mdata);
-        apply_permutation_parallel(scaled_h, perm, *new_scaled_h);
-        #pragma omp barrier
-        #pragma omp single
-        {
-            mdata.steal_resources(*new_mdata);
-            scaled_h.steal_resources(*new_scaled_h);
-            delete new_mdata;
-            delete new_scaled_h;
-        }
-
-
         // We will use the m array as a buffer 
         // for the draw fractions.
         if(F > 1) {
@@ -434,13 +423,32 @@ public:
                 res = 0;
             }
 
+            int64_t original_idx = mdata[i].original_idx;
+
             int64_t idx = leaf_idx(mdata[i].c);
-            samples[sample_matrix_width * i + sample_offset] = (uint32_t) (res + idx * F);
-            
+            samples[sample_matrix_width * original_idx + sample_offset] = (uint32_t) (res + idx * F); 
+
             for(int64_t j = 0; j < R; j++) {
-                h[i * R + j] *= U[(res + idx * F) * R + j];
+                h[original_idx * R + j] *= U[(res + idx * F) * R + j];
             }  
         }
+
+        /*#pragma omp single
+        {
+            new_mdata = new Buffer<mdata_t>({(uint64_t) J});
+            new_scaled_h = new Buffer<double>({(uint64_t) J, (uint64_t) R});
+        }
+        apply_permutation_parallel(mdata, perm, *new_mdata);
+        apply_permutation_parallel(scaled_h, perm, *new_scaled_h);
+        #pragma omp barrier
+        #pragma omp single
+        {
+            mdata.steal_resources(*new_mdata);
+            scaled_h.steal_resources(*new_scaled_h);
+            delete new_mdata;
+            delete new_scaled_h;
+        }*/
+
 }
     }
 };

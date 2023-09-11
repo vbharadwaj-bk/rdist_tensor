@@ -202,6 +202,25 @@ public:
         }
     }
 
+    template<typename VAL_T>
+    void apply_permutation_parallel(Buffer<VAL_T> &in, Buffer<uint32_t> &perm, Buffer<VAL_T> &out) {
+        if(in.shape.size() == 1) {
+            #pragma omp for
+            for(uint64_t i = 0; i < in.shape[0]; i++) {
+                out[i] = in[perm[i]];
+            }
+        }
+        else if(in.shape.size() == 2) {
+            uint64_t col_dim = in.shape[1];
+            #pragma omp for
+            for(uint64_t i = 0; i < in.shape[0]; i++) {
+                for(uint64_t j = 0; j < in.shape[1]; j++) {
+                    out[i * col_dim + j] = in[perm[i] * col_dim + j];
+                }
+            }
+        }
+    }
+
     void PTSample(Buffer<double> &U, 
             Buffer<double> &h,
             Buffer<double> &scaled_h,
@@ -216,11 +235,33 @@ public:
         Buffer<double> &temp1 = scratch.temp1;
         Buffer<mdata_t> &mdata = scratch.mdata;
         Buffer<double> &q = scratch.q;
+        Buffer<mdata_t>* new_mdata;
+        Buffer<double>* new_scaled_h;
 
         Buffer<double> symv_do({(uint64_t) J});
+        Buffer<uint32_t> perm({(uint64_t) J});
 
         #pragma omp parallel
 {
+
+        #pragma omp single
+        {
+            std::iota(perm(), perm(J), 0);
+            std::reverse(perm(), perm(J));
+            new_mdata = new Buffer<mdata_t>({(uint64_t) J});
+            new_scaled_h = new Buffer<double>({(uint64_t) J, (uint64_t) R});
+        }
+        apply_permutation_parallel(mdata, perm, *new_mdata);
+        apply_permutation_parallel(scaled_h, perm, *new_scaled_h);
+        #pragma omp barrier
+        #pragma omp single
+        {
+            mdata.steal_resources(*new_mdata);
+            scaled_h.steal_resources(*new_scaled_h);
+            delete new_mdata;
+            delete new_scaled_h;
+        }
+
         #pragma omp for
         for(int64_t i = 0; i < J; i++) {
             mdata[i].original_idx = i;
@@ -247,12 +288,30 @@ public:
             mdata[i].m = symv_do[i];
         }
 
+        #pragma omp single
+        {
+            new_mdata = new Buffer<mdata_t>({(uint64_t) J});
+            new_scaled_h = new Buffer<double>({(uint64_t) J, (uint64_t) R});
+        }
+        apply_permutation_parallel(mdata, perm, *new_mdata);
+        apply_permutation_parallel(scaled_h, perm, *new_scaled_h);
+        #pragma omp barrier
+        #pragma omp single
+        {
+            mdata.steal_resources(*new_mdata);
+            scaled_h.steal_resources(*new_scaled_h);
+            delete new_mdata;
+            delete new_scaled_h;
+        }
+
         for(uint32_t c_level = 0; c_level < lfill_level; c_level++) {
             // Prepare to compute m(L(v)) for all v
 
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
                 mdata[i].a = G((2 * mdata[i].c + 1) * R2); 
+                mdata[i].x = scaled_h(i, 0);
+                mdata[i].y = temp1(i, 0); 
             }
 
             execute_mkl_dsymv_batch(scratch);
@@ -283,6 +342,8 @@ public:
             #pragma omp for
             for(int64_t i = 0; i < J; i++) {
                 mdata[i].a = is_leaf(mdata[i].c) ? mdata[i].a : G((2 * mdata[i].c + 1) * R2); 
+                mdata[i].x = scaled_h(i, 0);
+                mdata[i].y = temp1(i, 0); 
             }
 
             execute_mkl_dsymv_batch(scratch);
@@ -324,6 +385,7 @@ public:
                 }
 
                 mdata[i].a = U(leaf_idx * F, 0);
+                mdata[i].x = scaled_h(i, 0);
                 mdata[i].y = q(i * F);
                 
                 std::fill(q(i * F), q((i + 1) * F), 0.0);

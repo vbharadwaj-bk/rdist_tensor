@@ -288,22 +288,6 @@ public:
             mdata[i].m = symv_do[i];
         }
 
-        #pragma omp single
-        {
-            new_mdata = new Buffer<mdata_t>({(uint64_t) J});
-            new_scaled_h = new Buffer<double>({(uint64_t) J, (uint64_t) R});
-        }
-        apply_permutation_parallel(mdata, perm, *new_mdata);
-        apply_permutation_parallel(scaled_h, perm, *new_scaled_h);
-        #pragma omp barrier
-        #pragma omp single
-        {
-            mdata.steal_resources(*new_mdata);
-            scaled_h.steal_resources(*new_scaled_h);
-            delete new_mdata;
-            delete new_scaled_h;
-        }
-
         for(uint32_t c_level = 0; c_level < lfill_level; c_level++) {
             // Prepare to compute m(L(v)) for all v
 
@@ -369,6 +353,23 @@ public:
             }
         }
 
+        #pragma omp single
+        {
+            new_mdata = new Buffer<mdata_t>({(uint64_t) J});
+            new_scaled_h = new Buffer<double>({(uint64_t) J, (uint64_t) R});
+        }
+        apply_permutation_parallel(mdata, perm, *new_mdata);
+        apply_permutation_parallel(scaled_h, perm, *new_scaled_h);
+        #pragma omp barrier
+        #pragma omp single
+        {
+            mdata.steal_resources(*new_mdata);
+            scaled_h.steal_resources(*new_scaled_h);
+            delete new_mdata;
+            delete new_scaled_h;
+        }
+
+
         // We will use the m array as a buffer 
         // for the draw fractions.
         if(F > 1) {
@@ -405,7 +406,7 @@ public:
                         1);
             }
         }
-        
+
         #pragma omp for
         for(int64_t i = 0; i < J; i++) {
             int64_t res; 

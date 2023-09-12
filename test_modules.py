@@ -26,7 +26,8 @@ def test_grid():
     # Get the MPI rank with mpi4py
     rank = MPI.COMM_WORLD.Get_rank()
 
-    sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5', grid) 
+    sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/reddit-2015.tns_converted.hdf5', grid, preprocessing="log_count") 
+    #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5', grid) 
     #sparse_tensor = DistSparseTensorE('/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5', grid) 
 
     #sparse_tensor = DistSparseTensorE('../tensors/uber.tns_converted.hdf5', grid) 
@@ -54,13 +55,13 @@ def test_grid():
     #optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
 
     #optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
+    optimizer = AccumulatorStationaryOpt1(sparse_tensor.sparse_tensor, low_rank_tensor) 
     optimizer.initialize_ground_truth_for_als()
 
     fit = optimizer.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {fit}")
-    optimizer.execute_ALS_rounds(10, 65536, 5)
+    optimizer.execute_ALS_rounds(80, 65536, 5)
 
     #optimizer.execute_ALS_rounds(5)
 

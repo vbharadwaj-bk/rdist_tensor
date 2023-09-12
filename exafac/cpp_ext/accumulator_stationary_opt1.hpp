@@ -159,7 +159,7 @@ public:
         vector<Buffer<uint32_t>> compressed_row_indices;
         vector<Buffer<double>> factors_compressed;
 
-        auto t = start_clock(); 
+        t = start_clock(); 
         for(uint64_t i = 0; i < dim; i++) {
             compressed_row_indices.emplace_back();
             factors_compressed.emplace_back();

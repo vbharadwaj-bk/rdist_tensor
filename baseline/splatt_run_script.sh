@@ -1,14 +1,25 @@
-TENSOR_NAME=uber
-#TENSOR_NAME=reddit-2015
+#!/bin/bash
+#SBATCH -N 4
+#SBATCH -C cpu
+#SBATCH -q regular
+#SBATCH -t 04:00:00
 
-#$SPLATT_LOC/splatt cpd \
-#        $BIN_TENSOR_LOC/$TENSOR_NAME.bin \
-#        -r 25 -t 128 --nowrite 
+TENSOR_LOC=/pscratch/sd/v/vbharadw/tensors
+SPLATT_LOC=/global/cfs/projectdirs/m1982/vbharadw/splatt/build/Linux-x86_64/bin
 
+TRIAL_COUNT=5
+TOL=1e-5
+MAX_ITER=80
 
-#$SPLATT_LOC/splatt check \
-#        $BIN_TENSOR_LOC/$TENSOR_NAME.bin
+export OMP_NUM_THREADS=2
 
-srun -N 1 -n 1 $SPLATT_LOC/splatt cpd \
-        $BIN_TENSOR_LOC/$TENSOR_NAME.bin \
-        -r 25 -t 128 --nowrite 
+TENSOR=reddit-2015-spl-binary.bin
+OUT_FILE=outputs/reddit_trace.txt
+echo "----" + $(date) + "----" >> $OUT_FILE
+for RANK in 100 
+do
+    for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
+    do
+        srun -N 4 -n 256 -c 4 -u $SPLATT_LOC/splatt cpd $TENSOR_LOC/$TENSOR -r $RANK --nowrite -i $MAX_ITER --tol $TOL >> $OUT_FILE
+    done
+done

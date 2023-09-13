@@ -65,7 +65,7 @@ def decompose(args, output_filename, trial_num):
 
         output_dict = {
             'time': now.strftime('%m/%d/%Y, %H:%M:%S'),
-            'metadata': args.metadata
+            'metadata': args.metadata,
             'input': args.input,
             'target_rank': args.trank,
             'iterations': args.iter,
@@ -101,7 +101,7 @@ if __name__=='__main__':
     parser.add_argument("-o", "--output_folder", help="Folder name to print statistics", required=True)
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
     parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=True, type=int)
-    parser.add_argument("-m", "--metadata", help="A string piece of metadata to include output json", required=False, type=string, default="")
+    parser.add_argument("-m", "--metadata", help="A string piece of metadata to include output json", required=False, type=str, default="")
     #parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
     #parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
     #parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)

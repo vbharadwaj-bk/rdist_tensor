@@ -47,6 +47,14 @@ public:
         gram_mult_and_renorm_time = 0.0;
         design_matrix_reindexing_time = 0.0; 
 
+        vector<uint64_t> rounds;
+        vector<double> fits, als_times, fit_computation_times;
+
+        rounds.push_back(0);
+        fits.push_back(0);
+        als_times.push_back(0);
+        fit_computation_times.push_back(0);
+
         for(uint64_t round = 1; round <= num_rounds; round++) {
             if(grid.rank == 0) {
                 cout << "Starting ALS round " << (round) << endl; 
@@ -66,20 +74,36 @@ public:
                 if(grid.rank == 0) {
                     cout << "Exact fit after " << round << " rounds: " << exact_fit << endl;
                 }
+                rounds.push_back(round);
+                fits.push_back(exact_fit);
+                als_times.push_back(als_total_time);
+                fit_computation_times.push_back(fit_computation_time);
             }
         }
 
         stats["num_rounds"] = num_rounds;
         stats["als_total_time"] = als_total_time; 
         stats["fit_computation_time"] = fit_computation_time; 
-        stats["leverage_sampling_time"] = compute_dstat(leverage_sampling_time, MPI_COMM_WORLD);
-        stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
-        stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
-        stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);
-        stats["row_gather_time"] = compute_dstat(row_gather_time, MPI_COMM_WORLD);
-        stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
-        stats["gram_mult_and_renorm_time"] = compute_dstat(gram_mult_and_renorm_time, MPI_COMM_WORLD);
-        stats["design_matrix_reindexing_time"] = compute_dstat(design_matrix_reindexing_time, MPI_COMM_WORLD);
+
+        // TODO: Need to re-enable these timers!
+        //stats["leverage_sampling_time"] = compute_dstat(leverage_sampling_time, MPI_COMM_WORLD);
+        //stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
+        //stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
+        //stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);
+        //stats["row_gather_time"] = compute_dstat(row_gather_time, MPI_COMM_WORLD);
+        //stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
+        //stats["gram_mult_and_renorm_time"] = compute_dstat(gram_mult_and_renorm_time, MPI_COMM_WORLD);
+        //stats["design_matrix_reindexing_time"] = compute_dstat(design_matrix_reindexing_time, MPI_COMM_WORLD);
+
+        json rounds_json(rounds);
+        json fits_json(fits);
+        json als_times_json(als_times);
+        json fit_computation_times_json(fit_computation_times);
+
+        stats["rounds"] = rounds_json;
+        stats["fits"] = fits_json;
+        stats["als_times"] = als_times_json;
+        stats["fit_computation_times"] = fit_computation_times; 
 
         if(grid.rank == 0) {
             cout << stats.dump(4) << endl;
@@ -204,7 +228,7 @@ public:
     }
 
     double compute_exact_fit() {
-        return ground_truth.compute_exact_fit(low_rank_tensor);
+        return max(ground_truth.compute_exact_fit(low_rank_tensor), 0.0);
     }
 
     virtual void execute_ALS_step(uint64_t mode, uint64_t J) = 0;

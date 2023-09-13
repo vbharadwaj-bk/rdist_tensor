@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.h"
+#include <string>
 #include <algorithm>
 #include <execution>
 
@@ -104,10 +105,10 @@ public:
         stats["fits"] = fits_json;
         stats["als_times"] = als_times_json;
         stats["fit_computation_times"] = fit_computation_times; 
+    }
 
-        if(grid.rank == 0) {
-            cout << stats.dump(4) << endl;
-        }
+    std::string get_statistics_json() {
+        return stats.dump(4);
     }
 
     void deduplicate_design_matrix(

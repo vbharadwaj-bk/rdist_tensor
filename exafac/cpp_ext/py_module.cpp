@@ -50,6 +50,7 @@ PYBIND11_MODULE(py_module, m) {
     py::class_<ALS_Optimizer>(m, "ALS_Optimizer")
         .def("initialize_ground_truth_for_als", &ALS_Optimizer::initialize_ground_truth_for_als)
         .def("execute_ALS_rounds", &ALS_Optimizer::execute_ALS_rounds)
+        .def("get_statistics_json", &ALS_Optimizer::get_statistics_json)
         .def("compute_exact_fit", &ALS_Optimizer::compute_exact_fit);
     py::class_<ExactALS>(m, "ExactALS")
         .def(py::init<SparseTensor&, LowRankTensor&>())

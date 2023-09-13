@@ -14,8 +14,8 @@ python decompose.py -i uber \
 export OMP_NUM_THREADS=16
 export TRIAL_COUNT=5
 
-for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
-do
+#for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
+#do
 #    srun -N 4 -n 32 -c 32 python decompose.py -i reddit \
 #                        --trank 100 \
 #                        -s 65536 \
@@ -24,4 +24,4 @@ do
 #                        -dist accumulator_stationary \
 #                        -o data/fit_progress_vs_time \
 #                        -r 5
-done
+#done

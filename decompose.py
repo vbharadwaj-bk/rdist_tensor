@@ -58,9 +58,10 @@ def decompose(args, output_filename, trial_num):
     else:
         print("Error, need to fix this!")
 
+    optimizer_stats = json.loads(optimizer.get_statistics_json())
+
     final_fit = optimizer.compute_exact_fit()
     if rank == 0:
-        print(f"Final Fit: {final_fit}")
         now = datetime.now()
 
         output_dict = {
@@ -77,8 +78,10 @@ def decompose(args, output_filename, trial_num):
             'trial_num': trial_num,
             'initial_fit': initial_fit,
             'final_fit': final_fit,
-            'stats': None,
+            'stats': optimizer_stats,
         }
+        print(json.dumps(output_dict, indent=4))
+        print(f"Final Fit: {final_fit}")
 
         with open(os.path.join(args.output_folder, output_filename), 'w') as f:
             f.write(json.dumps(output_dict, indent=4)) 

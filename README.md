@@ -1,1 +1,1 @@
-# Exafac (Working Name): Sampling Algorithms for Randomized Sparse Tensor Decomposition
+# Distributed Randomized Algorithms for Sparse Tensor CP Decomposition 

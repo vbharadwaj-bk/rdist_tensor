@@ -108,8 +108,7 @@ class DistSparseTensorE:
                 self.tensor_grid, 
                 self.tensor_idxs, 
                 self.values,
-                preprocessing 
-                )
+                preprocessing)
 
         MPI.COMM_WORLD.Barrier()
         if self.rank == 0:

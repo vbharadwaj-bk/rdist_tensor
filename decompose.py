@@ -7,7 +7,7 @@ import cppimport.import_hook
 
 
 def decompose(args, output_filename, trial_num):
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, TensorStationaryOpt0, AccumulatorStationaryOpt0, AccumulatorStationaryOpt1, test_distributed_exact_leverage 
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, AccumulatorStationaryOpt0, AccumulatorStationaryOpt1, test_distributed_exact_leverage 
     from exafac.sparse_tensor_e import DistSparseTensorE
     from exafac.grid import Grid as GridPy
     from exafac.grid import TensorGrid as TensorGridPy

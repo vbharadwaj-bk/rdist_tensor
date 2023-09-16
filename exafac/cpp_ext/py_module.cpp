@@ -19,12 +19,13 @@
 #include "sparse_tensor.hpp"
 #include "als_optimizer.hpp"
 #include "exact_als.hpp"
-#include "tensor_stationary_opt0.hpp"
+//#include "tensor_stationary_opt0.hpp"
 #include "accumulator_stationary_opt0.hpp"
 #include "accumulator_stationary_opt1.hpp"
 #include "sampler.hpp"
 #include "exact_leverage_tree.hpp"
 #include "efficient_krp_sampler.hpp"
+#include "cp_arls_lev.hpp"
 
 using namespace std;
 namespace py = pybind11;
@@ -56,8 +57,8 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<SparseTensor&, LowRankTensor&>())
         .def("execute_ALS_rounds", &ExactALS::execute_ALS_rounds)
         .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
-    py::class_<TensorStationaryOpt0, ALS_Optimizer>(m, "TensorStationaryOpt0")
-        .def(py::init<SparseTensor&, LowRankTensor&>());
+    //py::class_<TensorStationaryOpt0, ALS_Optimizer>(m, "TensorStationaryOpt0")
+    //    .def(py::init<SparseTensor&, LowRankTensor&>());
     py::class_<AccumulatorStationaryOpt0, ALS_Optimizer>(m, "AccumulatorStationaryOpt0")
         .def(py::init<SparseTensor&, LowRankTensor&>());
     py::class_<AccumulatorStationaryOpt1, ALS_Optimizer>(m, "AccumulatorStationaryOpt1")
@@ -111,12 +112,12 @@ cfg['dependencies'] = [ 'common.h',
                         'sort_lookup.hpp',
                         'exact_als.hpp',
                         'als_optimizer.hpp',
-                        'tensor_stationary_opt0.hpp',
                         'accumulator_stationary_opt0.hpp',
                         'accumulator_stationary_opt1.hpp',
                         'exact_leverage_tree.hpp',
                         'partition_tree.hpp',
                         'efficient_krp_sampler.hpp',
+                        'cp_arls_lev.hpp',
                         'sampler.hpp',
                         '../../config.json' 
                         ]

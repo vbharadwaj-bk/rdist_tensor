@@ -192,7 +192,7 @@ public:
         #pragma omp parallel
 {
         int thread_id = omp_get_thread_num();
-        auto &local_gen = par_gen[thread_id];
+        auto &local_gen = local_rng.par_gen[thread_id];
 
         #pragma omp for
         for(uint64_t i = 0; i < len; i++) {

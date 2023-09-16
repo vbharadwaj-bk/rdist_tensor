@@ -5,6 +5,8 @@
 #include "low_rank_tensor.hpp"
 #include "alltoallv_revised.hpp"
 #include "json.hpp"
+#include "efficient_krp_sampler.hpp"
+#include "cp_arls_lev.hpp"
 
 #include <algorithm>
 
@@ -21,12 +23,15 @@ public:
     vector<Buffer<double>> values;
     vector<unique_ptr<SortIdxLookup<uint32_t, double>>> lookups;
 
-    AccumulatorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
+    CP_ARLS_LEV sampler;
+
+    AccumulatorStationaryOpt1(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
     ALS_Optimizer(ground_truth, low_rank_tensor),
     tensor_grid(ground_truth.tensor_grid),
     grid(ground_truth.tensor_grid.grid),
-    dim(ground_truth.dim)
+    dim(ground_truth.dim),
+    sampler(low_rank_tensor.factors)
     {
     }
 
@@ -49,8 +54,6 @@ public:
             //uint64_t row_count = tensor_grid.padded_row_counts[i] * world_size; 
             uint32_t row_start = factor.row_position * factor.padded_rows;
             //uint32_t row_end = (factor.row_position + 1) * factor.padded_rows;
-
-            factor.compute_leverage_scores();
 
             uint64_t nnz = ground_truth.indices.shape[0];
             uint64_t proc_count = tensor_grid.grid.world_size;
@@ -139,24 +142,25 @@ public:
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
+        int comm_rank;
+        MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
+
         uint64_t R = low_rank_tensor.rank; 
 
         // Step 2: Gather and sample factor matrices 
 
-        Buffer<uint32_t> samples({J, ground_truth.dim});
-        Buffer<double> weights({J});
+        Buffer<uint32_t> samples;
+        Buffer<double> weights;
         vector<Buffer<uint32_t>> unique_row_indices; 
 
-        gather_lk_samples_to_all(J, 
-                mode_to_leave, 
-                samples, 
-                weights,        
-                unique_row_indices);
+        auto t = start_clock();
+        sampler.KRPDrawSamples(J, mode_to_leave, samples, weights, unique_row_indices);
+        leverage_sampling_time += stop_clock_get_elapsed(t);
 
         vector<Buffer<uint32_t>> compressed_row_indices;
         vector<Buffer<double>> factors_compressed;
 
-        auto t = start_clock(); 
+        t = start_clock(); 
         for(uint64_t i = 0; i < dim; i++) {
             compressed_row_indices.emplace_back();
             factors_compressed.emplace_back();
@@ -169,11 +173,6 @@ public:
             }
         }
         row_gather_time += stop_clock_get_elapsed(t); 
-
-        #pragma omp parallel for
-        for(uint64_t j = 0; j < J; j++) {
-            weights[j] = exp(weights[j]);
-        }
 
         Buffer<uint32_t> samples_dedup;
         Buffer<double> weights_dedup;
@@ -297,7 +296,8 @@ public:
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
 
         t = start_clock();
-        target_factor.compute_leverage_scores();
+        sampler.update_sampler(mode_to_leave);
+        //target_factor.compute_leverage_scores();
         leverage_computation_time += stop_clock_get_elapsed(t);
     }
 };

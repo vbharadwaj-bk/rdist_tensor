@@ -26,12 +26,6 @@ public:
     uint64_t true_row_count;
 
     Buffer<double> data;
-
-    // Related to leverage-score sampling
-    Buffer<double> leverage_scores;
-
-    // End leverage score-related variables
-
     MPI_Comm ordered_world; 
 
     DistMat1D(uint64_t cols, 
@@ -54,7 +48,6 @@ public:
             true_row_count = min(padded_rows, rows - row_position * padded_rows);
         }
         data.initialize_to_shape({padded_rows, cols});
-        leverage_scores.initialize_to_shape({padded_rows});
 
         // Create a communicator that puts all slices in order 
         MPI_Group world_group; 
@@ -172,79 +165,6 @@ public:
             }
         }
 }
-    }
-
-    void compute_leverage_scores() {
-        Buffer<double> gram({cols, cols});
-        Buffer<double> gram_pinv({cols, cols});
-
-        compute_gram_matrix(gram);
-        compute_pinv_square(gram, gram_pinv, cols);
-        compute_DAGAT(data(), gram_pinv(), leverage_scores(), true_row_count, cols);
-    }
-
-    void draw_leverage_score_samples(uint64_t J, 
-            Buffer<uint32_t> &sample_idxs, 
-            Buffer<double> &log_weights,
-            Buffer<uint32_t> &unique_local_samples) {
-        Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
-        Multistream_RNG local_rng;
-
-        double leverage_sum = std::accumulate(leverage_scores(), leverage_scores(true_row_count), 0.0);
-        Buffer<double> leverage_sums({(uint64_t) grid.world_size});
-        Buffer<uint64_t> samples_per_process({(uint64_t) grid.world_size}); 
-        MPI_Allgather(&leverage_sum,
-            1,
-            MPI_DOUBLE,
-            leverage_sums(),
-            1,
-            MPI_DOUBLE,
-            grid.world
-            );
-
-        double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
-
-        // Should cache the distributions 
-        std::discrete_distribution<uint32_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
-        std::discrete_distribution<uint32_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
-
-        // Not multithreaded, can thread if this becomes the bottleneck. 
-        std::fill(samples_per_process(), samples_per_process(grid.world_size), 0);
-
-        for(uint64_t j = 0; j < J; j++) {
-            uint64_t sample = global_dist(global_rng.par_gen[0]);
-            samples_per_process[sample]++; 
-        }
-
-        uint64_t local_samples = samples_per_process[grid.rank];
-
-        Buffer<uint32_t> sample_idxs_local({local_samples});
-        Buffer<double> sample_weights_local({local_samples});
-
-        std::fill(sample_weights_local(), sample_weights_local(local_samples), 0.0);
-
-        uint32_t offset = row_position * padded_rows;
-
-        for(uint64_t i = 0; i < local_samples; i++) {
-            uint32_t sample = local_dist(local_rng.par_gen[0]);
-            sample_idxs_local[i] = offset + sample; 
-
-            // Need to do some more reweighting here, fine for now 
-            sample_weights_local[i] += log(total_leverage_weight) - log(leverage_scores[sample]);
-        }
-
-        allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);
-        allgatherv_buffer(sample_weights_local, log_weights, MPI_COMM_WORLD);
-
-        // Get a deduplicated list of unique samples per process
-        // Need to change the execution policy to parallel 
-        std::sort(sample_idxs_local(), sample_idxs_local(local_samples));
-        uint32_t* end_unique = std::unique(sample_idxs_local(), sample_idxs_local(local_samples));
-
-        uint32_t num_unique = end_unique - sample_idxs_local();
-        unique_local_samples.initialize_to_shape({num_unique});
-
-        std::copy(sample_idxs_local(), sample_idxs_local(num_unique), unique_local_samples());
     }
 
     void gather_row_samples(

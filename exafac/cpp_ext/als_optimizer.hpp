@@ -189,45 +189,6 @@ public:
         }
     }
 
-    void gather_lk_samples_to_all(
-            uint64_t J, 
-            uint64_t mode_to_leave,
-            Buffer<uint32_t> &samples, 
-            Buffer<double> &weights, 
-            vector<Buffer<uint32_t>> &unique_row_indices) {
-
-        std::fill(samples(), samples(J * ground_truth.dim), 0);
-        std::fill(weights(), weights(J), 0.0 - log((double) J));
-        Consistent_Multistream_RNG global_rng(MPI_COMM_WORLD);
-
-        // Collect all samples and randomly permute along each mode 
-        for(uint64_t i = 0; i < ground_truth.dim; i++) {
-            unique_row_indices.emplace_back();
-
-            if(i == mode_to_leave) {
-                continue;
-            }
-
-            Buffer<uint32_t> sample_idxs;
-            Buffer<double> log_weights;
-             
-            low_rank_tensor.factors[i].draw_leverage_score_samples(J, sample_idxs, log_weights, unique_row_indices[i]);
-
-            Buffer<uint32_t> rand_perm({J});
-            std::iota(rand_perm(), rand_perm(J), 0);
-            std::shuffle(rand_perm(), rand_perm(J), global_rng.par_gen[0]);
-
-            apply_permutation(rand_perm, sample_idxs);
-            apply_permutation(rand_perm, log_weights);
-
-            #pragma omp parallel for
-            for(uint64_t j = 0; j < J; j++) {
-                samples[j * ground_truth.dim + i] = sample_idxs[j];
-                weights[j] += log_weights[j]; 
-            }
-        }
-    }
-
     double compute_exact_fit() {
         return max(ground_truth.compute_exact_fit(low_rank_tensor), 0.0);
     }

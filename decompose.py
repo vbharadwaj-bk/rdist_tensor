@@ -9,8 +9,6 @@ import cppimport.import_hook
 def decompose(args, output_filename, trial_num):
     from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, AccumulatorStationaryOpt0, AccumulatorStationaryOpt1, test_distributed_exact_leverage 
     from exafac.sparse_tensor_e import DistSparseTensorE
-    from exafac.grid import Grid as GridPy
-    from exafac.grid import TensorGrid as TensorGridPy
 
     grid = None 
     rank = MPI.COMM_WORLD.Get_rank()
@@ -61,7 +59,7 @@ def decompose(args, output_filename, trial_num):
     optimizer_stats = json.loads(optimizer.get_statistics_json())
 
     final_fit = optimizer.compute_exact_fit()
-    if rank == 0:
+    if rank == 0 and output_filename is not None:
         now = datetime.now()
 
         output_dict = {
@@ -101,7 +99,7 @@ if __name__=='__main__':
     parser.add_argument('-dist','--distribution', type=str, help='Data distribution (tensor_stationary / accumulator_stationary)')
     parser.add_argument('-alg','--algorithm', type=str, help='Algorithm to perform decomposition')
     parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
-    parser.add_argument("-o", "--output_folder", help="Folder name to print statistics", required=True)
+    parser.add_argument("-o", "--output_folder", help="Folder name to print statistics", required=False)
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
     parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=True, type=int)
     parser.add_argument("-m", "--metadata", help="A string piece of metadata to include output json", required=False, type=str, default="")
@@ -123,7 +121,7 @@ if __name__=='__main__':
     output_filename = None 
     trial_num = None
 
-    if rank == 0:
+    if rank == 0 and args.output_folder is not None:
         print("Loading Python modules...")
         import exafac.cpp_ext.py_module
         print("Modules loaded!")
@@ -150,7 +148,7 @@ if __name__=='__main__':
 
     remaining_trials = MPI.COMM_WORLD.bcast(remaining_trials, root=0)
     
-    if len(remaining_trials) == 0:
+    if remaining_trials is not None and len(remaining_trials) == 0:
         if rank == 0:
             print("No trials left to perform!")
         exit(0)

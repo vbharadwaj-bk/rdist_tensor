@@ -23,10 +23,10 @@ public:
 
     Sampler(vector<DistMat1D> &U_matrices) : 
         U(U_matrices),
-        R(U_matrices[0].cols),
-        global_rng(MPI_COMM_WORLD),
         N(U.size()),
-        R2(R * R)
+        R(U_matrices[0].cols),
+        R2(R * R),
+        global_rng(MPI_COMM_WORLD)
     {
     }
 

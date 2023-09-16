@@ -133,11 +133,6 @@ public:
             make_unique<SortIdxLookup<uint32_t, double>>(
                 dim, 0, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
             )); 
-
-        for(uint64_t i = 0; i < dim; i++) {
-            DistMat1D &factor = low_rank_tensor.factors[i];
-            factor.compute_leverage_scores();
-        }
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {

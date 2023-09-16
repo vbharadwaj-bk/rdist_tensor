@@ -7,6 +7,7 @@
 using namespace std;
 
 class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
+public:
     vector<Buffer<double>> leverage_scores;
 
     CP_ARLS_LEV(
@@ -29,7 +30,7 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
 
         mat.compute_gram_matrix(gram);
         compute_pinv_square(gram, gram_pinv, mat.cols);
-        compute_DAGAT(data(), gram_pinv(), scores(), mat.true_row_count, mat.cols);
+        compute_DAGAT(mat.data(), gram_pinv(), scores(), mat.true_row_count, mat.cols);
     }
 
     void KRPDrawSamples(uint64_t J,
@@ -52,7 +53,7 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
             Buffer<uint32_t> sample_idxs;
             Buffer<double> log_weights;
              
-            U[i].draw_leverage_score_samples(J, sample_idxs, log_weights, unique_row_indices[i]);
+            draw_leverage_score_samples(J, i, sample_idxs, log_weights, unique_row_indices[i]);
 
             Buffer<uint32_t> rand_perm({J});
             std::iota(rand_perm(), rand_perm(J), 0);
@@ -63,11 +64,15 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
 
             #pragma omp parallel for
             for(uint64_t j = 0; j < J; j++) {
-                samples[j * ground_truth.dim + i] = sample_idxs[j];
+                samples[j * N + i] = sample_idxs[j];
                 weights[j] += log_weights[j]; 
             }
         }
 
+        #pragma omp parallel for
+        for(uint64_t j = 0; j < J; j++) { 
+            weights[j] = exp(weights[j]); 
+        }
     }
 
     void draw_leverage_score_samples(uint64_t J,
@@ -76,7 +81,7 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
             Buffer<double> &log_weights,
             Buffer<uint32_t> &unique_local_samples) {
 
-        Buffer<double> &mat = U[j];
+        DistMat1D &mat = U[j];
         Buffer<double> &scores = leverage_scores[j];
         Grid &grid = mat.grid;
 
@@ -95,7 +100,7 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
         double total_leverage_weight = std::accumulate(leverage_sums(), leverage_sums(grid.world_size), 0.0);
 
         // Should cache the distributions 
-        std::discrete_distribution<uint32_t> local_dist(leverage_scores(), leverage_scores(true_row_count));
+        std::discrete_distribution<uint32_t> local_dist(scores(), scores(mat.true_row_count));
         std::discrete_distribution<uint32_t> global_dist(leverage_sums(), leverage_sums(grid.world_size));
 
         // Not multithreaded, can thread if this becomes the bottleneck. 
@@ -118,8 +123,7 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
         for(uint64_t i = 0; i < local_samples; i++) {
             uint32_t sample = local_dist(local_rng.par_gen[0]);
             sample_idxs_local[i] = offset + sample; 
-
-            sample_weights_local[i] += log(total_leverage_weight) - log(leverage_scores[sample]);
+            sample_weights_local[i] += log(total_leverage_weight) - log(scores[sample]);
         }
 
         allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);

@@ -5,9 +5,11 @@ import h5py
 
 from exafac.cpp_ext.py_module import Grid, TensorGrid, SparseTensor
 from mpi4py import MPI
-from exafac.common import * 
 
 import cppimport.import_hook
+
+def round_to_nearest(n, m):
+    return (n + m - 1) // m * m
 
 def prime_factorization(n):
     prime_factors = []

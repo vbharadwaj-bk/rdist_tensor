@@ -25,7 +25,7 @@ public:
 
     CP_ARLS_LEV sampler;
 
-    AccumulatorStationaryOpt1(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
+    AccumulatorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
     ALS_Optimizer(ground_truth, low_rank_tensor),
     tensor_grid(ground_truth.tensor_grid),
@@ -134,11 +134,6 @@ public:
             make_unique<SortIdxLookup<uint32_t, double>>(
                 dim, 0, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
             )); 
-
-        for(uint64_t i = 0; i < dim; i++) {
-            DistMat1D &factor = low_rank_tensor.factors[i];
-            factor.compute_leverage_scores();
-        }
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
@@ -297,7 +292,6 @@ public:
 
         t = start_clock();
         sampler.update_sampler(mode_to_leave);
-        //target_factor.compute_leverage_scores();
         leverage_computation_time += stop_clock_get_elapsed(t);
     }
 };

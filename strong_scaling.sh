@@ -3,7 +3,7 @@
 python decompose.py -i uber \
                     --trank 25 \
                     -s 65536 \
-                    -iter 10 \
+                    -iter 40 \
                     -alg cp_arls_lev \
                     -dist accumulator_stationary \
                     -r 1

@@ -59,28 +59,28 @@ def decompose(args, output_filename, trial_num):
     optimizer_stats = json.loads(optimizer.get_statistics_json())
 
     final_fit = optimizer.compute_exact_fit()
+
+    now = datetime.now()
+    output_dict = {
+        'time': now.strftime('%m/%d/%Y, %H:%M:%S'),
+        'metadata': args.metadata,
+        'input': args.input,
+        'target_rank': args.trank,
+        'iterations': args.iter,
+        'algorithm': args.algorithm,
+        'data_distribution': args.distribution,
+        'sample_count': args.samples,
+        'accuracy_epoch_length': args.epoch_iter,
+        'trial_count': args.repetitions,
+        'trial_num': trial_num,
+        'initial_fit': initial_fit,
+        'final_fit': final_fit,
+        'stats': optimizer_stats,
+    }
+    print(json.dumps(output_dict, indent=4))
+    print(f"Final Fit: {final_fit}")
+
     if rank == 0 and output_filename is not None:
-        now = datetime.now()
-
-        output_dict = {
-            'time': now.strftime('%m/%d/%Y, %H:%M:%S'),
-            'metadata': args.metadata,
-            'input': args.input,
-            'target_rank': args.trank,
-            'iterations': args.iter,
-            'algorithm': args.algorithm,
-            'data_distribution': args.distribution,
-            'sample_count': args.samples,
-            'accuracy_epoch_length': args.epoch_iter,
-            'trial_count': args.repetitions,
-            'trial_num': trial_num,
-            'initial_fit': initial_fit,
-            'final_fit': final_fit,
-            'stats': optimizer_stats,
-        }
-        print(json.dumps(output_dict, indent=4))
-        print(f"Final Fit: {final_fit}")
-
         with open(os.path.join(args.output_folder, output_filename), 'w') as f:
             f.write(json.dumps(output_dict, indent=4)) 
 

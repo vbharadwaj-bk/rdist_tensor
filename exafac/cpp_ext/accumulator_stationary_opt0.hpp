@@ -32,7 +32,7 @@ public:
     grid(ground_truth.tensor_grid.grid),
     dim(ground_truth.dim),
     sampler(low_rank_tensor.factors)
-    {
+    { 
     }
 
     void initialize_ground_truth_for_als() {

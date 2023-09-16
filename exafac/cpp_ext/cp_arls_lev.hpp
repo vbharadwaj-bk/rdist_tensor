@@ -39,6 +39,9 @@ public:
             Buffer<double> &weights,    
             vector<Buffer<uint32_t>> &unique_row_indices) {
 
+        samples.initialize_to_shape({J, N});
+        weights.initialize_to_shape({J});
+
         std::fill(samples(), samples(J * N), 0);
         std::fill(weights(), weights(J), 0.0 - log((double) J));
 

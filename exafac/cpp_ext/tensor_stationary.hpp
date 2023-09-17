@@ -35,9 +35,8 @@ public:
             MPI_Comm_size(grid.slices[i], &world_size);
             uint64_t row_count = tensor_grid.padded_row_counts[i] * world_size;
 
-            gathered_factors.emplace_back(
-                Buffer<double>({row_count, low_rank_tensor.rank})
-            );
+            gathered_factors.emplace_back();
+            gathered_factors[i].initialize_to_shape({row_count, low_rank_tensor.rank});
 
             // Allgather factors into buffers and compute gram matrices
             DistMat1D &factor = low_rank_tensor.factors[i];
@@ -131,7 +130,7 @@ public:
                     result -= ground_truth.offsets[i];
                     filtered_samples[packed_offsets[j] * ground_truth.dim + i] = result;
                 }
-                filtered_weights[packed_offsets[j]] = exp(weights[j]);
+                filtered_weights[packed_offsets[j]] = weights[j];
             }
         }
 
@@ -203,17 +202,17 @@ public:
             0.0);
 
         auto t = start_clock();
-        /*nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
+        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res
-            );*/
+            );
 
-        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->csr_based_spmm(
+        /*nonzeros_iterated += ground_truth.lookups[mode_to_leave]->csr_based_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res 
-            );
+            );*/
         double elapsed = stop_clock_get_elapsed(t);
         MPI_Barrier(MPI_COMM_WORLD);
         spmm_time += elapsed; 

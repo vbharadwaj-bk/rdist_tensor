@@ -6,7 +6,10 @@ import cppimport
 import cppimport.import_hook
 
 def decompose(args, output_filename, trial_num):
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, AccumulatorStationary, CP_ARLS_LEV, STS_CP
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, \
+        DistMat1D, LowRankTensor, ExactALS, \
+        AccumulatorStationary, \
+        TensorStationary, CP_ARLS_LEV, STS_CP
     from exafac.sparse_tensor_e import DistSparseTensorE
 
     grid = None 
@@ -81,12 +84,14 @@ def decompose(args, output_filename, trial_num):
         'final_fit': final_fit,
         'stats': optimizer_stats,
     }
-    print(json.dumps(output_dict, indent=4))
-    print(f"Final Fit: {final_fit}")
 
-    if rank == 0 and output_filename is not None:
-        with open(os.path.join(args.output_folder, output_filename), 'w') as f:
-            f.write(json.dumps(output_dict, indent=4)) 
+    if rank == 0: 
+        print(json.dumps(output_dict, indent=4))
+        print(f"Final Fit: {final_fit}")
+
+        if output_filename is not None:
+            with open(os.path.join(args.output_folder, output_filename), 'w') as f:
+                f.write(json.dumps(output_dict, indent=4)) 
 
 
 if __name__=='__main__':

@@ -22,7 +22,7 @@
 
 #include "als_optimizer.hpp"
 #include "exact_als.hpp"
-//#include "tensor_stationary_opt0.hpp"
+#include "tensor_stationary.hpp"
 #include "accumulator_stationary.hpp"
 
 #include "sampler.hpp"
@@ -62,8 +62,8 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<SparseTensor&, LowRankTensor&>())
         .def("execute_ALS_rounds", &ExactALS::execute_ALS_rounds)
         .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
-    //py::class_<TensorStationaryOpt0, ALS_Optimizer>(m, "TensorStationaryOpt0")
-    //    .def(py::init<SparseTensor&, LowRankTensor&>());
+    py::class_<TensorStationary, ALS_Optimizer>(m, "TensorStationary")
+        .def(py::init<SparseTensor&, LowRankTensor&, Sampler&>());
     py::class_<AccumulatorStationary, ALS_Optimizer>(m, "AccumulatorStationary")
         .def(py::init<SparseTensor&, LowRankTensor&, Sampler&>());
 
@@ -121,6 +121,7 @@ cfg['dependencies'] = [ 'common.h',
                         'als_optimizer.hpp',
                         'exact_als.hpp',
                         'accumulator_stationary.hpp',
+                        'tensor_stationary.hpp',
                         'sampler.hpp',
                         'cp_arls_lev.hpp',
                         'partition_tree.hpp',

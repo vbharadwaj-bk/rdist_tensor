@@ -4,6 +4,7 @@
 #include "sparse_tensor.hpp"
 #include "low_rank_tensor.hpp"
 #include "als_optimizer.hpp"
+#include "sampler.hpp"
 #include "json.hpp"
 
 using json = nlohmann::json;
@@ -49,8 +50,6 @@ public:
                 MPI_DOUBLE,
                 grid.slices[i]
             );
-
-            factor.compute_leverage_scores();
         }
     }
 
@@ -208,7 +207,7 @@ public:
             mttkrp_res
             );*/
 
-        nonzeros_iterated += lookups[mode_to_leave]->csr_based_spmm(
+        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->csr_based_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res 

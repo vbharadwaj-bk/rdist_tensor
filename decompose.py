@@ -49,7 +49,7 @@ def decompose(args, output_filename, trial_num):
         if args.distribution == "accumulator_stationary":
             optimizer = AccumulatorStationary(sparse_tensor.sparse_tensor, low_rank_tensor, sampler)
         elif args.distribution == "tensor_stationary":
-            optimizer = TensorStationary(sparse_tensor, low_rank_tensor, sampler)
+            optimizer = TensorStationary(sparse_tensor.sparse_tensor, low_rank_tensor, sampler)
         else:
             raise ValueError(f"Unrecognized distribution {args.distribution}") 
     optimizer.initialize_ground_truth_for_als()

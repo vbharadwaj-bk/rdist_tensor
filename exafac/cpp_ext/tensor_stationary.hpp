@@ -5,6 +5,8 @@
 #include "low_rank_tensor.hpp"
 #include "als_optimizer.hpp"
 #include "sampler.hpp"
+#include "cp_arls_lev.hpp"
+#include "sts_cp.hpp"
 #include "json.hpp"
 
 using json = nlohmann::json;
@@ -22,10 +24,10 @@ public:
 
     Sampler &sampler;
 
-    TensorStationary(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor, Sampler &sampler) 
+    TensorStationary(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor, Sampler &sampler_in) 
     :
     ALS_Optimizer(ground_truth, low_rank_tensor),
-    sampler(sampler)
+    sampler(sampler_in)
     {
         uint64_t R = low_rank_tensor.rank; 
         for(uint64_t i = 0; i < dim; i++) {

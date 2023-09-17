@@ -10,7 +10,7 @@ using json = nlohmann::json;
 
 using namespace std;
 
-class __attribute__((visibility("hidden"))) TensorStationaryOpt0 : public ALS_Optimizer {
+class __attribute__((visibility("hidden"))) TensorStationary : public ALS_Optimizer {
 public:
     vector<Buffer<double>> gathered_factors;
 
@@ -19,9 +19,12 @@ public:
     double leverage_computation_time, dense_gather_time, dense_reduce_time;
     double spmm_time, nonzeros_iterated;
 
-    TensorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
+    Sampler &sampler;
+
+    TensorStationary(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor, Sampler &sampler) 
     :
-    ALS_Optimizer(ground_truth, low_rank_tensor)
+    ALS_Optimizer(ground_truth, low_rank_tensor),
+    sampler(sampler)
     {
         uint64_t R = low_rank_tensor.rank; 
         for(uint64_t i = 0; i < dim; i++) {
@@ -80,15 +83,11 @@ public:
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank;
 
-        Buffer<uint32_t> samples({J, ground_truth.dim});
-        Buffer<double> weights({J});
+        Buffer<uint32_t> samples;
+        Buffer<double> weights;
         vector<Buffer<uint32_t>> unique_row_indices; 
 
-        gather_lk_samples_to_all(J, 
-                mode_to_leave, 
-                samples, 
-                weights,
-                unique_row_indices);
+        sampler.KRPDrawSamples(J, mode_to_leave, samples, weights, unique_row_indices);
 
         Buffer<uint32_t> filtered_samples;
         Buffer<double> filtered_weights;
@@ -203,10 +202,16 @@ public:
             0.0);
 
         auto t = start_clock();
-        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
+        /*nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res
+            );*/
+
+        nonzeros_iterated += lookups[mode_to_leave]->csr_based_spmm(
+            samples_dedup, 
+            design_matrix,
+            mttkrp_res 
             );
         double elapsed = stop_clock_get_elapsed(t);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -262,7 +267,7 @@ public:
         row_gather_time += stop_clock_get_elapsed(t);
 
         t = start_clock();
-        target_factor.compute_leverage_scores();
+        sampler.update_sampler(mode_to_leave);
         leverage_computation_time += stop_clock_get_elapsed(t);
     }
 };

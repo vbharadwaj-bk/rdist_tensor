@@ -170,7 +170,9 @@ public:
     void gather_row_samples(
                 Buffer<uint32_t> &indices_local,  
                 Buffer<uint32_t> &indices_gathered,
-                Buffer<double> &rows_gathered) {
+                Buffer<double> &rows_gathered,
+                MPI_Comm gather_world 
+                ) {
             
         uint64_t local_samples = indices_local.shape[0];
         Buffer<double> rows_local({local_samples, cols});
@@ -186,7 +188,7 @@ public:
             }
         }
 
-        allgatherv_buffer(indices_local, indices_gathered, ordered_world);
-        allgatherv_buffer(rows_local, rows_gathered, ordered_world);
+        allgatherv_buffer(indices_local, indices_gathered, gather_world);
+        allgatherv_buffer(rows_local, rows_gathered, gather_world);
     }
 };

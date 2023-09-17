@@ -164,7 +164,9 @@ public:
                 low_rank_tensor.factors[i].gather_row_samples(
                     unique_row_indices[i],
                     compressed_row_indices[i],
-                    factors_compressed[i]);
+                    factors_compressed[i],
+                    low_rank_tensor.factors[i].ordered_world 
+                    );
             }
         }
         row_gather_time += stop_clock_get_elapsed(t); 

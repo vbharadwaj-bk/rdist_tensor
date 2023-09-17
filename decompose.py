@@ -105,7 +105,7 @@ if __name__=='__main__':
     parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-o", "--output_folder", help="Folder name to print statistics", required=False)
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
-    parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=True, type=int)
+    parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=False, type=int)
     parser.add_argument("-m", "--metadata", help="A string piece of metadata to include output json", required=False, type=str, default="")
     #parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
     #parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)

@@ -5,9 +5,8 @@ from datetime import datetime
 import cppimport
 import cppimport.import_hook
 
-
 def decompose(args, output_filename, trial_num):
-    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, AccumulatorStationaryOpt0, AccumulatorStationaryOpt1, test_distributed_exact_leverage 
+    from exafac.cpp_ext.py_module import Grid, TensorGrid, DistMat1D, LowRankTensor, ExactALS, AccumulatorStationary
     from exafac.sparse_tensor_e import DistSparseTensorE
 
     grid = None 
@@ -33,18 +32,23 @@ def decompose(args, output_filename, trial_num):
     low_rank_tensor = LowRankTensor(args.trank, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 
-    # We currently don't support the "algorithm" argument. 
-
     if args.algorithm == 'exact':
+        # Ignore the distribution for exact ALS, this is alawys tensor stationary. 
         optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    elif args.algorithm == 'cp_arls_lev':
-        optimizer = AccumulatorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    elif args.algorithm == 'sts_cp':
-        #optimizer = TensorStationaryOpt0(sparse_tensor.sparse_tensor, low_rank_tensor)
-        optimizer = AccumulatorStationaryOpt1(sparse_tensor.sparse_tensor, low_rank_tensor) 
     else:
-        raise ValueError(f"Unknown algorithm {args.algorithm}")
+        if args.algorithm == 'cp_arls_lev':
+            sampler = CP_ARLS_LEV(low_rank_tensor)
+        elif args.algorithm == 'sts_cp':
+            sampler = STS_CP(low_rank_tensor)
+        else:
+            raise ValueError(f"Unknown algorithm {args.algorithm}")
 
+        if args.distribution == "accumulator_stationary":
+            optimizer = AccumulatorStationary(sparse_tensor.sparse_tensor, low_rank_tensor, sampler)
+        elif args.distribution == "tensor_stationary":
+            optimizer = TensorStationary(sparse_tensor, low_rank_tensor, sampler)
+        else:
+            raise ValueError(f"Unrecognized distribution {args.distribution}") 
     optimizer.initialize_ground_truth_for_als()
 
     initial_fit = optimizer.compute_exact_fit()

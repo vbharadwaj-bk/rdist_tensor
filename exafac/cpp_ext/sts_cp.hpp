@@ -15,7 +15,7 @@
 
 using namespace std;
 
-class __attribute__((visibility("hidden"))) EfficientKRPSampler: public Sampler {
+class __attribute__((visibility("hidden"))) STS_CP : public Sampler {
 public:
     Buffer<double> M;
     Buffer<double> lambda;
@@ -29,10 +29,9 @@ public:
     // Related to random number generation 
     std::uniform_real_distribution<> dis;
 
-    EfficientKRPSampler(
-            vector<DistMat1D> &U_matrices)
+    STS_CP(LowRankTensor &tensor)
     :       
-            Sampler(U_matrices),
+            Sampler(tensor),
             M({U_matrices.size() + 2, R * R}),
             lambda({U_matrices.size() + 1, R}),
             dis(0.0, 1.0) 
@@ -292,7 +291,7 @@ public:
 
     }
 
-    ~EfficientKRPSampler() {
+    ~STS_CP() {
         for(uint32_t i = 0; i < N; i++) {
             delete gram_trees[i];
             delete eigen_trees[i];
@@ -306,7 +305,7 @@ void test_distributed_exact_leverage(LowRankTensor &ten) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
     uint64_t J = 65000;
-    EfficientKRPSampler sampler(ten.factors);
+    STS_CP sampler(ten);
 
     if(rank == 0) {
         cout << "Constructed sampler..." << endl;

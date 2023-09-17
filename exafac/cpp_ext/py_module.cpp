@@ -14,18 +14,22 @@
 
 #include "common.h"
 #include "grid.hpp"
+#include "alltoallv_revised.hpp"
+
 #include "distmat.hpp"
 #include "low_rank_tensor.hpp"
 #include "sparse_tensor.hpp"
+
 #include "als_optimizer.hpp"
 #include "exact_als.hpp"
 //#include "tensor_stationary_opt0.hpp"
-#include "accumulator_stationary_opt0.hpp"
-#include "accumulator_stationary_opt1.hpp"
+#include "accumulator_stationary.hpp"
+
 #include "sampler.hpp"
-#include "exact_leverage_tree.hpp"
-#include "efficient_krp_sampler.hpp"
 #include "cp_arls_lev.hpp"
+#include "exact_leverage_tree.hpp"
+#include "sts_cp.hpp"
+
 
 using namespace std;
 namespace py = pybind11;
@@ -48,6 +52,7 @@ PYBIND11_MODULE(py_module, m) {
             py::array_t<uint32_t>, 
             py::array_t<double>, 
             std::string>());
+
     py::class_<ALS_Optimizer>(m, "ALS_Optimizer")
         .def("initialize_ground_truth_for_als", &ALS_Optimizer::initialize_ground_truth_for_als)
         .def("execute_ALS_rounds", &ALS_Optimizer::execute_ALS_rounds)
@@ -59,11 +64,14 @@ PYBIND11_MODULE(py_module, m) {
         .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
     //py::class_<TensorStationaryOpt0, ALS_Optimizer>(m, "TensorStationaryOpt0")
     //    .def(py::init<SparseTensor&, LowRankTensor&>());
-    py::class_<AccumulatorStationaryOpt0, ALS_Optimizer>(m, "AccumulatorStationaryOpt0")
-        .def(py::init<SparseTensor&, LowRankTensor&>());
-    py::class_<AccumulatorStationaryOpt1, ALS_Optimizer>(m, "AccumulatorStationaryOpt1")
-        .def(py::init<SparseTensor&, LowRankTensor&>());
-    m.def("test_distributed_exact_leverage", &test_distributed_exact_leverage);
+    py::class_<AccumulatorStationary, ALS_Optimizer>(m, "AccumulatorStationary")
+        .def(py::init<SparseTensor&, LowRankTensor&, Sampler&>());
+
+    py::class_<Sampler>(m, "Sampler");
+    py::class_<CP_ARLS_LEV, Sampler>(m, "CP_ARLS_LEV")
+        .def(py::init<LowRankTensor&>());
+    py::class_<STS_CP, Sampler>(m, "STS_CP")
+        .def(py::init<LowRankTensor&>());
 }
 
 /*
@@ -104,21 +112,24 @@ print(f"Linking C++ extensions with {link_args}")
 cfg['extra_compile_args'] = compile_args 
 cfg['extra_link_args'] = link_args 
 cfg['dependencies'] = [ 'common.h',
-                        'alltoallv_revised.hpp',
                         'grid.hpp',
+                        'alltoallv_revised.hpp',
+
                         'distmat.hpp',
                         'low_rank_tensor.hpp',
                         'sparse_tensor.hpp',
                         'sort_lookup.hpp',
-                        'exact_als.hpp',
+
                         'als_optimizer.hpp',
-                        'accumulator_stationary_opt0.hpp',
-                        'accumulator_stationary_opt1.hpp',
-                        'exact_leverage_tree.hpp',
-                        'partition_tree.hpp',
-                        'efficient_krp_sampler.hpp',
-                        'cp_arls_lev.hpp',
+                        'exact_als.hpp',
+                        'accumulator_stationary.hpp',
+
                         'sampler.hpp',
+                        'cp_arls_lev.hpp',
+                        'partition_tree.hpp',
+                        'exact_leverage_tree.hpp',
+                        'sts_cp.hpp',
+
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

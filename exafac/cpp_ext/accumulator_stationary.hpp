@@ -12,7 +12,7 @@
 
 using namespace std;
 
-class __attribute__((visibility("hidden"))) AccumulatorStationaryOpt0 : public ALS_Optimizer{
+class __attribute__((visibility("hidden"))) AccumulatorStationary : public ALS_Optimizer{
 public:
     TensorGrid &tensor_grid;
     Grid &grid;
@@ -23,15 +23,15 @@ public:
     vector<Buffer<double>> values;
     vector<unique_ptr<SortIdxLookup<uint32_t, double>>> lookups;
 
-    CP_ARLS_LEV sampler;
+    Sampler &sampler;
 
-    AccumulatorStationaryOpt0(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
+    AccumulatorStationary(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor, Sampler &sampler_in) 
     :
     ALS_Optimizer(ground_truth, low_rank_tensor),
     tensor_grid(ground_truth.tensor_grid),
     grid(ground_truth.tensor_grid.grid),
     dim(ground_truth.dim),
-    sampler(low_rank_tensor.factors)
+    sampler(sampler_in)
     { 
     }
 

@@ -21,8 +21,8 @@ public:
     Consistent_Multistream_RNG global_rng;
     Multistream_RNG local_rng;
 
-    Sampler(vector<DistMat1D> &U_matrices) : 
-        U(U_matrices),
+    Sampler(LowRanktensor &tensor) : 
+        U(tensor.factors),
         N(U.size()),
         R(U_matrices[0].cols),
         R2(R * R),

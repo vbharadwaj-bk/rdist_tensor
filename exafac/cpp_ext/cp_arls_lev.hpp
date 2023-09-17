@@ -10,10 +10,9 @@ class __attribute__((visibility("hidden"))) CP_ARLS_LEV : public Sampler {
 public:
     vector<Buffer<double>> leverage_scores;
 
-    CP_ARLS_LEV(
-            vector<DistMat1D> &U_matrices)
+    CP_ARLS_LEV(LowRankTensor &tensor)
     :       
-            Sampler(U_matrices) 
+            Sampler(tensor) 
     {
         for(uint64_t i = 0; i < N; i++) {
             leverage_scores.emplace_back();

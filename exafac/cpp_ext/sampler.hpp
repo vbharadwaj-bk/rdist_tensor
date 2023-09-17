@@ -21,10 +21,10 @@ public:
     Consistent_Multistream_RNG global_rng;
     Multistream_RNG local_rng;
 
-    Sampler(LowRanktensor &tensor) : 
+    Sampler(LowRankTensor &tensor) : 
         U(tensor.factors),
         N(U.size()),
-        R(U_matrices[0].cols),
+        R(U[0].cols),
         R2(R * R),
         global_rng(MPI_COMM_WORLD)
     {

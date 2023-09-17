@@ -3,6 +3,7 @@
 #include "common.h"
 #include "distmat.hpp"
 #include "grid.hpp"
+#include "sampler.hpp"
 
 using namespace std;
 

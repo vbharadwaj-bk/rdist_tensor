@@ -5,7 +5,7 @@
 #include "low_rank_tensor.hpp"
 #include "alltoallv_revised.hpp"
 #include "json.hpp"
-#include "efficient_krp_sampler.hpp"
+#include "sts_cp.hpp"
 #include "cp_arls_lev.hpp"
 
 #include <algorithm>

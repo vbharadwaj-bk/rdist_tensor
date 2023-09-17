@@ -32,8 +32,8 @@ public:
     STS_CP(LowRankTensor &tensor)
     :       
             Sampler(tensor),
-            M({U_matrices.size() + 2, R * R}),
-            lambda({U_matrices.size() + 1, R}),
+            M({U.size() + 2, R * R}),
+            lambda({U.size() + 1, R}),
             dis(0.0, 1.0) 
     {   
         eigenvalue_tolerance = 1e-8; // Tolerance of eigenvalues for symmetric PINV 

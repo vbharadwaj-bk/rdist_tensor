@@ -114,22 +114,18 @@ cfg['extra_link_args'] = link_args
 cfg['dependencies'] = [ 'common.h',
                         'grid.hpp',
                         'alltoallv_revised.hpp',
-
                         'distmat.hpp',
                         'low_rank_tensor.hpp',
                         'sparse_tensor.hpp',
                         'sort_lookup.hpp',
-
                         'als_optimizer.hpp',
                         'exact_als.hpp',
                         'accumulator_stationary.hpp',
-
                         'sampler.hpp',
                         'cp_arls_lev.hpp',
                         'partition_tree.hpp',
                         'exact_leverage_tree.hpp',
                         'sts_cp.hpp',
-
                         '../../config.json' 
                         ]
 cfg['libraries'] = ['tbb']

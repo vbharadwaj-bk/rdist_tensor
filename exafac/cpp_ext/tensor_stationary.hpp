@@ -202,17 +202,17 @@ public:
             0.0);
 
         auto t = start_clock();
-        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
+        /*nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res
-            );
+            );*/
 
-        /*nonzeros_iterated += ground_truth.lookups[mode_to_leave]->csr_based_spmm(
+        nonzeros_iterated += ground_truth.lookups[mode_to_leave]->csr_based_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res 
-            );*/
+            );
         double elapsed = stop_clock_get_elapsed(t);
         MPI_Barrier(MPI_COMM_WORLD);
         spmm_time += elapsed; 

@@ -26,7 +26,6 @@ public:
     double postprocessing_time;           // Region 6
     double sampler_update_time;           // Region 7
 
-
     ALS_Optimizer(SparseTensor &ground_truth, 
         LowRankTensor &low_rank_tensor) 
         :
@@ -47,7 +46,7 @@ public:
         row_gather_time = 0.0;               // Region 2
         design_matrix_prep_time = 0.0;       // Region 3
         spmm_time = 0.0;  
-        nonzeros_iterated = 0.0              // Region 4
+        nonzeros_iterated = 0.0;             // Region 4
         dense_reduce_time = 0.0;             // Region 5
         postprocessing_time = 0.0;           // Region 6
         sampler_update_time = 0.0;           // Region 7
@@ -86,6 +85,17 @@ public:
             }
         }
 
+        double total_nonzeros_iterated;
+        MPI_Allreduce(
+            &nonzeros_iterated,
+            &total_nonzeros_iterated,
+            1,
+            MPI_DOUBLE,
+            MPI_SUM,
+            MPI_COMM_WORLD 
+        );
+
+
         stats["num_rounds"] = num_rounds;
         stats["als_total_time"] = als_total_time; 
         stats["fit_computation_time"] = fit_computation_time; 
@@ -95,10 +105,11 @@ public:
 
         stats["design_matrix_prep_time"] = compute_dstat(design_matrix_prep_time, MPI_COMM_WORLD);
         stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
-        stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
+        stats["avg_nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
+        stats["sum_nonzeros_iterated"] = total_nonzeros_iterated;
 
         stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
-        stats["postprocessing_time"] = compute_dstat(gram_mult_and_renorm_time, MPI_COMM_WORLD);
+        stats["postprocessing_time"] = compute_dstat(postprocessing_time, MPI_COMM_WORLD);
         stats["sampler_update_time"] = compute_dstat(sampler_update_time, MPI_COMM_WORLD);
 
         json rounds_json(rounds);

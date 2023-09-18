@@ -82,6 +82,9 @@ def decompose(args, output_filename, trial_num):
         'trial_num': trial_num,
         'initial_fit': initial_fit,
         'final_fit': final_fit,
+        'thread_count': os.environ['OMP_NUM_THREADS'],
+        'node_count': os.environ['SLURM_JOB_NUM_NODES'],
+        'mpi_rank_count': MPI.COMM_WORLD.Get_size(),
         'stats': optimizer_stats,
     }
 

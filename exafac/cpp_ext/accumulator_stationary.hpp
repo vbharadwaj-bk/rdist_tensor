@@ -205,7 +205,6 @@ public:
             }
         }
 }
-        design_matrix_reindexing_time += stop_clock_get_elapsed(t); 
 
         uint64_t sample_count_dedup = samples_dedup.shape[0];
 

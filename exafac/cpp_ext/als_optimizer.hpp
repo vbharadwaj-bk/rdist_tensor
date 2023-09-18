@@ -18,10 +18,14 @@ public:
 
     // Related to benchmarking 
     json stats;
-    double leverage_sampling_time;
-    double leverage_computation_time, row_gather_time, dense_reduce_time, gram_mult_and_renorm_time;
-    double spmm_time, nonzeros_iterated;
-    double design_matrix_reindexing_time;
+    double leverage_sampling_time;        // Region 1
+    double row_gather_time;               // Region 2
+    double design_matrix_prep_time;       // Region 3
+    double spmm_time, nonzeros_iterated;  // Region 4
+    double dense_reduce_time;             // Region 5
+    double postprocessing_time;           // Region 6
+    double sampler_update_time;           // Region 7
+
 
     ALS_Optimizer(SparseTensor &ground_truth, 
         LowRankTensor &low_rank_tensor) 
@@ -39,14 +43,14 @@ public:
         double fit_computation_time = 0.0;
 
         // Benchmarking timers 
-        leverage_sampling_time = 0.0;
-        spmm_time = 0.0;
-        nonzeros_iterated = 0.0;
-        leverage_computation_time = 0.0; 
-        row_gather_time = 0.0; 
-        dense_reduce_time = 0.0;
-        gram_mult_and_renorm_time = 0.0;
-        design_matrix_reindexing_time = 0.0; 
+        leverage_sampling_time = 0.0;        // Region 1
+        row_gather_time = 0.0;               // Region 2
+        design_matrix_prep_time = 0.0;       // Region 3
+        spmm_time = 0.0;  
+        nonzeros_iterated = 0.0              // Region 4
+        dense_reduce_time = 0.0;             // Region 5
+        postprocessing_time = 0.0;           // Region 6
+        sampler_update_time = 0.0;           // Region 7
 
         vector<uint64_t> rounds;
         vector<double> fits, als_times, fit_computation_times;
@@ -86,15 +90,16 @@ public:
         stats["als_total_time"] = als_total_time; 
         stats["fit_computation_time"] = fit_computation_time; 
 
-        // TODO: Need to re-enable these timers!
-        //stats["leverage_sampling_time"] = compute_dstat(leverage_sampling_time, MPI_COMM_WORLD);
-        //stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
-        //stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
-        //stats["leverage_computation_time"] = compute_dstat(leverage_computation_time, MPI_COMM_WORLD);
-        //stats["row_gather_time"] = compute_dstat(row_gather_time, MPI_COMM_WORLD);
-        //stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
-        //stats["gram_mult_and_renorm_time"] = compute_dstat(gram_mult_and_renorm_time, MPI_COMM_WORLD);
-        //stats["design_matrix_reindexing_time"] = compute_dstat(design_matrix_reindexing_time, MPI_COMM_WORLD);
+        stats["leverage_sampling_time"] = compute_dstat(leverage_sampling_time, MPI_COMM_WORLD);
+        stats["row_gather_time"] = compute_dstat(row_gather_time, MPI_COMM_WORLD);
+
+        stats["design_matrix_prep_time"] = compute_dstat(design_matrix_prep_time, MPI_COMM_WORLD);
+        stats["spmm_time"] = compute_dstat(spmm_time, MPI_COMM_WORLD);
+        stats["nonzeros_iterated"] = compute_dstat(nonzeros_iterated, MPI_COMM_WORLD);
+
+        stats["dense_reduce_time"] = compute_dstat(dense_reduce_time, MPI_COMM_WORLD);
+        stats["postprocessing_time"] = compute_dstat(gram_mult_and_renorm_time, MPI_COMM_WORLD);
+        stats["sampler_update_time"] = compute_dstat(sampler_update_time, MPI_COMM_WORLD);
 
         json rounds_json(rounds);
         json fits_json(fits);

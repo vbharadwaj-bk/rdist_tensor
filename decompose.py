@@ -98,8 +98,6 @@ if __name__=='__main__':
     num_procs = MPI.COMM_WORLD.Get_size()
     rank = MPI.COMM_WORLD.Get_rank()
 
-    MPI.COMM_WORLD.Barrier()
-
     # Arguments for decomposition
     parser = argparse.ArgumentParser()
     parser.add_argument('-i','--input', type=str, help='Tensor name to decompose', required=True)
@@ -154,6 +152,8 @@ if __name__=='__main__':
         if len(remaining_trials) > 0:
             trial_num = remaining_trials[0] 
             output_filename = f'{filename_prefix}_{trial_num}.out'
+
+    MPI.COMM_WORLD.Barrier()
 
     remaining_trials = MPI.COMM_WORLD.bcast(remaining_trials, root=0)
     

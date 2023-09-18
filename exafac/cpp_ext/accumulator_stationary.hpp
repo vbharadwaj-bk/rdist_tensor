@@ -137,25 +137,24 @@ public:
     }
 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
+        // Benchmark region 1: drawing leverage score samples
+        auto t = start_clock();
         int comm_rank;
         MPI_Comm_rank(MPI_COMM_WORLD, &comm_rank);
 
         uint64_t R = low_rank_tensor.rank; 
 
-        // Step 2: Gather and sample factor matrices 
-
         Buffer<uint32_t> samples;
         Buffer<double> weights;
         vector<Buffer<uint32_t>> unique_row_indices; 
 
-        auto t = start_clock();
         sampler.KRPDrawSamples(J, mode_to_leave, samples, weights, unique_row_indices);
         leverage_sampling_time += stop_clock_get_elapsed(t);
-
+        // Benchmark region 2: gathering rows
+        t = start_clock(); 
         vector<Buffer<uint32_t>> compressed_row_indices;
         vector<Buffer<double>> factors_compressed;
 
-        t = start_clock(); 
         for(uint64_t i = 0; i < dim; i++) {
             compressed_row_indices.emplace_back();
             factors_compressed.emplace_back();
@@ -170,6 +169,8 @@ public:
             }
         }
         row_gather_time += stop_clock_get_elapsed(t); 
+        // Benchmark region 3: preparing design matrix
+        t = start_clock();
 
         Buffer<uint32_t> samples_dedup;
         Buffer<double> weights_dedup;
@@ -183,7 +184,6 @@ public:
 
         Buffer<uint32_t> sample_compressed_map({samples_dedup.shape[0], dim});
 
-        t = start_clock();
         #pragma omp parallel
 { 
         for(uint64_t i = 0; i < dim; i++) {
@@ -247,27 +247,25 @@ public:
                 design_matrix[j * R + r] *= sqrt(weights_dedup[j]);
             }
         }
+        design_matrix_prep_time += stop_clock_get_elapsed(t);
+
+        // Benchmarking region 4: compute the MTTKRP 
+        t = start_clock();
 
         DistMat1D &target_factor = low_rank_tensor.factors[mode_to_leave];
-
-        // Step 3: Compute the MTTKRP 
         Buffer<double> mttkrp_res({target_factor.data.shape[0], R}); 
-
         std::fill(mttkrp_res(), 
             mttkrp_res(mttkrp_res.shape[0] * R), 
             0.0);
 
         /*
-        t = start_clock();
         nonzeros_iterated += lookups[mode_to_leave]->execute_spmm(
             samples_dedup, 
             design_matrix,
             mttkrp_res 
             );
-        spmm_time += stop_clock_get_elapsed(t);
         */
 
-        t = start_clock();
         nonzeros_iterated += lookups[mode_to_leave]->csr_based_spmm(
             samples_dedup, 
             design_matrix,
@@ -275,6 +273,11 @@ public:
             );
         spmm_time += stop_clock_get_elapsed(t);
 
+        // Benchmarking region 5: dense reduction
+        // Empty
+
+        // Benchmarking region 6: post-processing
+        t = start_clock();
         cblas_dsymm(
             CblasRowMajor,
             CblasRight,
@@ -291,9 +294,11 @@ public:
             R);
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
+        postprocessing_time += stop_clock_get_elapsed(t);
 
+        // Benchmarking region 7: Sampler update time
         t = start_clock();
         sampler.update_sampler(mode_to_leave);
-        leverage_computation_time += stop_clock_get_elapsed(t);
+        sampler_update_time += stop_clock_get_elapsed(t);
     }
 };

@@ -1,7 +1,7 @@
 . env.sh
 
 export TRIAL_COUNT=1
-export TENSOR=uber
+export TENSOR=reddit
 export ITERATIONS=20
 export RANK=100
 export OMP_NUM_THREADS=16
@@ -9,8 +9,9 @@ export OMP_NUM_THREADS=16
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
-for NODE_COUNT in 1
+for N in 4
 do
+    export NODE_COUNT=$N
     for ALG in sts_cp 
     do
         for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
@@ -21,9 +22,9 @@ do
                         -iter $ITERATIONS \
                         -alg $ALG \
                         -dist accumulator_stationary \
-                        -o data/strong_scaling \
                         -r $TRIAL_COUNT \
                         -m nnodes_$NODE_COUNT
+                        #-o data/strong_scaling \
         done
     done
 done

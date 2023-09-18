@@ -333,19 +333,13 @@ public:
 
         Buffer<double> temp1({scaled_h.shape[0], scaled_h.shape[1]});
 
-        //auto start = MPI_Wtime();
         dsymm(ancestor_grams.back(), scaled_h, temp1);
         batch_dot_product(scaled_h, temp1, mData, 2);
-        //dsymm_time += MPI_Wtime() - start;
-        //cout << "DSYMM TIME: " << dsymm_time << endl;
 
         uint64_t n_left = left_sibling_grams.size();
 
         for(int level = 0; level < total_levels-1; level++) {
             row_count = scaled_h.shape[0];
-
-            // For each rank, print the metadata buffer
-
             Buffer<double> temp2({row_count, scaled_h.shape[1]});
             Buffer<double> mL({row_count, 1});
             Buffer<int> branch_left({row_count});
@@ -364,100 +358,113 @@ public:
             int right_child = 2 * c + 2;
 
             if(! is_leaf(c)) {
-                auto start = MPI_Wtime();
-                dsymm(left_sibling_grams[n_left - 1 - level], scaled_h, temp2);
-                batch_dot_product(scaled_h, temp2, mL, 0);
-                dsymm_time += MPI_Wtime() - start;
+                #pragma omp parallel
+                {   // Begin parallel region
 
-                // Use std::equal_range to find the range of indices
-                // for the left and right children
-
-                //#pragma omp for
-                for(uint64_t i = 0; i < row_count; i++) {
-                    double low = mData[4 * i];
-                    double m = mData[4 * i + 2];
-                    double draw = mData[4 * i + 3];
-
-                    double cutoff = low + mL[i] / m;
-                    if(draw <= cutoff) { // Branch left
-                        branch_left[i] = 1;
-                        branch_right[i] = 0;
-                        mData[4 * i + 1] = cutoff; // Set high
+                    #pragma omp single
+                    {
+                    auto start = MPI_Wtime();
+                    dsymm(left_sibling_grams[n_left - 1 - level], scaled_h, temp2);
+                    batch_dot_product(scaled_h, temp2, mL, 0);
+                    dsymm_time += MPI_Wtime() - start;
                     }
-                    else { // Branch right
-                        branch_left[i] = 0;
-                        branch_right[i] = 1; 
-                        mData[4 * i] = cutoff; // Set low 
+
+                    // Use std::equal_range to find the range of indices
+                    // for the left and right children
+
+                    #pragma omp for
+                    for(uint64_t i = 0; i < row_count; i++) {
+                        double low = mData[4 * i];
+                        double m = mData[4 * i + 2];
+                        double draw = mData[4 * i + 3];
+
+                        double cutoff = low + mL[i] / m;
+                        if(draw <= cutoff) { // Branch left
+                            branch_left[i] = 1;
+                            branch_right[i] = 0;
+                            mData[4 * i + 1] = cutoff; // Set high
+                        }
+                        else { // Branch right
+                            branch_left[i] = 0;
+                            branch_right[i] = 1; 
+                            mData[4 * i] = cutoff; // Set low 
+                        }
                     }
-                }
 
-                // Load balance and redistribute the rows for the
-                // next pass
-                auto left_range = std::equal_range(
-                        ancestor_node_ids[level + 1].begin(),
-                        ancestor_node_ids[level + 1].end(),
-                        left_child
-                        );
+                    // Load balance and redistribute the rows for the
+                    // next pass
+                    auto left_range = std::equal_range(
+                            ancestor_node_ids[level + 1].begin(),
+                            ancestor_node_ids[level + 1].end(),
+                            left_child
+                            );
 
-                auto right_range = std::equal_range(
-                        ancestor_node_ids[level + 1].begin(),
-                        ancestor_node_ids[level + 1].end(),
-                        right_child
-                        );
+                    auto right_range = std::equal_range(
+                            ancestor_node_ids[level + 1].begin(),
+                            ancestor_node_ids[level + 1].end(),
+                            right_child
+                            );
 
-                // Get integer values for the left and right ranges
-                int left_start = left_range.first - ancestor_node_ids[level + 1].begin();
-                //int left_end = left_range.second - ancestor_node_ids[level + 1].begin();
+                    // Get integer values for the left and right ranges
+                    int left_start = left_range.first - ancestor_node_ids[level + 1].begin();
+                    //int left_end = left_range.second - ancestor_node_ids[level + 1].begin();
 
-                int right_start = right_range.first - ancestor_node_ids[level + 1].begin();
-                //int right_end = right_range.second - ancestor_node_ids[level + 1].begin();
+                    int right_start = right_range.first - ancestor_node_ids[level + 1].begin();
+                    //int right_end = right_range.second - ancestor_node_ids[level + 1].begin();
 
-                uint64_t num_left = left_range.second - left_range.first;
-                uint64_t num_right = right_range.second - right_range.first;
+                    uint64_t num_left = left_range.second - left_range.first;
+                    uint64_t num_right = right_range.second - right_range.first;
 
-                std::exclusive_scan(
-                        branch_left(),
-                        branch_left(row_count),
-                        pfx_sum_left(),
-                        0
-                        );
+                    #pragma omp single
+                    {
+                    std::exclusive_scan(
+                            branch_left(),
+                            branch_left(row_count),
+                            pfx_sum_left(),
+                            0
+                            );
 
-                std::exclusive_scan(
-                        branch_right(),
-                        branch_right(row_count),
-                        pfx_sum_right(),
-                        0
-                        );
+                    std::exclusive_scan(
+                            branch_right(),
+                            branch_right(row_count),
+                            pfx_sum_right(),
+                            0
+                            );
 
-                std::fill(send_counts(), send_counts(world_size), 0);
-
-                // This is a primitive way to load balance, but at low sample
-                // counts could result in high load imbalances
-
-                for(uint64_t i = 0; i < row_count; i++) {
-                    int target = 0;
-                    if(branch_left[i] == 1) {
-                        target = left_start + (pfx_sum_left[i] % num_left);
-                        target_nodes[i] = target;
+                    std::fill(send_counts(), send_counts(world_size), 0);
                     }
-                    else {
-                        target = right_start + (pfx_sum_right[i] % num_right);
-                        target_nodes[i] = target;
+
+                    // This is a primitive way to load balance, but at low sample
+                    // counts could result in high load imbalances
+
+                    #pragma omp for
+                    for(uint64_t i = 0; i < row_count; i++) {
+                        int target = 0;
+                        if(branch_left[i] == 1) {
+                            target = left_start + (pfx_sum_left[i] % num_left);
+                            target_nodes[i] = target;
+                        }
+                        else {
+                            target = right_start + (pfx_sum_right[i] % num_right);
+                            target_nodes[i] = target;
+                        }
+                        #pragma omp atomic
+                        send_counts[target]++; 
                     }
-                    // #pragma omp atomic
-                    send_counts[target]++; 
-                }
 
-                alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
-                alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
-                alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
-                alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
-                alltoallv_time += MPI_Wtime() - start;
+                    #pragma omp single
+                    {
+                    alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
+                    alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
+                    alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
+                    alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
 
-                h.steal_resources(new_h);
-                scaled_h.steal_resources(new_scaled_h);
-                mData.steal_resources(new_mData);
-                indices.steal_resources(new_indices);
+                    h.steal_resources(new_h);
+                    scaled_h.steal_resources(new_scaled_h);
+                    mData.steal_resources(new_mData);
+                    indices.steal_resources(new_indices);
+                    }
+                } // End parallel region
             }
             else {
                 Buffer<double> dummy_h({0, 0});

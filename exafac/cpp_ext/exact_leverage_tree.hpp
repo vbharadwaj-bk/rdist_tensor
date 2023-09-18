@@ -280,7 +280,7 @@ public:
         uint64_t R = A.shape[1];
         uint64_t res_col_count = result.shape[1];
 
-        //#pragma omp for
+        #pragma omp for
         for(uint64_t i = 0; i < J; i++) {
             double res = 0.0; 
             for(uint64_t j = 0; j < R; j++) {
@@ -293,21 +293,32 @@ public:
     void dsymm(Buffer<double> &sym, Buffer<double> &mat, Buffer<double> &out) {
         uint32_t R = (uint32_t) mat.shape[1];
 
-        cblas_dsymm(
-            CblasRowMajor,
-            CblasRight,
-            CblasUpper,
-            (uint32_t) mat.shape[0],
-            (uint32_t) sym.shape[1],
-            1.0,
-            sym(),
-            R,
-            mat(),
-            R,
-            0.0,
-            out(),
-            R
-        );
+        uint64_t I = mat.shape[0];
+        int num_threads = omp_get_num_threads();
+        int thread_id = omp_get_thread_num();
+        uint64_t work = (I + num_threads - 1) / num_threads;
+        uint64_t start = min(work * thread_id, I);
+        uint64_t end = min(work * (thread_id + 1), I);
+
+        if(end - start > 0) {
+            cblas_dsymm(
+                CblasRowMajor,
+                CblasRight,
+                CblasUpper,
+                (uint32_t) (end - start),
+                (uint32_t) sym.shape[1],
+                1.0,
+                sym(),
+                R,
+                mat(start * R),
+                R,
+                0.0,
+                out(start * R),
+                R
+            );
+        }
+
+        #pragma omp barrier
     }
 
     void execute_tree_computation(
@@ -316,9 +327,6 @@ public:
             Buffer<uint32_t> &indices, 
             Buffer<double> &draws,
             int64_t sample_offset) {
-
-        double dsymm_time = 0.0;
-        double alltoallv_time = 0.0;
 
         uint64_t row_count = scaled_h.shape[0];
         Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
@@ -333,8 +341,12 @@ public:
 
         Buffer<double> temp1({scaled_h.shape[0], scaled_h.shape[1]});
 
-        dsymm(ancestor_grams.back(), scaled_h, temp1);
-        batch_dot_product(scaled_h, temp1, mData, 2);
+
+        #pragma omp parallel
+        {
+            dsymm(ancestor_grams.back(), scaled_h, temp1);
+            batch_dot_product(scaled_h, temp1, mData, 2);
+        }
 
         uint64_t n_left = left_sibling_grams.size();
 
@@ -361,13 +373,11 @@ public:
                 #pragma omp parallel
                 {   // Begin parallel region
 
-                    #pragma omp single
+                    /*#pragma omp single
                     {
-                    auto start = MPI_Wtime();
+                    }*/
                     dsymm(left_sibling_grams[n_left - 1 - level], scaled_h, temp2);
                     batch_dot_product(scaled_h, temp2, mL, 0);
-                    dsymm_time += MPI_Wtime() - start;
-                    }
 
                     // Use std::equal_range to find the range of indices
                     // for the left and right children
@@ -477,12 +487,10 @@ public:
                 // Participate in the exchange, but don't send any data and
                 // ignore any received data 
 
-                auto start = MPI_Wtime();
                 alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_mData, target_nodes, send_counts, new_mData, mat.ordered_world);
                 alltoallv_matrix_rows(dummy_new_indices, target_nodes, send_counts, new_indices, mat.ordered_world);
-                alltoallv_time += MPI_Wtime() - start;
             }
         }
 

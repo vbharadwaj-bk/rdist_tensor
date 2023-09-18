@@ -1,7 +1,8 @@
 . env.sh
 
+export OMP_MAX_ACTIVE_LEVELS=1
 export TRIAL_COUNT=1
-export TENSOR=reddit
+export TENSOR=uber
 export ITERATIONS=20
 export RANK=100
 export OMP_NUM_THREADS=16
@@ -9,7 +10,7 @@ export OMP_NUM_THREADS=16
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
-for N in 4
+for N in 1
 do
     export NODE_COUNT=$N
     for ALG in sts_cp 

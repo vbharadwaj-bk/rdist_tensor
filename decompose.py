@@ -140,6 +140,9 @@ if __name__=='__main__':
                                     str(args.iter), args.distribution, 
                                     args.algorithm, str(args.samples), 
                                     str(args.epoch_iter)])
+        
+        if args.metadata is not None:
+            filename_prefix += f"_{args.metadata}"
 
         files = os.listdir(args.output_folder)
         filtered_files = [f for f in files if filename_prefix in f]

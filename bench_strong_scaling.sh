@@ -22,7 +22,8 @@ do
                         -alg $ALG \
                         -dist accumulator_stationary \
                         -o data/strong_scaling \
-                        -r $TRIAL_COUNT
+                        -r $TRIAL_COUNT \
+                        -m nnodes_$NODE_COUNT
         done
     done
 done

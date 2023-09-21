@@ -43,10 +43,17 @@ def decompose(args, output_filename, trial_num):
     low_rank_tensor = LowRankTensor(args.trank, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 
+    sample_count = 0
     if args.algorithm == 'exact':
         # Ignore the distribution for exact ALS, this is alawys tensor stationary. 
         optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
     else:
+        if args.samples is None:
+            raise ValueError("Must specify a sample count for randomized ALS!")
+        if args.distribution is None:
+            raise ValueError("Must specify a data distribution for randomized ALS!")
+
+        sample_count = args.samples
         if args.algorithm == 'cp_arls_lev':
             sampler = CP_ARLS_LEV(low_rank_tensor)
         elif args.algorithm == 'sts_cp':
@@ -66,11 +73,7 @@ def decompose(args, output_filename, trial_num):
     if rank == 0:
         print(f"Initial Fit: {initial_fit}")
 
-    if args.algorithm != 'exact':
-        optimizer.execute_ALS_rounds(args.iter, args.samples, args.epoch_iter)
-    else:
-        print("Error, need to fix this!")
-
+    optimizer.execute_ALS_rounds(args.iter, samples, args.epoch_iter)
     optimizer_stats = json.loads(optimizer.get_statistics_json())
 
     final_fit = optimizer.compute_exact_fit()
@@ -114,7 +117,7 @@ if __name__=='__main__':
     parser.add_argument('-i','--input', type=str, help='Tensor name to decompose', required=True)
     parser.add_argument("-t", "--trank", help="Rank of the target decomposition", required=True, type=int)
     parser.add_argument("-iter", help="Number of ALS iterations", required=True, type=int)
-    parser.add_argument('-dist','--distribution', type=str, help='Data distribution (tensor_stationary / accumulator_stationary)')
+    parser.add_argument('-dist','--distribution', type=str, help='Data distribution (tensor_stationary / accumulator_stationary)', required=False)
     parser.add_argument('-alg','--algorithm', type=str, help='Algorithm to perform decomposition')
     parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-o", "--output_folder", help="Folder name to print statistics", required=False)

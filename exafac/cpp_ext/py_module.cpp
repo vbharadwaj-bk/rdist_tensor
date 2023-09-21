@@ -58,10 +58,8 @@ PYBIND11_MODULE(py_module, m) {
         .def("execute_ALS_rounds", &ALS_Optimizer::execute_ALS_rounds)
         .def("get_statistics_json", &ALS_Optimizer::get_statistics_json)
         .def("compute_exact_fit", &ALS_Optimizer::compute_exact_fit);
-    py::class_<ExactALS>(m, "ExactALS")
-        .def(py::init<SparseTensor&, LowRankTensor&>())
-        .def("execute_ALS_rounds", &ExactALS::execute_ALS_rounds)
-        .def("compute_exact_fit", &ExactALS::compute_exact_fit);  
+    py::class_<ExactALS, ALS_Optimizer>(m, "ExactALS")
+        .def(py::init<SparseTensor&, LowRankTensor&>());
     py::class_<TensorStationary, ALS_Optimizer>(m, "TensorStationary")
         .def(py::init<SparseTensor&, LowRankTensor&, Sampler&>());
     py::class_<AccumulatorStationary, ALS_Optimizer>(m, "AccumulatorStationary")

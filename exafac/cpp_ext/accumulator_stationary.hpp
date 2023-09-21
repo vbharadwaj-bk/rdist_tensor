@@ -282,20 +282,6 @@ public:
         {
             parallel_dsymm(design_gram_inv, mttkrp_res, target_factor.data); 
         }
-        /*cblas_dsymm(
-            CblasRowMajor,
-            CblasRight,
-            CblasUpper,
-            (uint32_t) mttkrp_res.shape[0],
-            (uint32_t) R,
-            1.0,
-            design_gram_inv(),
-            R,
-            mttkrp_res(),
-            R,
-            0.0,
-            target_factor.data(),
-            R);*/
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
         postprocessing_time += stop_clock_get_elapsed(t);

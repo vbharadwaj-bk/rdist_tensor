@@ -3,27 +3,19 @@
 #include "common.h"
 #include "sparse_tensor.hpp"
 #include "low_rank_tensor.hpp"
+#include "als_optimizer.hpp"
 
 using namespace std;
 
-class __attribute__((visibility("hidden"))) ExactALS {
+class __attribute__((visibility("hidden"))) ExactALS : public ALS_Optimizer {
 public:
-    SparseTensor &ground_truth;
-    LowRankTensor &low_rank_tensor;
-    TensorGrid &tensor_grid;
-    Grid &grid;
-    uint64_t dim;
 
     vector<Buffer<double>> gathered_factors;
     vector<Buffer<double>> gram_matrices; 
 
     ExactALS(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor) 
     :
-    ground_truth(ground_truth),
-    low_rank_tensor(low_rank_tensor),
-    tensor_grid(ground_truth.tensor_grid),
-    grid(ground_truth.tensor_grid.grid),
-    dim(ground_truth.dim)
+    ALS_Optimizer(ground_truth, low_rank_tensor)
     {
         uint64_t R = low_rank_tensor.rank; 
         for(uint64_t i = 0; i < dim; i++) {
@@ -38,7 +30,6 @@ public:
             gram_matrices.emplace_back(
                 Buffer<double>({low_rank_tensor.rank, low_rank_tensor.rank})
             );
-
 
             // Allgather factors into buffers and compute gram matrices
             DistMat1D &factor = low_rank_tensor.factors[i];
@@ -58,7 +49,34 @@ public:
         }
     }
 
-    void execute_ALS_step(uint64_t mode_to_leave) {
+    void initialize_ground_truth_for_als() {
+        ground_truth.check_tensor_invariants();
+        ground_truth.redistribute_to_grid(tensor_grid);
+        ground_truth.check_tensor_invariants();
+
+        uint64_t dim = ground_truth.dim;
+
+        for(uint64_t i = 0; i < dim; i++) {
+            ground_truth.offsets[i] = tensor_grid.start_coords[i][tensor_grid.grid.coords[i]];
+        }
+
+        #pragma omp parallel for
+        for(uint64_t i = 0; i < ground_truth.indices.shape[0]; i++) {
+            for(uint64_t j = 0; j < dim; j++) {
+                ground_truth.indices[i * dim + j] -= ground_truth.offsets[j];
+            }
+        }
+
+        for(uint64_t i = 0; i < dim; i++) {
+            ground_truth.lookups.emplace_back(
+                make_unique<SortIdxLookup<uint32_t, double>>(
+                    dim, i, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
+                )); 
+        }
+    }
+
+    // The sample count J is ignored for exact ALS. 
+    void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank; 
 
         Buffer<double> gram_product({R, R});
@@ -84,8 +102,6 @@ public:
         uint64_t target_factor_rows = target_factor_data.shape[0];
         Buffer<double> temp_local({target_factor_rows, R}); 
 
-        // Reduce_scatter_block the mttkrp_res buffer into temp_local 
-        // across grid.slices[mode_to_leave] 
         MPI_Reduce_scatter_block(
             mttkrp_res(),
             temp_local(),
@@ -95,20 +111,10 @@ public:
             grid.slices[mode_to_leave]
         );             
 
-        cblas_dsymm(
-            CblasRowMajor,
-            CblasRight,
-            CblasUpper,
-            (uint32_t) target_factor_rows,
-            (uint32_t) R,
-            1.0,
-            gram_product_inv(),
-            R,
-            temp_local(),
-            R,
-            0.0,
-            target_factor_data(),
-            R);
+        #pragma omp parallel
+        {
+            parallel_dsymm(gram_product_inv, temp_local, target_factor_data); 
+        }
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
 
@@ -123,22 +129,8 @@ public:
         );
 
         target_factor.compute_gram_matrix(gram_matrices[mode_to_leave]);
-
     }
-
-    void execute_ALS_rounds(uint64_t num_rounds) {
-        for(uint64_t round = 0; round < num_rounds; round++) {
-            if(grid.rank == 0) {
-                cout << "Starting ALS round " << (round + 1) << endl; 
-            }
-
-            for(int i = 0; i < grid.dim; i++) {
-                execute_ALS_step(i);
-            } 
-        }
-    }
-
-    double compute_exact_fit() {
-        return ground_truth.compute_exact_fit(low_rank_tensor);
+    ~ExactALS() {
+        ground_truth.lookups.clear();
     }
 };

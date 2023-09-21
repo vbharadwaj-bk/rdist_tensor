@@ -62,12 +62,12 @@ def decompose(args, output_filename, trial_num):
             raise ValueError(f"Unknown algorithm {args.algorithm}")
 
         if args.preprocessing is not None:
-            if args.preprcessing == "exact":
+            if args.preprocessing == "exact":
                 if rank == 0:
                     print("Executing single round of Exact ALS as preprocessing...")
                 preprocessing_optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
                 preprocessing_optimizer.initialize_ground_truth_for_als()
-                optimizer.execute_ALS_rounds(1, 0, args.epoch_iter)
+                preprocessing_optimizer.execute_ALS_rounds(1, 0, args.epoch_iter)
                 sparse_tensor.sparse_tensor.clear_lookups()
             else:
                 raise ValueError("Unknown preprocessing specification!")
@@ -104,6 +104,7 @@ def decompose(args, output_filename, trial_num):
         'target_rank': args.trank,
         'iterations': args.iter,
         'algorithm': args.algorithm,
+        'preprocessing': args.preprocessing,
         'data_distribution': args.distribution,
         'sample_count': args.samples,
         'accuracy_epoch_length': args.epoch_iter,

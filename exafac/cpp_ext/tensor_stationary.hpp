@@ -16,12 +16,6 @@ using namespace std;
 class __attribute__((visibility("hidden"))) TensorStationary : public ALS_Optimizer {
 public:
     vector<Buffer<double>> gathered_factors;
-
-    // Related to benchmarking...
-
-    double leverage_computation_time, dense_gather_time, dense_reduce_time;
-    double spmm_time, nonzeros_iterated;
-
     Sampler &sampler;
 
     TensorStationary(SparseTensor &ground_truth, LowRankTensor &low_rank_tensor, Sampler &sampler_in) 
@@ -240,20 +234,12 @@ public:
 
         // Benchmarking region 6: post-processing
         t = start_clock();
-        cblas_dsymm(
-            CblasRowMajor,
-            CblasRight,
-            CblasUpper,
-            (uint32_t) target_factor_rows,
-            (uint32_t) R,
-            1.0,
-            design_gram_inv(),
-            R,
-            temp_local(),
-            R,
-            0.0,
-            target_factor_data(),
-            R);
+
+        #pragma omp parallel
+        {
+            parallel_dsymm(design_gram_inv, temp_local, target_factor.data); 
+        }
+
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
         postprocessing_time += stop_clock_get_elapsed(t);
 

@@ -544,36 +544,6 @@ void chain_had_prod(
 
 }
 
-void compute_DAGAT(double* A, double* G, 
-        double* res, uint64_t J, uint64_t R) {
-
-    Buffer<double> temp({J, R});
-
-    cblas_dsymm(
-        CblasRowMajor,
-        CblasRight,
-        CblasUpper,
-        (uint32_t) J,
-        (uint32_t) R,
-        1.0,
-        G,
-        R,
-        A,
-        R,
-        0.0,
-        temp(),
-        R
-    );
-
-    #pragma omp parallel for 
-    for(uint32_t i = 0; i < J; i++) {
-        res[i] = 0.0;
-        for(uint32_t j = 0; j < R; j++) {
-            res[i] += A[i * R + j] * temp[i * R + j];
-        }
-    }
-}
-
 template <typename VAL_T>
 void allgatherv_buffer(Buffer<VAL_T> &input, Buffer<VAL_T> &output, MPI_Comm comm) {
     int row_count = (int) input.shape[0];
@@ -723,33 +693,70 @@ inline void log2_round_down(uint32_t m,
 }
 
 
+void parallel_dsymm(Buffer<double> &sym, Buffer<double> &mat, Buffer<double> &out) {
+    uint32_t R = (uint32_t) mat.shape[1];
 
-/*
-* Multiplies a tall-skinny matrix A against a small symmetric
-* matrix G and stores output in result. Assuming a BLAS library that is not
-* threaded, the algorithm accelerates the computation using a 1D partitioning
-* of the matrix A and assigns one partition per thread. 
-*/
-/*
-void compute_dsymm_parallel(
-        Buffer<double> &A,
-        Buffer<double> &G,
-        Buffer<double> &result) {
+    uint64_t I = mat.shape[0];
+    int num_threads = omp_get_num_threads();
+    int thread_id = omp_get_thread_num();
+    uint64_t work = (I + num_threads - 1) / num_threads;
+    uint64_t start = min(work * thread_id, I);
+    uint64_t end = min(work * (thread_id + 1), I);
 
-    uint64_t I = A.shape[0];
-    uint64_t R = A.shape[1];
+    if(end - start > 0) {
+        cblas_dsymm(
+            CblasRowMajor,
+            CblasRight,
+            CblasUpper,
+            (uint32_t) (end - start),
+            (uint32_t) sym.shape[1],
+            1.0,
+            sym(),
+            R,
+            mat(start * R),
+            R,
+            0.0,
+            out(start * R),
+            R
+        );
+    }
+
+    #pragma omp barrier
+}
+
+void compute_DAGAT(double* A, double* G, 
+        double* res, uint64_t J, uint64_t R) {
+
+    Buffer<double> A_buf({J, R}, A);
+    Buffer<double> G_buf({R, R}, G);
+    Buffer<double> temp({J, R});
 
     #pragma omp parallel
     {
-        int num_threads = omp_get_num_threads();
-        int thread_id = omp_get_thread_num();
-        uint64_t work = (I + num_threads - 1) / num_threads;
-        uint64_t start = min(work * thread_id, I);
-        uint64_t end = min(work * (thread_id + 1), I);
+        parallel_dsymm(G_buf, A_buf, temp);
 
-        if(end - start > 0) {
-
+        #pragma omp for 
+        for(uint32_t i = 0; i < J; i++) {
+            res[i] = 0.0;
+            for(uint32_t j = 0; j < R; j++) {
+                res[i] += A[i * R + j] * temp[i * R + j];
+            }
         }
     }
+
+    /*cblas_dsymm(
+        CblasRowMajor,
+        CblasRight,
+        CblasUpper,
+        (uint32_t) J,
+        (uint32_t) R,
+        1.0,
+        G,
+        R,
+        A,
+        R,
+        0.0,
+        temp(),
+        R
+    );*/
 }
-*/

@@ -277,7 +277,12 @@ public:
 
         // Benchmarking region 6: post-processing
         t = start_clock();
-        cblas_dsymm(
+
+        #pragma omp parallel
+        {
+            parallel_dsymm(design_gram_inv, mttkrp_res, target_factor.data); 
+        }
+        /*cblas_dsymm(
             CblasRowMajor,
             CblasRight,
             CblasUpper,
@@ -290,7 +295,7 @@ public:
             R,
             0.0,
             target_factor.data(),
-            R);
+            R);*/
 
         target_factor.renormalize_columns(&(low_rank_tensor.sigma));
         postprocessing_time += stop_clock_get_elapsed(t);

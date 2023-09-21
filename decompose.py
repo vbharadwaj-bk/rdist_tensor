@@ -20,6 +20,14 @@ def decompose(args, output_filename, trial_num):
             "path": '/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5',
             "preprocessing": "none"
         },
+        'nell1': {
+            "path": '/pscratch/sd/v/vbharadw/tensors/nell-1.tns_converted.hdf5',
+            "preprocessing": "log_count"
+        },
+        'nell2': {
+            "path": '/pscratch/sd/v/vbharadw/tensors/nell-2.tns_converted.hdf5',
+            "preprocessing": "log_count"
+        },
         'amazon': {
             "path": '/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5',
             "preprocessing": "none" 

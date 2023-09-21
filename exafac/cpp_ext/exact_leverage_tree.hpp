@@ -290,37 +290,6 @@ public:
         }
     }
 
-    void dsymm(Buffer<double> &sym, Buffer<double> &mat, Buffer<double> &out) {
-        uint32_t R = (uint32_t) mat.shape[1];
-
-        uint64_t I = mat.shape[0];
-        int num_threads = omp_get_num_threads();
-        int thread_id = omp_get_thread_num();
-        uint64_t work = (I + num_threads - 1) / num_threads;
-        uint64_t start = min(work * thread_id, I);
-        uint64_t end = min(work * (thread_id + 1), I);
-
-        if(end - start > 0) {
-            cblas_dsymm(
-                CblasRowMajor,
-                CblasRight,
-                CblasUpper,
-                (uint32_t) (end - start),
-                (uint32_t) sym.shape[1],
-                1.0,
-                sym(),
-                R,
-                mat(start * R),
-                R,
-                0.0,
-                out(start * R),
-                R
-            );
-        }
-
-        #pragma omp barrier
-    }
-
     void execute_tree_computation(
             Buffer<double> &h,
             Buffer<double> &scaled_h, 
@@ -330,21 +299,20 @@ public:
 
         uint64_t row_count = scaled_h.shape[0];
         Buffer<double> mData({row_count, 4});  // Elements are low, high, mass, and random draw
-
-        Buffer<uint64_t> send_counts({(uint64_t) world_size});
-
-        for(uint64_t i = 0; i < row_count; i++) {
-            mData[4 * i] = 0.0;
-            mData[4 * i + 1] = 1.0;
-            mData[4 * i + 3] = draws[i];
-        }
-
         Buffer<double> temp1({scaled_h.shape[0], scaled_h.shape[1]});
+        Buffer<uint64_t> send_counts({(uint64_t) world_size});
 
 
         #pragma omp parallel
         {
-            dsymm(ancestor_grams.back(), scaled_h, temp1);
+            #pragma omp for 
+            for(uint64_t i = 0; i < row_count; i++) {
+                mData[4 * i] = 0.0;
+                mData[4 * i + 1] = 1.0;
+                mData[4 * i + 3] = draws[i];
+            }
+
+            parallel_dsymm(ancestor_grams.back(), scaled_h, temp1);
             batch_dot_product(scaled_h, temp1, mData, 2);
         }
 
@@ -373,10 +341,7 @@ public:
                 #pragma omp parallel
                 {   // Begin parallel region
 
-                    /*#pragma omp single
-                    {
-                    }*/
-                    dsymm(left_sibling_grams[n_left - 1 - level], scaled_h, temp2);
+                    parallel_dsymm(left_sibling_grams[n_left - 1 - level], scaled_h, temp2);
                     batch_dot_product(scaled_h, temp2, mL, 0);
 
                     // Use std::equal_range to find the range of indices
@@ -464,6 +429,7 @@ public:
 
                     #pragma omp single
                     {
+
                     alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
                     alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
                     alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
@@ -473,6 +439,10 @@ public:
                     scaled_h.steal_resources(new_scaled_h);
                     mData.steal_resources(new_mData);
                     indices.steal_resources(new_indices);
+
+                    /*if(rank == 0) {
+                        cout << end - start << " seconds spent on Alltoallv!" << endl;
+                    }*/
                     }
                 } // End parallel region
             }
@@ -497,8 +467,9 @@ public:
         if(mat.true_row_count > 0 && scaled_h.shape[0] > 0) {
             Buffer<double> local_data_view({mat.true_row_count, mat.cols}, mat.data());
             ScratchBuffer scratch(mat.cols, scaled_h.shape[0], mat.cols);
-
             Buffer<double> draws({scaled_h.shape[0]});
+
+            #pragma omp parallel for
             for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
                 double low = mData[4 * i];
                 double high = mData[4 * i + 1];
@@ -517,9 +488,11 @@ public:
             uint64_t sample_matrix_width = indices.shape[1];
             uint32_t row_offset = (uint32_t) (mat.row_position * mat.padded_rows);
 
+            #pragma omp parallel for
             for(uint64_t i = 0; i < scaled_h.shape[0]; i++) {
                 indices[sample_matrix_width * i + sample_offset] += row_offset;
             }
+
         }
     }
 };

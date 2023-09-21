@@ -15,5 +15,7 @@ export OMP_PROC_BIND=spread
 python decompose.py -i uber \
                     --trank 25 \
                     -iter 40 \
-                    -alg exact_als \
+                    -alg sts_cp \
+                    -s 131072 \
+                    -dist accumulator_stationary \
                     -r 1

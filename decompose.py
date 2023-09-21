@@ -47,7 +47,7 @@ def decompose(args, output_filename, trial_num):
     if args.algorithm == 'exact':
         # Ignore the distribution for exact ALS, this is alawys tensor stationary. 
         optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
-    else:
+    elif args.algorithm == "cp_arls_lev" or args.algorithm == "sts_cp":
         if args.samples is None:
             raise ValueError("Must specify a sample count for randomized ALS!")
         if args.distribution is None:
@@ -61,19 +61,37 @@ def decompose(args, output_filename, trial_num):
         else:
             raise ValueError(f"Unknown algorithm {args.algorithm}")
 
+        if args.preprocessing is not None:
+            if args.preprcessing == "exact":
+                if rank == 0:
+                    print("Executing single round of Exact ALS as preprocessing...")
+                preprocessing_optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
+                preprocessing_optimizer.initialize_ground_truth_for_als()
+                optimizer.execute_ALS_rounds(1, 0, args.epoch_iter)
+                sparse_tensor.sparse_tensor.clear_lookups()
+            else:
+                raise ValueError("Unknown preprocessing specification!")
+
+            if rank == 0:
+                print("Finished preprocessing...")
+
+
+
         if args.distribution == "accumulator_stationary":
             optimizer = AccumulatorStationary(sparse_tensor.sparse_tensor, low_rank_tensor, sampler)
         elif args.distribution == "tensor_stationary":
             optimizer = TensorStationary(sparse_tensor.sparse_tensor, low_rank_tensor, sampler)
         else:
             raise ValueError(f"Unrecognized distribution {args.distribution}") 
+    else:
+        raise ValueError("Unrecognized algorithm for ALS!")
     optimizer.initialize_ground_truth_for_als()
 
     initial_fit = optimizer.compute_exact_fit()
     if rank == 0:
         print(f"Initial Fit: {initial_fit}")
 
-    optimizer.execute_ALS_rounds(args.iter, samples, args.epoch_iter)
+    optimizer.execute_ALS_rounds(args.iter, sample_count, args.epoch_iter)
     optimizer_stats = json.loads(optimizer.get_statistics_json())
 
     final_fit = optimizer.compute_exact_fit()
@@ -93,8 +111,8 @@ def decompose(args, output_filename, trial_num):
         'trial_num': trial_num,
         'initial_fit': initial_fit,
         'final_fit': final_fit,
-        'thread_count': os.environ['OMP_NUM_THREADS'],
-        'node_count': os.environ['NODE_COUNT'],
+        'thread_count': os.environ.get('OMP_NUM_THREADS'),
+        'node_count': os.environ.get('NODE_COUNT'),
         'mpi_rank_count': MPI.COMM_WORLD.Get_size(),
         'stats': optimizer_stats,
     }
@@ -124,9 +142,10 @@ if __name__=='__main__':
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
     parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=False, type=int)
     parser.add_argument("-m", "--metadata", help="A string piece of metadata to include output json", required=False, type=str, default="")
+    parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply before randomized algorithms", required=False, type=str)
     #parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)
     #parser.add_argument("-f", "--factor_file", help="File to print the output factors", required=False, type=str)
-    #parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply to the tensor", required=False, type=str)
+
 
     args = None
     try:

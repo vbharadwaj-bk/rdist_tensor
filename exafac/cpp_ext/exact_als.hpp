@@ -131,6 +131,5 @@ public:
         target_factor.compute_gram_matrix(gram_matrices[mode_to_leave]);
     }
     ~ExactALS() {
-        ground_truth.lookups.clear();
     }
 };

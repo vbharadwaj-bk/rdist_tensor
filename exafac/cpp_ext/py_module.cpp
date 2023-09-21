@@ -51,7 +51,8 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<TensorGrid&, 
             py::array_t<uint32_t>, 
             py::array_t<double>, 
-            std::string>());
+            std::string>())
+        .def("clear_lookups", &SparseTensor::clear_lookups);
 
     py::class_<ALS_Optimizer>(m, "ALS_Optimizer")
         .def("initialize_ground_truth_for_als", &ALS_Optimizer::initialize_ground_truth_for_als)

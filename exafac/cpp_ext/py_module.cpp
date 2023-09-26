@@ -51,14 +51,13 @@ PYBIND11_MODULE(py_module, m) {
         .def(py::init<TensorGrid&, 
             py::array_t<uint32_t>, 
             py::array_t<double>, 
-            std::string>())
-        .def("clear_lookups", &SparseTensor::clear_lookups);
-
+            std::string>());
     py::class_<ALS_Optimizer>(m, "ALS_Optimizer")
         .def("initialize_ground_truth_for_als", &ALS_Optimizer::initialize_ground_truth_for_als)
         .def("execute_ALS_rounds", &ALS_Optimizer::execute_ALS_rounds)
         .def("get_statistics_json", &ALS_Optimizer::get_statistics_json)
-        .def("compute_exact_fit", &ALS_Optimizer::compute_exact_fit);
+        .def("compute_exact_fit", &ALS_Optimizer::compute_exact_fit)
+        .def("deinitialize", &ALS_Optimizer::deinitialize);
     py::class_<ExactALS, ALS_Optimizer>(m, "ExactALS")
         .def(py::init<SparseTensor&, LowRankTensor&>());
     py::class_<TensorStationary, ALS_Optimizer>(m, "TensorStationary")

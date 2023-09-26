@@ -211,5 +211,8 @@ public:
 
     virtual void execute_ALS_step(uint64_t mode, uint64_t J) = 0;
     virtual void initialize_ground_truth_for_als() = 0;
+    virtual void deinitialize() {
+        // Override if necessary
+    }
     virtual ~ALS_Optimizer() {};
 };

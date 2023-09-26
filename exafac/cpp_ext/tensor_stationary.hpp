@@ -214,6 +214,7 @@ public:
 
         spmm_time += stop_clock_get_elapsed(t); 
 
+        MPI_Barrier(MPI_COMM_WORLD);
         // Benchmarking region 5: dense reduction
         t = start_clock(); 
 

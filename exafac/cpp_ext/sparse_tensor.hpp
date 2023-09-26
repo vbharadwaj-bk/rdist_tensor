@@ -225,8 +225,4 @@ public:
         // it like this for now 
         return 1 - (norm_residual / tensor_norm); 
     }
-
-    void clear_lookups() {
-        lookups.clear();
-    }
 };

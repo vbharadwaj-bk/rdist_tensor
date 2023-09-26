@@ -149,6 +149,7 @@ public:
         vector<Buffer<uint32_t>> unique_row_indices; 
 
         sampler.KRPDrawSamples(J, mode_to_leave, samples, weights, unique_row_indices);
+        MPI_Barrier(MPI_COMM_WORLD);
         leverage_sampling_time += stop_clock_get_elapsed(t);
         // Benchmark region 2: gathering rows
         t = start_clock(); 

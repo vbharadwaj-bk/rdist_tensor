@@ -1,22 +1,28 @@
+#!/bin/bash
+#SBATCH -N 8
+#SBATCH -C cpu
+#SBATCH -q debug 
+#SBATCH -t 00:08:00
+
 . env.sh
 export OMP_NUM_THREADS=16
 export OMP_PLACES=threads
 export OMP_PROC_BIND=spread
 
-#srun -N 4 -n 64 -c 16 --cpu_bind=cores python decompose.py -i nell1 \
+#python decompose.py -i uber \
 #                    --trank 25 \
-#                    -s 131072 \
+#                    -s 65000 \
 #                    -iter 40 \
 #                    -alg sts_cp \
 #                    -dist accumulator_stationary \
-#                    -r 1
+#                    -r 1 \
+#                    -p exact
                     #-o data/fit_progress_vs_time \
 
-srun -N 1 -n 8 -c 16 python decompose.py -i uber \
+srun -N 4 -n 32 -c 32 python decompose.py -i caida \
                     --trank 25 \
-                    -iter 40 \
-                    -alg sts_cp \
-                    -s 131072 \
+                    -iter 10 \
+                    -alg cp_arls_lev \
+                    -s 4000000 \
                     -dist accumulator_stationary \
-                    -p exact \
-                    -r 1
+                    -p exact

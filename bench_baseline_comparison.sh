@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH -N 16
+#SBATCH -N 4
 #SBATCH -C cpu
 #SBATCH -q regular 
 #SBATCH -t 00:04:00
@@ -8,16 +8,16 @@
 
 export OMP_MAX_ACTIVE_LEVELS=1
 export TRIAL_COUNT=1
-export TENSOR=patents
-export DISTRIBUTION=tensor_stationary
-export ITERATIONS=20
-export RANK=25
+export TENSOR=reddit
+export DISTRIBUTION=accumulator_stationary
+export ITERATIONS=80
 export OMP_NUM_THREADS=16
 
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
+export N=4
 
-for N in 16
+for RANK in 25 50 75 
 do
     export NODE_COUNT=$N
     for ALG in cp_arls_lev sts_cp 
@@ -32,7 +32,7 @@ do
                         -dist $DISTRIBUTION \
                         -r $TRIAL_COUNT \
                         -m nnodes_$NODE_COUNT \
-                        -o data/strong_scaling
+                        -o data/baseline_runtime_comparison
         done
     done
 done

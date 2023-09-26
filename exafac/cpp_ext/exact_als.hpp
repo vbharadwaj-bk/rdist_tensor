@@ -75,6 +75,17 @@ public:
         }
     }
 
+    void deinitialize() {
+        ground_truth.lookups.clear();
+
+        #pragma omp parallel for
+        for(uint64_t i = 0; i < ground_truth.indices.shape[0]; i++) {
+            for(uint64_t j = 0; j < dim; j++) {
+                ground_truth.indices[i * dim + j] += ground_truth.offsets[j];
+            }
+        }
+    }
+
     // The sample count J is ignored for exact ALS. 
     void execute_ALS_step(uint64_t mode_to_leave, uint64_t J) {
         uint64_t R = low_rank_tensor.rank; 

@@ -20,6 +20,10 @@ def decompose(args, output_filename, trial_num):
             "path": '/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5',
             "preprocessing": "none"
         },
+        'patents': {
+            "path": '/pscratch/sd/v/vbharadw/tensors/patents.tns_converted.hdf5',
+            "preprocessing": "none"
+        },
         'nell1': {
             "path": '/pscratch/sd/v/vbharadw/tensors/nell-1.tns_converted.hdf5',
             "preprocessing": "log_count"
@@ -34,6 +38,10 @@ def decompose(args, output_filename, trial_num):
         },
         'reddit': {
             "path": '/pscratch/sd/v/vbharadw/tensors/reddit-2015.tns_converted.hdf5',
+            "preprocessing": "log_count"
+        },
+        'caida': {
+            "path": '/pscratch/sd/v/vbharadw/tensors/caida_medium.hdf5',
             "preprocessing": "log_count"
         } 
     }
@@ -68,14 +76,14 @@ def decompose(args, output_filename, trial_num):
                 preprocessing_optimizer = ExactALS(sparse_tensor.sparse_tensor, low_rank_tensor) 
                 preprocessing_optimizer.initialize_ground_truth_for_als()
                 preprocessing_optimizer.execute_ALS_rounds(1, 0, args.epoch_iter)
-                sparse_tensor.sparse_tensor.clear_lookups()
             else:
                 raise ValueError("Unknown preprocessing specification!")
 
+            MPI.COMM_WORLD.Barrier()
+            preprocessing_optimizer.deinitialize()
+
             if rank == 0:
                 print("Finished preprocessing...")
-
-
 
         if args.distribution == "accumulator_stationary":
             optimizer = AccumulatorStationary(sparse_tensor.sparse_tensor, low_rank_tensor, sampler)
@@ -141,7 +149,7 @@ if __name__=='__main__':
     parser.add_argument("-s", "--samples", help="Number of samples taken from the KRP", required=False, type=int)
     parser.add_argument("-o", "--output_folder", help="Folder name to print statistics", required=False)
     parser.add_argument("-e", "--epoch_iter", help="Number of iterations per accuracy evaluation epoch", required=False, type=int, default=5)
-    parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=False, type=int)
+    parser.add_argument("-r", "--repetitions", help="Number of repetitions for multiple trials", required=False, type=int, default=1)
     parser.add_argument("-m", "--metadata", help="A string piece of metadata to include output json", required=False, type=str, default="")
     parser.add_argument("-p", "--preprocessing", help="Preprocessing algorithm to apply before randomized algorithms", required=False, type=str)
     #parser.add_argument("-rs", help="Random seed", required=False, type=int, default=42)

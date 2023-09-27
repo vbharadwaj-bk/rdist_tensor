@@ -1,21 +1,21 @@
 #!/bin/bash
-#SBATCH -N 4
+#SBATCH -N 16
 #SBATCH -C cpu
 #SBATCH -q regular 
-#SBATCH -t 00:04:00
+#SBATCH -t 00:08:00
 
 . env.sh
 
 export OMP_MAX_ACTIVE_LEVELS=1
 export TRIAL_COUNT=1
-export TENSOR=reddit
+export TENSOR=amazon
 export DISTRIBUTION=accumulator_stationary
-export ITERATIONS=80
+export ITERATIONS=40
 export OMP_NUM_THREADS=16
 
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
-export N=4
+export N=16
 
 for RANK in 25 50 75 
 do

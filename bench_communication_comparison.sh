@@ -8,7 +8,6 @@
 
 export OMP_MAX_ACTIVE_LEVELS=1
 export TRIAL_COUNT=1
-export TENSOR=amazon
 export ITERATIONS=20
 export RANK=25
 export OMP_NUM_THREADS=16
@@ -16,10 +15,11 @@ export OMP_NUM_THREADS=16
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
-for N in 1 2 4
+export ALG=sts_cp
+export NODE_COUNT=4
+for TENSOR in amazon 
 do
-    export NODE_COUNT=$N
-    for ALG in cp_arls_lev 
+    for DISTRIBUTION in tensor_stationary accumulator_stationary 
     do
         for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
         do
@@ -28,10 +28,10 @@ do
                         -s 65536 \
                         -iter $ITERATIONS \
                         -alg $ALG \
-                        -dist tensor_stationary \
+                        -dist $DISTRIBUTION \
                         -r $TRIAL_COUNT \
                         -m nnodes_$NODE_COUNT \
-                        -o data/communication_comparison
+                        -o data/strong_scaling
         done
     done
 done

@@ -275,6 +275,7 @@ public:
 
         // Benchmarking region 5: dense reduction
         // Empty
+        MPI_Barrier(MPI_COMM_WORLD);
 
         // Benchmarking region 6: post-processing
         t = start_clock();

@@ -16,7 +16,7 @@ export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
 export ALG=sts_cp
-for NODE_COUNT in 16 8 4 2
+for NODE_COUNT in 4 2
     do
     for TENSOR in amazon patents reddit 
     do

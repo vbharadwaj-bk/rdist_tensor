@@ -2,7 +2,7 @@
 #SBATCH -N 16
 #SBATCH -C cpu
 #SBATCH -q regular 
-#SBATCH -t 01:00:00
+#SBATCH -t 00:30:00
 
 . env.sh
 

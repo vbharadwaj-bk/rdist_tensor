@@ -2,7 +2,7 @@
 #SBATCH -N 16
 #SBATCH -C cpu
 #SBATCH -q regular 
-#SBATCH -t 00:08:00
+#SBATCH -t 01:00:00
 
 TENSOR_LOC=/pscratch/sd/v/vbharadw/tensors
 SPLATT_LOC=/global/cfs/projectdirs/m1982/vbharadw/splatt/build/Linux-x86_64/bin
@@ -11,10 +11,10 @@ TRIAL_COUNT=1
 TOL=1e-8
 MAX_ITER=20
 
-TENSOR=amazon-reviews-spl-binary.bin
-OUT_FILE=outputs/amazon_baseline_4.txt
+TENSOR=patents-spl-binary.bin
+OUT_FILE=outputs/patents_baseline_16.txt
 
-export N=4
+export N=16
 export OMP_NUM_THREADS=8
 
 export CORES_PER_NODE=128

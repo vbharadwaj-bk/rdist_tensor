@@ -134,6 +134,65 @@ public:
     return found_count;
   }
 
+  /*
+  * Here, workspace is a buffer of size 
+  * (num_threads + 2) * output_size 
+  * 
+  */
+  void parallel_sparse_transpose(
+    Buffer<Triple> &in_buf,
+    Buffer<Triple> &out_buf,
+    Buffer<uint64_t> workspace
+  ) {
+      Triple* in = in.ptr;
+      Triple* out = out.ptr;
+
+      int tid = omp_get_thread_num();
+      int thread_count = (int) omp_get_num_threads();
+
+      uint64_t output_size = workspace.shape[1];
+      uint64_t* local_work = workspace(output_size * tid);
+      std::fill(local_work, local_work + output_size, 0);
+
+      #pragma omp for
+      for(uint64_t i = 0; i < in.shape[0]; i++) {
+        local_work[in[i].r]++;
+      }
+
+      uint64_t* sum_workspace = workspace(thread_count * output_size);
+      uint64_t* scan_output = workspace((thread_count + 1) * output_size);
+
+      #pragma omp for
+      for(uint64_t i = 0; i < output_size; i++) {
+        sum_workspace[i] = 0;
+        for(uint64_t j = 0; j < thread_count; j++) {
+          sum_workspace[i] += workspace[j * output_size + i];
+        }
+      }
+
+      // Can turn into a parallel prefix sum later 
+      #pragma omp single
+      {
+        std::exclusive_scan(sum_workspace, sum_workspace + output_size, scan_output, 0); 
+      }
+
+      #pragma omp for
+      for(uint64_t i = 0; i < output_size; i++) {
+        uint64_t accum = i == 0 ? 0 : scan_output[i-1];
+        for(uint64_t j = 0; j < thread_count; j++) {
+          uint64_t temp = workspace[j * output_size + i];
+          workspace[j * output_size + i] = accum;
+          accum += temp;
+        }
+      }
+
+      #pragma omp for
+      for(uint64_t i = 0; i < in.shape[0]; i++) {
+        uint64_t pos = local_work[in[i].r]++;
+        out[pos] = in[i];
+      }
+  }
+
   uint64_t csr_based_spmm(
       Buffer<IDX_T> &indices, 
       Buffer<double> &input,

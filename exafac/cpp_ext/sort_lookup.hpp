@@ -230,7 +230,8 @@ public:
       all_indices[tid_offset + i] = local_indices[i];
     }
 }
- 
+
+    auto t = start_clock();
     std::sort(std::execution::par_unseq, 
         all_indices(),
         all_indices(found_count), 
@@ -242,6 +243,8 @@ public:
             return a.c < b.c;
           }
         });
+    double elapsed = stop_clock_get_elapsed(t);
+    cout << "Elapsed in sort: " << elapsed << endl;
 
     #pragma omp parallel
     {
@@ -265,8 +268,12 @@ public:
         uint64_t input_offset = triple.c * R;
         double value = triple.value;
 
+        double* input_ptr = input(input_offset);
+        double* output_ptr = output(output_offset);
+
+        #pragma omp simd
         for(uint64_t k = 0; k < R; k++) {
-          output[output_offset + k] += input[input_offset + k] * value; 
+          output_ptr[k] += input_ptr[k] * value; 
         }
       }
     }

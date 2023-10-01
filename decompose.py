@@ -169,12 +169,13 @@ if __name__=='__main__':
     remaining_trials = None
     output_filename = None 
     trial_num = None
-
-    if rank == 0 and args.output_folder is not None:
+    
+    if rank == 0:
         print("Loading Python modules...")
         import exafac.cpp_ext.py_module
         print("Modules loaded!")
 
+    if rank == 0 and args.output_folder is not None:
         filename_prefix = '_'.join([args.input, str(args.trank), 
                                     str(args.iter), args.distribution, 
                                     args.algorithm, str(args.samples), 

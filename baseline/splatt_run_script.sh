@@ -2,7 +2,7 @@
 #SBATCH -N 16
 #SBATCH -C cpu
 #SBATCH -q regular 
-#SBATCH -t 01:00:00
+#SBATCH -t 00:20:00
 
 TENSOR_LOC=/pscratch/sd/v/vbharadw/tensors
 SPLATT_LOC=/global/cfs/projectdirs/m1982/vbharadw/splatt/build/Linux-x86_64/bin
@@ -11,8 +11,8 @@ TRIAL_COUNT=1
 TOL=1e-8
 MAX_ITER=20
 
-TENSOR=patents-spl-binary.bin
-OUT_FILE=outputs/patents_baseline_16.txt
+TENSOR=patents-reordered.bin
+OUT_FILE=outputs/patents_baseline_4.txt
 
 export N=16
 export OMP_NUM_THREADS=8

@@ -206,6 +206,13 @@ public:
             mttkrp_res(output_buffer_rows * R), 
             0.0);
 
+
+        /*nonzeros_iterated += ground_truth.lookups[mode_to_leave]->execute_spmm(
+            samples_dedup, 
+            design_matrix,
+            mttkrp_res 
+            );*/
+
         nonzeros_iterated += ground_truth.lookups[mode_to_leave]->csr_based_spmm(
             samples_dedup, 
             design_matrix,

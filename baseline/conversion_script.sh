@@ -1,7 +1,8 @@
-#TENSOR_NAME=amazon-reviews
-#TENSOR_NAME=reddit-2015
-TENSOR_NAME=uber
+TENSOR_NAME=patents-reordered
+
+TENSOR_LOC=/pscratch/sd/v/vbharadw/tensors
+SPLATT_LOC=/global/cfs/projectdirs/m1982/vbharadw/splatt/build/Linux-x86_64/bin
 
 $SPLATT_LOC/splatt convert --type=bin \
-        $RAW_TENSOR_LOC/$TENSOR_NAME.tns \
-        $BIN_TENSOR_LOC/$TENSOR_NAME.bin
+        $TENSOR_LOC/$TENSOR_NAME.tns \
+        $TENSOR_LOC/$TENSOR_NAME.bin

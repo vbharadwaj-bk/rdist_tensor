@@ -1,14 +1,15 @@
 #!/bin/bash
-#SBATCH -N 8
+#SBATCH -N 10
 #SBATCH -C cpu
-#SBATCH -q debug 
+#SBATCH -q regular
 #SBATCH -t 00:30:00
+#SBATCH -A m1982
+#SBATCH --reservation=ipdps_perlmutter
 
 . env.sh
 
 export OMP_MAX_ACTIVE_LEVELS=1
 export TRIAL_COUNT=3
-export TENSOR=amazon
 export DISTRIBUTION=accumulator_stationary
 export ITERATIONS=20
 export OMP_NUM_THREADS=16
@@ -17,9 +18,9 @@ export ALG=sts_cp
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
-for TENSOR in amazon 
+for TENSOR in amazon reddit 
 do
-    for N in 1
+    for N in 3 
     do
         export NODE_COUNT=$N
         for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 

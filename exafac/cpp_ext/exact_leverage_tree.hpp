@@ -539,10 +539,11 @@ void test_distributed_exact_leverage_tree(LowRankTensor &ten,
     Buffer<double> draws({end - start});
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
-    //#pragma omp parallel
+    #pragma omp parallel
     {
         int tid = omp_get_thread_num();
 
+        #pragma omp for
         for(uint64_t i = 0; i < end - start; i++) {
             draws[i] = dist(local_rng.par_gen[tid]);
         }

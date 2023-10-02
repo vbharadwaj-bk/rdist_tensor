@@ -5,8 +5,12 @@
 #SBATCH -t 00:08:00
 
 . env.sh
+export NODE_COUNT=16
 export OMP_NUM_THREADS=16
 export OMP_PLACES=threads
+
+export CORES_PER_NODE=128
+export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
 #python decompose.py -i uber \
 #                    --trank 25 \
@@ -26,12 +30,14 @@ export OMP_PLACES=threads
 #                    -dist accumulator_stationary \
 #                    -p exact
 
-
-srun -N 4 -n 32 -c 32 python decompose.py -i amazon \
-                    --trank 25 \
-                    -iter 40 \
-                    -alg sts_cp \
+TENSOR=nell2
+srun -N $NODE_COUNT -n $((NODE_COUNT * RANKS_PER_NODE)) -c $((OMP_NUM_THREADS * 2)) \
+                    python decompose.py -i $TENSOR \
+                    --trank 75 \
+                    -iter 20 \
+                    -alg cp_arls_lev \
                     -s 65536 \
-                    -dist accumulator_stationary 
+                    -dist tensor_stationary \
+                    #-p exact 
 
 

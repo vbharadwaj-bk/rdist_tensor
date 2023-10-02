@@ -109,10 +109,24 @@ public:
         // Not multithreaded, can thread if this becomes the bottleneck. 
         std::fill(samples_per_process(), samples_per_process(grid.world_size), 0);
 
-        for(uint64_t j = 0; j < J; j++) {
-            uint64_t sample = global_dist(global_rng.par_gen[0]);
-            samples_per_process[sample]++; 
-        }
+        #pragma omp parallel
+        {
+            Buffer<uint64_t> local_samples_per_process({(uint64_t) grid.world_size}); 
+            std::fill(local_samples_per_process(), local_samples_per_process(grid.world_size), 0);
+
+            int tid = omp_get_thread_num();
+            #pragma omp for
+            for(uint64_t j = 0; j < J; j++) {
+                uint64_t sample = global_dist(global_rng.par_gen[tid]);
+
+                local_samples_per_process[sample]++; 
+            }
+
+            for(uint64_t i = 0; i < (uint64_t) grid.world_size; i++) {
+                #pragma omp atomic
+                samples_per_process[i] += local_samples_per_process[i];
+            }
+        } 
 
         uint64_t local_samples = samples_per_process[grid.rank];
 
@@ -123,10 +137,15 @@ public:
 
         uint32_t offset = mat.row_position * mat.padded_rows;
 
-        for(uint64_t i = 0; i < local_samples; i++) {
-            uint32_t sample = local_dist(local_rng.par_gen[0]);
-            sample_idxs_local[i] = offset + sample; 
-            sample_weights_local[i] += log(total_leverage_weight) - log(scores[sample]);
+        #pragma omp parallel
+        {
+            int tid = omp_get_thread_num();
+            #pragma omp for
+            for(uint64_t i = 0; i < local_samples; i++) {
+                uint32_t sample = local_dist(local_rng.par_gen[tid]);
+                sample_idxs_local[i] = offset + sample; 
+                sample_weights_local[i] += log(total_leverage_weight) - log(scores[sample]);
+            }
         }
 
         allgatherv_buffer(sample_idxs_local, sample_idxs, MPI_COMM_WORLD);

@@ -125,7 +125,7 @@ public:
         filtered_samples.initialize_to_shape({local_sample_count, ground_truth.dim});
         filtered_weights.initialize_to_shape({local_sample_count});
 
-        //#pragma omp parallel for
+        #pragma omp parallel for
         for(uint64_t j = 0; j < J; j++) {
             if(belongs_to_proc[j] == 1) {
                 for(uint64_t i = 0; i < ground_truth.dim; i++) {
@@ -154,6 +154,8 @@ public:
         Buffer<double> design_matrix({sample_count_dedup, R});
         std::fill(design_matrix(), design_matrix(sample_count_dedup* R), 1.0);
 
+        #pragma omp parallel
+{
         for(uint64_t i = 0; i < ground_truth.dim; i++) {
             if(i == mode_to_leave) {
                 continue;
@@ -161,7 +163,7 @@ public:
 
             double *factor_data = gathered_factors[i]();
 
-            #pragma omp parallel for
+            #pragma omp for
             for(uint64_t j = 0; j < sample_count_dedup; j++) {
                 uint32_t idx = samples_dedup[j * ground_truth.dim + i];
 
@@ -170,7 +172,9 @@ public:
                 }
             }
         }
+}
 
+        #pragma omp parallel for
         for(uint64_t j = 0; j < sample_count_dedup; j++) {
             for(uint64_t r = 0; r < R; r++) {
                 design_matrix[j * R + r] *= sqrt(weights_dedup[j]);
@@ -223,7 +227,7 @@ public:
 
         spmm_time += stop_clock_get_elapsed(t); 
 
-        MPI_Barrier(MPI_COMM_WORLD);
+        //MPI_Barrier(MPI_COMM_WORLD);
         // Benchmarking region 5: dense reduction
         t = start_clock(); 
 

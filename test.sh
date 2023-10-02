@@ -27,11 +27,11 @@ export OMP_PLACES=threads
 #                    -p exact
 
 
-srun -N 4 -n 32 -c 32 python decompose.py -i patents\
+srun -N 4 -n 32 -c 32 python decompose.py -i amazon \
                     --trank 25 \
-                    -iter 20 \
-                    -alg cp_arls_lev \
+                    -iter 40 \
+                    -alg sts_cp \
                     -s 65536 \
-                    -dist tensor_stationary 
+                    -dist accumulator_stationary 
 
 

@@ -34,7 +34,13 @@ public:
   Buffer<IDX_T*> sort_idxs;
   Multistream_RNG ms_rng;
 
-  SortIdxLookup(int N, int mode_to_leave, IDX_T* idx_ptr, VAL_T* val_ptr, uint64_t nnz) 
+  SortIdxLookup(int N, 
+                int mode_to_leave, 
+                IDX_T* idx_ptr, 
+                VAL_T* val_ptr, 
+                uint64_t nnz,
+                bool reorder
+                ) 
   :
   sort_idxs({nnz}),
   ms_rng()
@@ -61,6 +67,38 @@ public:
             }
             return false;  
         });
+
+    if(reorder) {
+      Buffer<IDX_T> copy_idxs({nnz, (uint64_t) N});
+      Buffer<VAL_T> copy_vals({nnz});
+
+      #pragma omp parallel
+{
+      #pragma omp for
+      for(uint64_t i = 0; i < nnz; i++) {
+        for(uint64_t j = 0; j < (uint64_t) N; j++) {
+          copy_idxs[i * N + j] = sort_idxs[i][j];
+        }
+
+        uint64_t diff = (uint64_t) (sort_idxs[i] - idx_ptr) / N;
+        double value = val_ptr[diff];
+        copy_vals[i] = value;
+      }
+
+      #pragma omp for
+      for(uint64_t i = 0; i < nnz; i++) {
+        for(uint64_t j = 0; j < (uint64_t) N; j++) {
+          idx_ptr[i * N + j] = copy_idxs[i * N + j];
+        }
+        val_ptr[i] = copy_vals[i]; 
+      }
+
+      #pragma omp for 
+      for(uint64_t i = 0; i < nnz; i++) {
+          sort_idxs[i] = idx_ptr + (i * N);
+      }
+} 
+    }
   }
 
   /*
@@ -279,7 +317,7 @@ public:
         }
       }
     }
-    cout << "Time: " << stop_clock_get_elapsed(t) << endl;
+    //cout << "Time: " << stop_clock_get_elapsed(t) << endl;
 
     #pragma omp single
 {

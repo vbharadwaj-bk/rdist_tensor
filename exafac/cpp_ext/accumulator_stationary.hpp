@@ -112,7 +112,7 @@ public:
 
             lookups.emplace_back(
                 make_unique<SortIdxLookup<uint32_t, double>>(
-                    dim, i, indices[i](), values[i](), indices[i].shape[0]
+                    dim, i, indices[i](), values[i](), indices[i].shape[0], true 
                 ));
         }
 
@@ -132,7 +132,7 @@ public:
 
         ground_truth.lookups.emplace_back(
             make_unique<SortIdxLookup<uint32_t, double>>(
-                dim, 0, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
+                dim, 0, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0], false
             )); 
     }
 

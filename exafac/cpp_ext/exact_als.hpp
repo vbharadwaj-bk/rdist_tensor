@@ -70,7 +70,7 @@ public:
         for(uint64_t i = 0; i < dim; i++) {
             ground_truth.lookups.emplace_back(
                 make_unique<SortIdxLookup<uint32_t, double>>(
-                    dim, i, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0]
+                    dim, i, ground_truth.indices(), ground_truth.values(), ground_truth.indices.shape[0], false
                 )); 
         }
     }

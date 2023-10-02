@@ -14,7 +14,7 @@ export OMP_PLACES=threads
 #                    -iter 40 \
 #                    -alg sts_cp \
 #                    -dist accumulator_stationary \
-#                    -r 1 \
+#                    -r 1 #\
 #                    -p exact
                     #-o data/fit_progress_vs_time \
 
@@ -28,7 +28,7 @@ export OMP_PLACES=threads
 
 
 srun -N 4 -n 32 -c 32 python decompose.py -i patents\
-                    --trank 75 \
+                    --trank 25 \
                     -iter 20 \
                     -alg cp_arls_lev \
                     -s 65536 \

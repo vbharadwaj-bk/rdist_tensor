@@ -743,20 +743,47 @@ void compute_DAGAT(double* A, double* G,
             }
         }
     }
-
-    /*cblas_dsymm(
-        CblasRowMajor,
-        CblasRight,
-        CblasUpper,
-        (uint32_t) J,
-        (uint32_t) R,
-        1.0,
-        G,
-        R,
-        A,
-        R,
-        0.0,
-        temp(),
-        R
-    );*/
 }
+
+template<typename T>
+void parallel_exclusive_scan(T* start, T* end, T* out) {
+    int num_threads = omp_get_num_threads();
+    int tid = omp_get_thread_num();
+    uint64_t rangelen = (uint64_t) (end - start);
+
+    uint64_t work = (rangelen + num_threads - 1) / num_threads;
+    uint64_t s_chunk = min(work * tid, rangelen);
+    uint64_t e_chunk = min(work * (tid + 1), rangelen);
+ 
+    T* workspace;
+    T* segment_sums; 
+    #pragma omp single copyprivate(workspace, segment_sums)
+    {
+        workspace = new T[num_threads];
+        segment_sums = new T[num_threads];
+    }
+
+    std::exclusive_scan(start + s_chunk, start + e_chunk, out + s_chunk, 0);
+    if(e_chunk - s_chunk > 0) {
+        workspace[tid] = out[e_chunk - 1] + start[e_chunk - 1]; 
+    }
+
+    #pragma omp barrier
+    std::exclusive_scan(workspace, 
+                        workspace + num_threads, 
+                        segment_sums, (T) 0 
+                        );
+
+    for(uint64_t i = s_chunk; i < e_chunk; i++) {
+        out[i] += segment_sums[tid];
+    }
+
+    #pragma omp barrier
+    #pragma omp single
+    {
+        delete[] workspace;
+        delete[] segment_sums;
+    }
+}
+
+

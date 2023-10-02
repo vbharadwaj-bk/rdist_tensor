@@ -136,16 +136,16 @@ public:
 
   /*
   * Here, workspace is a buffer of size 
-  * (num_threads + 2) * output_size 
+  * (num_threads + 2) * output.shape[0] 
   * 
   */
   void parallel_sparse_transpose(
     Buffer<Triple> &in_buf,
     Buffer<Triple> &out_buf,
-    Buffer<uint64_t> workspace
+    Buffer<uint64_t> &workspace
   ) {
-      Triple* in = in.ptr;
-      Triple* out = out.ptr;
+      Triple* in = in_buf.ptr;
+      Triple* out = out_buf.ptr;
 
       int tid = omp_get_thread_num();
       int thread_count = (int) omp_get_num_threads();
@@ -154,18 +154,22 @@ public:
       uint64_t* local_work = workspace(output_size * tid);
       std::fill(local_work, local_work + output_size, 0);
 
-      #pragma omp for
-      for(uint64_t i = 0; i < in.shape[0]; i++) {
+      uint64_t chunksize = (in_buf.shape[0] + thread_count - 1) / thread_count;
+      uint64_t lb = min(chunksize * tid, in_buf.shape[0]);
+      uint64_t ub = min(chunksize * (tid + 1), in_buf.shape[0]);
+
+      for(uint64_t i = lb; i < ub; i++) {
         local_work[in[i].r]++;
       }
+      #pragma omp barrier
 
-      uint64_t* sum_workspace = workspace(thread_count * output_size);
-      uint64_t* scan_output = workspace((thread_count + 1) * output_size);
+      uint64_t* sum_workspace = workspace((uint64_t) thread_count * output_size);
+      uint64_t* scan_output = workspace((uint64_t) (thread_count + 1) * output_size);
 
       #pragma omp for
       for(uint64_t i = 0; i < output_size; i++) {
         sum_workspace[i] = 0;
-        for(uint64_t j = 0; j < thread_count; j++) {
+        for(uint64_t j = 0; j < (uint64_t) thread_count; j++) {
           sum_workspace[i] += workspace[j * output_size + i];
         }
       }
@@ -173,24 +177,24 @@ public:
       // Can turn into a parallel prefix sum later 
       #pragma omp single
       {
-        std::exclusive_scan(sum_workspace, sum_workspace + output_size, scan_output, 0); 
+        std::exclusive_scan(sum_workspace, sum_workspace + output_size, scan_output, 0);
       }
 
       #pragma omp for
       for(uint64_t i = 0; i < output_size; i++) {
-        uint64_t accum = i == 0 ? 0 : scan_output[i-1];
-        for(uint64_t j = 0; j < thread_count; j++) {
+        uint64_t accum = scan_output[i];
+        for(uint64_t j = 0; j < (uint64_t) thread_count; j++) {
           uint64_t temp = workspace[j * output_size + i];
           workspace[j * output_size + i] = accum;
           accum += temp;
         }
       }
 
-      #pragma omp for
-      for(uint64_t i = 0; i < in.shape[0]; i++) {
+      for(uint64_t i = lb; i < ub; i++) {
         uint64_t pos = local_work[in[i].r]++;
         out[pos] = in[i];
       }
+      #pragma omp barrier
   }
 
   uint64_t csr_based_spmm(
@@ -215,8 +219,10 @@ public:
     uint64_t found_count = 0;
 
     Buffer<Triple> all_indices;
+    Buffer<Triple> sorted_idxs;
     Buffer<uint64_t> thread_sample_counts;
     Buffer<uint64_t> offsets;
+    Buffer<uint64_t> transpose_workspace; 
 
     #pragma omp parallel 
 {
@@ -227,6 +233,7 @@ public:
 {
     thread_sample_counts.initialize_to_shape({thread_count});
     offsets.initialize_to_shape({thread_count+1});
+    transpose_workspace.initialize_to_shape({thread_count + 2, output.shape[0]});
     std::fill(thread_sample_counts(), thread_sample_counts(thread_count), 0);
 }
     vector<Triple> local_indices;
@@ -275,6 +282,7 @@ public:
     #pragma omp single
 {
     all_indices.initialize_to_shape({found_count});
+    sorted_idxs.initialize_to_shape({found_count});
 
     // Prefix sum the thread counts to get the offsets
     std::exclusive_scan(
@@ -288,54 +296,41 @@ public:
     for(uint64_t i = 0; i < local_indices.size(); i++) {
       all_indices[tid_offset + i] = local_indices[i];
     }
-}
 
-    auto t = start_clock();
-    std::sort(std::execution::par_unseq, 
-        all_indices(),
-        all_indices(found_count), 
-        [](Triple a, Triple b) {
-          if(a.r != b.r) {
-            return a.r < b.r;
-          }
-          else {
-            return a.c < b.c;
-          }
-        });
-    double elapsed = stop_clock_get_elapsed(t);
-    cout << "Elapsed in sort: " << elapsed << endl;
+    #pragma omp barrier
 
-    #pragma omp parallel
-    {
-      int tid = omp_get_thread_num();
-      uint64_t thread_count = (uint64_t) omp_get_num_threads();
+    parallel_sparse_transpose(
+      all_indices, 
+      sorted_idxs,
+      transpose_workspace
+    );
 
-      uint64_t chunksize = (found_count + thread_count - 1) / thread_count;
-      uint64_t lb = min(chunksize * tid, found_count);
-      uint64_t ub = min(chunksize * (tid + 1), found_count);
+    uint64_t chunksize = (found_count + thread_count - 1) / thread_count;
+    uint64_t lb = min(chunksize * tid, found_count);
+    uint64_t ub = min(chunksize * (tid + 1), found_count);
 
-      while(lb != 0 &&  lb < found_count && all_indices[lb].r == all_indices[lb-1].r) {
-        lb++;
-      }
-      while(ub < found_count && all_indices[ub].r == all_indices[ub-1].r) {
-        ub++;
-      }
+    while(lb != 0 &&  lb < found_count && sorted_idxs[lb].r == sorted_idxs[lb-1].r) {
+      lb++;
+    }
+    while(ub < found_count && sorted_idxs[ub].r == sorted_idxs[ub-1].r) {
+      ub++;
+    }
 
-      for(uint64_t i = lb; i < ub; i++) {
-        Triple &triple = all_indices[i];
-        uint64_t output_offset = triple.r * R;
-        uint64_t input_offset = triple.c * R;
-        double value = triple.value;
+    for(uint64_t i = lb; i < ub; i++) {
+      Triple &triple = sorted_idxs[i];
+      uint64_t output_offset = triple.r * R;
+      uint64_t input_offset = triple.c * R;
+      double value = triple.value;
 
-        double* input_ptr = input(input_offset);
-        double* output_ptr = output(output_offset);
+      double* input_ptr = input(input_offset);
+      double* output_ptr = output(output_offset);
 
-        #pragma omp simd
-        for(uint64_t k = 0; k < R; k++) {
-          output_ptr[k] += input_ptr[k] * value; 
-        }
+      #pragma omp simd
+      for(uint64_t k = 0; k < R; k++) {
+        output_ptr[k] += input_ptr[k] * value; 
       }
     }
+}
 
     return found_count;
   }
@@ -456,105 +451,6 @@ public:
           #pragma omp atomic 
           mttkrp_res[index[j] * R + u] += partial_prod[u] * tensor_value;
         }
-      }
-}
-  }
-
-  /*
-  * Executes a full randomized range finder algorithm. This is very
-  * similar to the exact MTTKRP update algorithm and the algorithm to
-  * compute the exact norm^2 of residual with a low rank tensor. They should
-  * probably be combined.
-  */
-  void execute_rrf(
-      Buffer<double> &mttkrp_res) {
-
-      uint64_t R = mttkrp_res.shape[1];
-      uint64_t j = mode_to_leave;
-
-      uint64_t nz_processed = 0;
-
-      #pragma omp parallel reduction(+: nz_processed) 
-{
-      int thread_num = omp_get_thread_num();
-      int total_threads = omp_get_num_threads();      
-
-      uint64_t chunksize = (nnz + total_threads - 1) / total_threads;
-      uint64_t lower_bound = min(chunksize * thread_num, nnz);
-      uint64_t upper_bound = min(chunksize * (thread_num + 1), nnz);
-
-      // Update the bounds to fall along fiber boundaries
-      bool continue_loop = true; 
-      while(continue_loop) {
-        if(lower_bound == 0 || lower_bound >= nnz) {
-          continue_loop = false;
-        }
-        else {
-          IDX_T* index = sort_idxs[lower_bound];
-          IDX_T* prev_index = sort_idxs[lower_bound-1];
-          for(uint64_t k = 0; k < (uint64_t) N; k++) {
-            if((k != j) && (index[k] != prev_index[k])) {
-              continue_loop = false;
-            }
-          }
-        }
-        if(continue_loop) {
-          lower_bound++;
-        }
-      }
-
-      continue_loop = true; 
-      while(continue_loop) {
-        if(upper_bound >= nnz) {
-          continue_loop = false;
-        }
-        else {
-          IDX_T* index = sort_idxs[upper_bound - 1];
-          IDX_T* next_index = sort_idxs[upper_bound];
-          for(uint64_t k = 0; k < (uint64_t) N; k++) {
-            if((k != j) && (index[k] != next_index[k])) {
-              continue_loop = false;
-            }
-          }
-        }
-        if(continue_loop) {
-          upper_bound++;
-        }
-      }
-
-      Buffer<double> partial_prod({R});
-      std::normal_distribution<double> std_normal;
-
-      for(uint64_t i = lower_bound; i < upper_bound; i++) {
-        IDX_T* index = sort_idxs[i];
-
-        uint64_t offset = (index - idx_ptr) / N; 
-        bool recompute_partial_prod = false;
-        if(i == lower_bound) {
-          recompute_partial_prod = true;
-        }
-        else {
-          IDX_T* prev_index = sort_idxs[i-1];
-          for(uint64_t k = 0; k < (uint64_t) N; k++) {
-            if((k != j) && (index[k] != prev_index[k])) {
-              recompute_partial_prod = true;
-            }
-          }
-        }
-
-        if(recompute_partial_prod) {
-          for(uint64_t u = 0; u < R; u++) {
-            partial_prod[u] = std_normal(ms_rng.par_gen[thread_num]); 
-          }
-        }
-
-        double tensor_value = val_ptr[offset];
-
-        for(uint64_t u = 0; u < R; u++) {
-          #pragma omp atomic 
-          mttkrp_res[index[j] * R + u] += partial_prod[u] * tensor_value;
-        }
-        nz_processed++;
       }
 }
   }

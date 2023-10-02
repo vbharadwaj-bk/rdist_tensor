@@ -238,6 +238,7 @@ public:
 }
     vector<Triple> local_indices;
 
+    auto t = start_clock();
     #pragma omp for reduction(+:found_count)
     for(uint64_t j = 0; j < J; j++) {
       IDX_T* buf = indices(j * N);
@@ -278,6 +279,7 @@ public:
         }
       }
     }
+    cout << "Time: " << stop_clock_get_elapsed(t) << endl;
 
     #pragma omp single
 {

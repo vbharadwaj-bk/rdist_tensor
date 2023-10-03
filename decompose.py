@@ -43,7 +43,11 @@ def decompose(args, output_filename, trial_num):
         'caida': {
             "path": '/pscratch/sd/v/vbharadw/tensors/caida_medium.hdf5',
             "preprocessing": "log_count"
-        } 
+        },
+        'wikidata': {
+            "path": '/pscratch/sd/v/vbharadw/tensors/wikidata.raw_converted.hdf5',
+            "preprocessing": "none" 
+        },
     }
 
     path = tensors[args.input]['path']

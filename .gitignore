@@ -22,6 +22,7 @@ sparsehash-c11
 libcuckoofilter.a
 GraphBLAS
 oneTBB
+experimental/extract_fb/*
 
 analysis/figures/*
 baseline/outputs/*

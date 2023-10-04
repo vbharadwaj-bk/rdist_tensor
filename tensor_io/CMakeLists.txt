@@ -12,3 +12,4 @@ configure_file(modules.sh modules.sh COPYONLY)
 
 add_executable(process_frostt_tensor process_frostt_tensor.cpp)
 add_executable(process_konect_tensor process_konect_tensor.cpp)
+add_executable(convert_konect_to_tns convert_konect_to_tns.cpp)

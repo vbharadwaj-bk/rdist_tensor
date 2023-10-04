@@ -236,7 +236,6 @@ public:
                 ScratchBuffer eigen_scratch(1, scaled_h.shape[0], R);
 
 
-
                 fill_buffer_random_draws(random_draws(), row_count);
                 int offset = (k + 1 == j) ? k + 2 : k + 1;
                 eigen_trees[k]->PTSample(scaled_eigenvecs[offset], 
@@ -245,7 +244,7 @@ public:
                         samples,
                         random_draws, 
                         eigen_scratch,
-                        k);
+                        j);
 
                 fill_buffer_random_draws(random_draws(), row_count);
                 gram_trees[k]->execute_tree_computation(

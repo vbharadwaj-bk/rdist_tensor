@@ -13,10 +13,10 @@ TRIAL_COUNT=1
 TOL=1e-8
 MAX_ITER=20
 
-TENSOR=wikidata-fixed.tns_1f.tns
+TENSOR=nell-2_log.tns
 #OUT_FILE=outputs/patents_baseline_4.txt
 
-export N=4
+export N=1
 export OMP_NUM_THREADS=16
 
 export CORES_PER_NODE=128

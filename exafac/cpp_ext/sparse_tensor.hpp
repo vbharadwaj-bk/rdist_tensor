@@ -50,6 +50,13 @@ public:
                 tensor_norm += this->values[i] * this->values[i];
             }
         }
+        else if(preprocessing == "ones") {
+            #pragma omp parallel for reduction(+:tensor_norm)
+            for(uint64_t i = 0; i < values.shape[0]; i++) {
+                this->values[i] = 1.0; 
+                tensor_norm += 1.0; 
+            }
+        }
         else {
             #pragma omp parallel for reduction(+:tensor_norm)
             for(uint64_t i = 0; i < values.shape[0]; i++) {

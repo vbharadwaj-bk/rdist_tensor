@@ -302,7 +302,6 @@ public:
         Buffer<double> temp1({scaled_h.shape[0], scaled_h.shape[1]});
         Buffer<uint64_t> send_counts({(uint64_t) world_size});
 
-
         #pragma omp parallel
         {
             #pragma omp for 
@@ -317,6 +316,7 @@ public:
         }
 
         uint64_t n_left = left_sibling_grams.size();
+        double elapsed = 0.0;
 
         for(int level = 0; level < total_levels-1; level++) {
             row_count = scaled_h.shape[0];
@@ -390,22 +390,19 @@ public:
                     uint64_t num_left = left_range.second - left_range.first;
                     uint64_t num_right = right_range.second - right_range.first;
 
-                    #pragma omp single
-                    {
-                    std::exclusive_scan(
-                            branch_left(),
-                            branch_left(row_count),
-                            pfx_sum_left(),
-                            0
-                            );
+                    parallel_exclusive_scan(
+                        branch_left(), 
+                        branch_left(row_count), 
+                        pfx_sum_left());
 
-                    std::exclusive_scan(
+
+                    parallel_exclusive_scan( 
                             branch_right(),
                             branch_right(row_count),
-                            pfx_sum_right(),
-                            0
-                            );
+                            pfx_sum_right());
 
+                    #pragma omp single
+                    {
                     std::fill(send_counts(), send_counts(world_size), 0);
                     }
 
@@ -426,25 +423,20 @@ public:
                         #pragma omp atomic
                         send_counts[target]++; 
                     }
+                } // End this parallel region 
 
-                    #pragma omp single
-                    {
+                auto t = start_clock();
+                Alltoallv_executor exec(target_nodes, send_counts, mat.ordered_world);
+                exec.alltoallv_execute(h, new_h);
+                exec.alltoallv_execute(scaled_h, new_scaled_h);
+                exec.alltoallv_execute(mData, new_mData); 
+                exec.alltoallv_execute(indices, new_indices);
+                elapsed += stop_clock_get_elapsed(t);
 
-                    alltoallv_matrix_rows(h, target_nodes, send_counts, new_h, mat.ordered_world);
-                    alltoallv_matrix_rows(scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
-                    alltoallv_matrix_rows(mData, target_nodes, send_counts, new_mData, mat.ordered_world);
-                    alltoallv_matrix_rows(indices, target_nodes, send_counts, new_indices, mat.ordered_world);
-
-                    h.steal_resources(new_h);
-                    scaled_h.steal_resources(new_scaled_h);
-                    mData.steal_resources(new_mData);
-                    indices.steal_resources(new_indices);
-
-                    /*if(rank == 0) {
-                        cout << end - start << " seconds spent on Alltoallv!" << endl;
-                    }*/
-                    }
-                } // End parallel region
+                h.steal_resources(new_h);
+                scaled_h.steal_resources(new_scaled_h);
+                mData.steal_resources(new_mData);
+                indices.steal_resources(new_indices);
             }
             else {
                 Buffer<double> dummy_h({0, 0});
@@ -457,11 +449,18 @@ public:
                 // Participate in the exchange, but don't send any data and
                 // ignore any received data 
 
-                alltoallv_matrix_rows(dummy_h, target_nodes, send_counts, new_h, mat.ordered_world);
-                alltoallv_matrix_rows(dummy_scaled_h, target_nodes, send_counts, new_scaled_h, mat.ordered_world);
-                alltoallv_matrix_rows(dummy_mData, target_nodes, send_counts, new_mData, mat.ordered_world);
-                alltoallv_matrix_rows(dummy_new_indices, target_nodes, send_counts, new_indices, mat.ordered_world);
+                auto t = start_clock();
+                Alltoallv_executor exec(target_nodes, send_counts, mat.ordered_world);
+                exec.alltoallv_execute(dummy_h, new_h);
+                exec.alltoallv_execute(dummy_scaled_h, new_scaled_h);
+                exec.alltoallv_execute(dummy_mData, new_mData);
+                exec.alltoallv_execute(dummy_new_indices, new_indices);
+                elapsed += stop_clock_get_elapsed(t);
             }
+        }
+
+        if(rank == 0) {
+            cout << "Elapsed: " << elapsed << endl;
         }
 
         if(mat.true_row_count > 0 && scaled_h.shape[0] > 0) {

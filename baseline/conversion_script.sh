@@ -1,4 +1,4 @@
-TENSOR_NAME=patents-reordered
+TENSOR_NAME=wikidata.raw_converted
 
 TENSOR_LOC=/pscratch/sd/v/vbharadw/tensors
 SPLATT_LOC=/global/cfs/projectdirs/m1982/vbharadw/splatt/build/Linux-x86_64/bin

@@ -13,17 +13,17 @@ TRIAL_COUNT=1
 TOL=1e-8
 MAX_ITER=20
 
-TENSOR=nell-2.tns
+TENSOR=wikidata-fixed.tns_1f.tns
 #OUT_FILE=outputs/patents_baseline_4.txt
 
 export N=4
-export OMP_NUM_THREADS=8
+export OMP_NUM_THREADS=16
 
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
 #echo "----" + $(date) + "----" >> $OUT_FILE
-for RANK in 75 
+for RANK in 25 
 do
     for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
     do

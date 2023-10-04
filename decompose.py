@@ -45,8 +45,8 @@ def decompose(args, output_filename, trial_num):
             "preprocessing": "log_count"
         },
         'wikidata': {
-            "path": '/pscratch/sd/v/vbharadw/tensors/wikidata.raw_converted.hdf5',
-            "preprocessing": "none" 
+            "path": '/pscratch/sd/v/vbharadw/tensors/wikidata-fixed.tns_converted.hdf5',
+            "preprocessing": "ones" 
         },
     }
 

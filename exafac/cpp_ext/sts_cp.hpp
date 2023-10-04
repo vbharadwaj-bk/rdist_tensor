@@ -210,6 +210,7 @@ public:
         MPI_Comm_size(MPI_COMM_WORLD, &world_size);
         MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+        auto t = start_clock();
         uint64_t work = (J + world_size - 1) / world_size; 
         uint64_t start = min(work * rank, J);
         uint64_t end = min(work * (rank + 1), J);
@@ -220,6 +221,8 @@ public:
 
         // Samples is an array of size N x J 
         computeM(j);
+
+        double elapsed = 0.0;
         std::fill(h(), h({end - start}, 0), 1.0);
 
         for(uint32_t k = 0; k < N; k++) {
@@ -231,6 +234,8 @@ public:
 
                 Buffer<double> random_draws({row_count});
                 ScratchBuffer eigen_scratch(1, scaled_h.shape[0], R);
+
+
 
                 fill_buffer_random_draws(random_draws(), row_count);
                 int offset = (k + 1 == j) ? k + 2 : k + 1;
@@ -266,7 +271,6 @@ public:
             }
         }
 
-
         weights.initialize_to_shape({h.shape[0]});
 
         // Compute the weights associated with the samples
@@ -289,6 +293,11 @@ public:
         samples.steal_resources(gathered_samples);
         weights.steal_resources(gathered_weights);
 
+        elapsed += stop_clock_get_elapsed(t);
+
+        if(rank == 0) {
+            cout << "ELAPSED OUTER: " << elapsed << endl;
+        }
     }
 
     ~STS_CP() {

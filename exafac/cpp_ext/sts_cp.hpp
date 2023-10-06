@@ -294,9 +294,9 @@ public:
 
         elapsed += stop_clock_get_elapsed(t);
 
-        if(rank == 0) {
-            cout << "ELAPSED OUTER: " << elapsed << endl;
-        }
+        //if(rank == 0) {
+            //cout << "ELAPSED OUTER: " << elapsed << endl;
+        //}
     }
 
     ~STS_CP() {

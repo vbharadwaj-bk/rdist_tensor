@@ -3,8 +3,8 @@
 export TRIAL_COUNT=5
 export OMP_NUM_THREADS=16
 
-export TENSOR=reddit
-export ITERATIONS=80
+export TENSOR=patents
+export ITERATIONS=40
 
 for ALG in cp_arls_lev sts_cp
 do

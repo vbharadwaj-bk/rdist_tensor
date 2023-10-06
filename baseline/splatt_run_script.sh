@@ -1,29 +1,28 @@
 #!/bin/bash
-#SBATCH -N 16
+#SBATCH -N 4
 #SBATCH -C cpu
 #SBATCH -q regular 
-#SBATCH -t 01:00:00
+#SBATCH -t 03:00:00
 #SBATCH -A m1982
-#SBATCH --reservation=ipdps_perlmutter
 
 TENSOR_LOC=/pscratch/sd/v/vbharadw/tensors
 SPLATT_LOC=/global/cfs/projectdirs/m1982/vbharadw/splatt/build/Linux-x86_64/bin
 
-TRIAL_COUNT=1
+TRIAL_COUNT=4
 TOL=1e-8
-MAX_ITER=20
+MAX_ITER=40
 
-TENSOR=nell-2_log.tns
-#OUT_FILE=outputs/patents_baseline_4.txt
+TENSOR=patents-reordered.bin
+OUT_FILE=outputs/patents_accuracy.txt
 
-export N=1
-export OMP_NUM_THREADS=16
+export N=4
+export OMP_NUM_THREADS=8
 
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
-#echo "----" + $(date) + "----" >> $OUT_FILE
-for RANK in 25 
+echo "----" + $(date) + "----" >> $OUT_FILE
+for RANK in 50 
 do
     for (( trial=1; trial<=$TRIAL_COUNT; trial++ )) 
     do
@@ -33,6 +32,6 @@ do
                 -u $SPLATT_LOC/splatt cpd \
                 $TENSOR_LOC/$TENSOR -r $RANK \
                 --nowrite -i $MAX_ITER \
-                --tol $TOL #>> $OUT_FILE
+                --tol $TOL >> $OUT_FILE
     done
 done

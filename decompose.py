@@ -34,7 +34,7 @@ def decompose(args, output_filename, trial_num):
         },
         'amazon': {
             "path": '/pscratch/sd/v/vbharadw/tensors/amazon-reviews.tns_converted.hdf5',
-            "preprocessing": "log_count" 
+            "preprocessing": "none" 
         },
         'reddit': {
             "path": '/pscratch/sd/v/vbharadw/tensors/reddit-2015.tns_converted.hdf5',

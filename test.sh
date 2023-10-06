@@ -30,13 +30,13 @@ export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 #                    -dist accumulator_stationary \
 #                    -p exact
 
-TENSOR=amazon
+TENSOR=reddit
 srun -N $NODE_COUNT -n $((NODE_COUNT * RANKS_PER_NODE)) -c $((OMP_NUM_THREADS * 2)) \
                     python decompose.py -i $TENSOR \
-                    --trank 75 \
-                    -iter 40 \
+                    --trank 25 \
+                    -iter 10 \
                     -alg sts_cp \
-                    -s 300000 \
+                    -s 65536 \
                     -dist accumulator_stationary #\
                     #-p exact 
 

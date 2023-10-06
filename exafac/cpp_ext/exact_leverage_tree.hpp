@@ -460,7 +460,7 @@ public:
         }
 
         if(rank == 0) {
-            cout << "Elapsed: " << elapsed << endl;
+            //cout << "Elapsed: " << elapsed << endl;
         }
 
         if(mat.true_row_count > 0 && scaled_h.shape[0] > 0) {

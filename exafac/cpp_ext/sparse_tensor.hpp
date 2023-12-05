@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <random>
 
 #include "sort_lookup.hpp"
 #include "common.h"
@@ -90,6 +91,52 @@ public:
                 indices[i * dim + j] = perms[j][indices[i * dim + j]];
             }
         }
+    }
+
+    /*
+    * Generates a random sparse tensor. Currently only works
+    * for 3D synthetic tensors, but could be extended further. 
+    */
+    SparseTensor(
+        TensorGrid &tensor_grid,
+        uint64_t I,
+        uint64_t N,
+        uint64_t Q) :
+            tensor_grid(tensor_grid),
+            preprocessing(preprocessing),
+            dim(tensor_grid.dim),
+            offsets({N}) 
+            {
+        if(N != 3) {
+            cout << "Error, dimension must be 3." << endl;
+            exit(1);
+        }
+
+        // bl[i][j] is a list that tells you that factor matrix 
+        // i has basis vector j in all rows.
+        
+        vector<vector<vector<int>>> bl; 
+        for(int i = 0; i < N; i++) {
+            bl[i].emplace_back();
+            for(int j = 0; j < Q; j++) {
+                bl[i][j].emplace_back();
+            }
+        }
+
+        Consistent_Multistream_RNG par_gen(tensor_grid.grid.world);
+        std::uniform_int_distribution<int> dist(0, Q - 1);
+
+        for(uint64_t i = 0; i < N; i++) {
+            for(uint64_t k = 0; k < I; k++) {
+                uint64_t j = dist(par_gen[0]);
+                bl[i][j].emplace_back(k);
+            }
+        } 
+
+        // After generating the lists, each rank will be responsible
+        // for a (1 / P)-fraction of the columns.
+        cout << "Generated random lists!" << endl;
+
     }
 
     void check_tensor_invariants() {

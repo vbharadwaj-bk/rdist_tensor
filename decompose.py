@@ -10,7 +10,7 @@ def decompose(args, output_filename, trial_num):
         DistMat1D, LowRankTensor, ExactALS, \
         AccumulatorStationary, \
         TensorStationary, CP_ARLS_LEV, STS_CP
-    from exafac.sparse_tensor_e import DistSparseTensorE
+    from exafac.sparse_tensor_e import DistSparseTensorE, RandomSparseTensor
 
     grid = None 
     rank = MPI.COMM_WORLD.Get_rank()
@@ -50,8 +50,13 @@ def decompose(args, output_filename, trial_num):
         },
     }
 
-    path = tensors[args.input]['path']
-    sparse_tensor = DistSparseTensorE(path, grid, preprocessing=tensors[args.input]['preprocessing']) 
+    if args.input.startswith("random"):
+        sparse_tensor = RandomSparseTensor(path, I=1000, N=3, Q=10, grid) 
+    else:
+        path = tensors[args.input]['path']
+        sparse_tensor = DistSparseTensorE(path, grid, preprocessing=tensors[args.input]['preprocessing']) 
+
+
     low_rank_tensor = LowRankTensor(args.trank, sparse_tensor.tensor_grid)    
     low_rank_tensor.initialize_factors_gaussian_random()
 

@@ -117,3 +117,46 @@ class DistSparseTensorE:
             print("Finished constructing sparse tensor...")
 
 
+class RandomSparseTensor: 
+    def __init__(self, I, N, Q, grid):
+        world_comm = MPI.COMM_WORLD
+        self.world_size = world_comm.Get_size()
+        self.rank = world_comm.Get_rank()
+
+        self.max_idxs = [I-1] * N 
+        self.min_idxs = [0] * N 
+        self.dim = N 
+        self.tensor_dims = np.array(self.max_idxs - self.min_idxs + 1, dtype=np.int32)
+        self.grid = grid
+
+        if self.grid is None:
+            optimal_grid_dims = get_best_mpi_dim(self.world_size, self.tensor_dims)
+
+            if self.rank == 0:
+                print(f"Optimal grid dimensions: {optimal_grid_dims}")
+
+            self.grid = Grid(optimal_grid_dims)
+
+        self.tensor_grid = TensorGrid(self.tensor_dims, self.grid)
+
+        if self.grid.get_dimension() != self.dim:
+            raise ValueError("Grid dimension must match tensor dimension")
+
+        if self.rank == 0:
+            print("Generating random sparse tensor...")
+
+        self.sparse_tensor = SparseTensor(
+                self.tensor_grid,
+                I,
+                N,
+                Q) 
+  
+        self.nnz = None 
+
+        MPI.COMM_WORLD.Barrier()
+        if self.rank == 0:
+            print("Finished generating random sparse tensor...")
+
+        exit(1)
+
+

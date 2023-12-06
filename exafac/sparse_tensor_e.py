@@ -118,13 +118,13 @@ class DistSparseTensorE:
 
 
 class RandomSparseTensor: 
-    def __init__(self, I, N, Q, grid):
+    def __init__(self, grid, I, N, Q):
         world_comm = MPI.COMM_WORLD
         self.world_size = world_comm.Get_size()
         self.rank = world_comm.Get_rank()
 
-        self.max_idxs = [I-1] * N 
-        self.min_idxs = [0] * N 
+        self.max_idxs = np.array([I-1] * N, dtype=np.int32)
+        self.min_idxs = np.array([0] * N, dtype=np.int32) 
         self.dim = N 
         self.tensor_dims = np.array(self.max_idxs - self.min_idxs + 1, dtype=np.int32)
         self.grid = grid

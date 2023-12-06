@@ -51,7 +51,7 @@ def decompose(args, output_filename, trial_num):
     }
 
     if args.input.startswith("random"):
-        sparse_tensor = RandomSparseTensor(path, I=1000, N=3, Q=10, grid) 
+        sparse_tensor = RandomSparseTensor(grid, I=1000, N=3, Q=10) 
     else:
         path = tensors[args.input]['path']
         sparse_tensor = DistSparseTensorE(path, grid, preprocessing=tensors[args.input]['preprocessing']) 

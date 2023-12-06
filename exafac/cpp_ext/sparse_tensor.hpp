@@ -103,7 +103,7 @@ public:
         uint64_t N,
         uint64_t Q) :
             tensor_grid(tensor_grid),
-            preprocessing(preprocessing),
+            preprocessing("none"),
             dim(tensor_grid.dim),
             offsets({N}) 
             {
@@ -114,21 +114,22 @@ public:
 
         // bl[i][j] is a list that tells you that factor matrix 
         // i has basis vector j in all rows.
+
         
         vector<vector<vector<int>>> bl; 
-        for(int i = 0; i < N; i++) {
-            bl[i].emplace_back();
-            for(int j = 0; j < Q; j++) {
-                bl[i][j].emplace_back();
+        for(uint64_t i = 0; i < N; i++) {
+            bl.emplace_back();
+            for(uint64_t j = 0; j < Q; j++) {
+                bl[i].emplace_back();
             }
         }
 
-        Consistent_Multistream_RNG par_gen(tensor_grid.grid.world);
+        Consistent_Multistream_RNG gen(tensor_grid.grid.world);
         std::uniform_int_distribution<int> dist(0, Q - 1);
 
         for(uint64_t i = 0; i < N; i++) {
             for(uint64_t k = 0; k < I; k++) {
-                uint64_t j = dist(par_gen[0]);
+                uint64_t j = dist(gen.par_gen[0]);
                 bl[i][j].emplace_back(k);
             }
         } 
@@ -136,6 +137,7 @@ public:
         // After generating the lists, each rank will be responsible
         // for a (1 / P)-fraction of the columns.
         cout << "Generated random lists!" << endl;
+        //int local_fraction = divide_and_roundup((uint32_t) , uint32_t m) {
 
     }
 

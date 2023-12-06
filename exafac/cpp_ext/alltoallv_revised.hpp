@@ -14,7 +14,7 @@ void alltoallv_matrix_rows(
         Buffer<VAL_T> &recv_buffer,
         MPI_Comm &world
         ) {
-    auto t = start_clock();
+    //auto t = start_clock();
     int rank, world_size_i;
     uint64_t world_size;
     MPI_Comm_rank(world, &rank);

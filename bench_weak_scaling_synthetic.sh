@@ -12,9 +12,13 @@ export ALG=sts_cp
 export ITERATIONS=20
 export DISTRIBUTION=accumulator_stationary
 export TRIAL_COUNT=1
-export TENSOR="
+export TENSOR="random"
 
-srun -N $NODE_COUNT -n $((NODE_COUNT * RANKS_PER_NODE)) -c $((OMP_NUM_THREADS * 2)) python decompose.py \
+#srun -N $NODE_COUNT -n $((NODE_COUNT * RANKS_PER_NODE)) -c $((OMP_NUM_THREADS * 2)) python decompose.py \
+
+# For local testing only!
+export OMP_NUM_THREADS=1
+srun -np 1 python decompose.py \
             -i $TENSOR \
             --trank 16 \
             -s 65536 \

@@ -107,7 +107,7 @@ public:
             tensor_grid(tensor_grid),
             preprocessing("none"),
             dim(tensor_grid.dim),
-            offsets({N}) 
+            offsets({dim}) 
             {
         if(N != 3) {
             cout << "Error, dimension must be 3." << endl;
@@ -162,7 +162,7 @@ public:
         indices.initialize_to_shape({local_nnz, N});
         values.initialize_to_shape({local_nnz});
 
-        double tensor_norm = 0.0;
+        tensor_norm = 0.0;
         #pragma omp parallel for reduction(+: tensor_norm)
         for(uint64_t j = col_start; j < col_end; j++) {
             uint64_t pos = nonzeros_prefix_sum[j - col_start];

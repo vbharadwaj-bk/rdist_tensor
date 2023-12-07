@@ -8,7 +8,7 @@
 export NODE_COUNT=1
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 export OMP_NUM_THREADS=16
-export ALG=sts_cp
+export ALG=exact
 export ITERATIONS=20
 export DISTRIBUTION=accumulator_stationary
 export TRIAL_COUNT=1
@@ -20,8 +20,8 @@ export TENSOR="random"
 export OMP_NUM_THREADS=1
 srun -np 1 python decompose.py \
             -i $TENSOR \
-            --trank 5 \
-            -s 65536 \
+            --trank 10 \
+            -s 100000 \
             -iter $ITERATIONS \
             -alg $ALG \
             -dist $DISTRIBUTION \

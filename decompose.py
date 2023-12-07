@@ -17,7 +17,8 @@ def decompose(args, output_filename, trial_num):
 
     tensors = {
         'uber': {
-            "path": '/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5',
+            "path": 'tensors/uber.tns_converted.hdf5',
+            #"path": '/pscratch/sd/v/vbharadw/tensors/uber.tns_converted.hdf5',
             "preprocessing": "none"
         },
         'patents': {

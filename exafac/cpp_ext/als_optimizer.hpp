@@ -206,7 +206,8 @@ public:
     }
 
     double compute_exact_fit() {
-        return max(ground_truth.compute_exact_fit(low_rank_tensor), 0.0);
+        //return max(ground_truth.compute_exact_fit(low_rank_tensor), 0.0);
+        return ground_truth.compute_exact_fit(low_rank_tensor);
     }
 
     virtual void execute_ALS_step(uint64_t mode, uint64_t J) = 0;

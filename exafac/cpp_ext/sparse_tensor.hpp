@@ -3,6 +3,8 @@
 #include <iostream>
 #include <string>
 #include <random>
+#include <cmath>
+#include <numeric>
 
 #include "sort_lookup.hpp"
 #include "common.h"
@@ -115,7 +117,6 @@ public:
         // bl[i][j] is a list that tells you that factor matrix 
         // i has basis vector j in all rows.
 
-        
         vector<vector<vector<int>>> bl; 
         for(uint64_t i = 0; i < N; i++) {
             bl.emplace_back();
@@ -124,21 +125,93 @@ public:
             }
         }
 
-        Consistent_Multistream_RNG gen(tensor_grid.grid.world);
+        Consistent_Multistream_RNG seed_gen(tensor_grid.grid.world);
         std::uniform_int_distribution<int> dist(0, Q - 1);
 
         for(uint64_t i = 0; i < N; i++) {
             for(uint64_t k = 0; k < I; k++) {
-                uint64_t j = dist(gen.par_gen[0]);
+                uint64_t j = dist(seed_gen.par_gen[0]);
                 bl[i][j].emplace_back(k);
             }
-        } 
+        }
 
-        // After generating the lists, each rank will be responsible
-        // for a (1 / P)-fraction of the columns.
-        cout << "Generated random lists!" << endl;
-        //int local_fraction = divide_and_roundup((uint32_t) , uint32_t m) {
+        uint64_t proc_count = tensor_grid.grid.world_size;
+        uint64_t column_frac = (Q + proc_count - 1) / proc_count;
 
+        int rank = tensor_grid.rank;
+        uint64_t col_start = min(rank * column_frac, Q);
+        uint64_t col_end = min((rank + 1) * column_frac, Q);
+
+        uint64_t local_nnz = 0;   
+        uint64_t total_nnz = 0;
+
+        Buffer<uint32_t> nonzeros_per_col({col_end - col_start});
+        Buffer<uint32_t> nonzeros_prefix_sum({col_end - col_start});
+        for(uint64_t j = col_start; j < col_end; j++) {
+            uint64_t prod = 1;
+            for(uint64_t i = 0; i < N; i++) {
+                prod *= bl[i][j].size();
+            }
+            local_nnz += prod;
+            nonzeros_per_col[j - col_start] = prod;
+        }
+
+        std::exclusive_scan(nonzeros_per_col(), nonzeros_per_col(col_end - col_start), nonzeros_prefix_sum(), 0);
+        MPI_Allreduce(&local_nnz, &total_nnz, 1, MPI_UINT64_T, MPI_SUM, MPI_COMM_WORLD);
+
+        indices.initialize_to_shape({local_nnz, N});
+        values.initialize_to_shape({local_nnz});
+
+        double tensor_norm = 0.0;
+        #pragma omp parallel for reduction(+: tensor_norm)
+        for(uint64_t j = col_start; j < col_end; j++) {
+            uint64_t pos = nonzeros_prefix_sum[j - col_start];
+            for(uint64_t u = 0; u < bl[0][j].size(); u++) {
+                for(uint64_t v = 0; v < bl[1][j].size(); v++) {
+                    for(uint64_t w = 0; w < bl[2][j].size(); w++) {
+                        indices[pos * N + 0] = bl[0][j][u];
+                        indices[pos * N + 1] = bl[1][j][v];
+                        indices[pos * N + 2] = bl[2][j][w];
+                        values[pos] = 1;
+                        tensor_norm += values[pos] * values[pos];
+                        pos++;
+                    }
+                }
+            }
+        }
+
+        if(rank == 0) {
+            double expected_nonzeros = pow(I, N) / pow(Q, N-1);
+            cout << "Expected Nonzero Count: " << expected_nonzeros << endl;
+            cout << "True Nonzero Count: " << total_nnz << endl;
+        }
+
+        MPI_Allreduce(MPI_IN_PLACE, &tensor_norm, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+        tensor_norm = sqrt(tensor_norm);
+        if(tensor_grid.rank == 0) {
+            cout << "Tensor norm is " << tensor_norm << endl;
+        }
+
+        Consistent_Multistream_RNG gen(tensor_grid.grid.world);
+
+        // Compute load-balancing permutations 
+        for(uint64_t i = 0; i < dim; i++) {
+            uint64_t mode_size = tensor_grid.tensor_dims[i];
+            perms.emplace_back(
+                Buffer<uint32_t>({mode_size})
+            );
+
+            std::iota(perms[i](), perms[i](mode_size), 0);
+            std::shuffle(perms[i](), perms[i](mode_size), gen.par_gen[0]);
+        }
+
+        // Apply load-balancing permutations
+        #pragma omp parallel for 
+        for(uint64_t i = 0; i < values.shape[0]; i++) {
+            for(uint64_t j = 0; j < dim; j++) {
+                indices[i * dim + j] = perms[j][indices[i * dim + j]];
+            }
+        }
     }
 
     void check_tensor_invariants() {

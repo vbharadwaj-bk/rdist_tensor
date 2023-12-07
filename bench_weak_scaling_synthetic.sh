@@ -20,7 +20,7 @@ export TENSOR="random"
 export OMP_NUM_THREADS=1
 srun -np 1 python decompose.py \
             -i $TENSOR \
-            --trank 16 \
+            --trank 5 \
             -s 65536 \
             -iter $ITERATIONS \
             -alg $ALG \

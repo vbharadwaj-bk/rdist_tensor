@@ -35,3 +35,4 @@ slurm_traces/*
 
 config.json
 env.sh
+.DS_Store

@@ -8,7 +8,7 @@
 export NODE_COUNT=1
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 export OMP_NUM_THREADS=16
-export ALG=exact
+export ALG=sts_cp
 export ITERATIONS=20
 export DISTRIBUTION=accumulator_stationary
 export TRIAL_COUNT=1
@@ -18,13 +18,13 @@ export TENSOR="random"
 
 # For local testing only!
 export OMP_NUM_THREADS=1
-srun -np 1 python decompose.py \
+srun -np 8 python decompose.py \
             -i $TENSOR \
-            --trank 10 \
-            -s 100000 \
+            --trank 1 \
+            -s 65536 \
             -iter $ITERATIONS \
             -alg $ALG \
             -dist $DISTRIBUTION \
             -r $TRIAL_COUNT \
             -m nnodes_$NODE_COUNT \
-            -o data/weak_scaling_synthetic
+            #-o data/weak_scaling_synthetic

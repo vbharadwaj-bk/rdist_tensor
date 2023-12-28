@@ -12,7 +12,7 @@ export OMP_PLACES=threads
 export CORES_PER_NODE=128
 export RANKS_PER_NODE=$((CORES_PER_NODE / OMP_NUM_THREADS))
 
-python decompose.py -i uber \
+srun -np 3 python decompose.py -i uber \
                     --trank 5 \
                     -s 65000 \
                     -iter 40 \

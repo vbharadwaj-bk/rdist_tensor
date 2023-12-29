@@ -182,7 +182,7 @@ public:
 
         if(rank == 0) {
             double expected_nonzeros = pow(I, N) / pow(Q, N-1);
-            cout << "Expected Nonzero Count: " << expected_nonzeros << endl;
+            cout << "Expected nonzero Count: " << expected_nonzeros << endl;
             cout << "True Nonzero Count: " << total_nnz << endl;
         }
 

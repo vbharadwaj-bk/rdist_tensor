@@ -135,12 +135,6 @@ public:
             }
         }
 
-<<<<<<< HEAD
-        // After generating the lists, each rank will be responsible
-        // for a (1 / P)-fraction of the columns.
-        //cout << "Generated random lists!" << endl;
-        //int local_fraction = divide_and_roundup((uint32_t) , uint32_t m)
-=======
         uint64_t proc_count = tensor_grid.grid.world_size;
         uint64_t column_frac = (Q + proc_count - 1) / proc_count;
 
@@ -218,7 +212,6 @@ public:
                 indices[i * dim + j] = perms[j][indices[i * dim + j]];
             }
         }
->>>>>>> b2c0bf7274a6f848c145e656f6a8c080dfdf053c
     }
 
     void check_tensor_invariants() {

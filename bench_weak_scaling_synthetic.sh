@@ -18,13 +18,17 @@ export TENSOR="random"
 
 # For local testing only!
 export OMP_NUM_THREADS=1
+<<<<<<< HEAD
 srun -n 128 python decompose.py \
+=======
+srun -np 8 python decompose.py \
+>>>>>>> b2c0bf7274a6f848c145e656f6a8c080dfdf053c
             -i $TENSOR \
-            --trank 16 \
+            --trank 1 \
             -s 65536 \
             -iter $ITERATIONS \
             -alg $ALG \
             -dist $DISTRIBUTION \
             -r $TRIAL_COUNT \
             -m nnodes_$NODE_COUNT \
-            -o data/weak_scaling_synthetic
+            #-o data/weak_scaling_synthetic

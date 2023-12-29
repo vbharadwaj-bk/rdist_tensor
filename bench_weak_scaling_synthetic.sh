@@ -18,7 +18,7 @@ export TENSOR="random"
 
 # For local testing only!
 export OMP_NUM_THREADS=1
-srun -np 1 python decompose.py \
+srun -n 128 python decompose.py \
             -i $TENSOR \
             --trank 16 \
             -s 65536 \

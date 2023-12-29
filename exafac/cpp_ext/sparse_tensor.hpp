@@ -136,9 +136,8 @@ public:
 
         // After generating the lists, each rank will be responsible
         // for a (1 / P)-fraction of the columns.
-        cout << "Generated random lists!" << endl;
-        //int local_fraction = divide_and_roundup((uint32_t) , uint32_t m) {
-
+        //cout << "Generated random lists!" << endl;
+        //int local_fraction = divide_and_roundup((uint32_t) , uint32_t m)
     }
 
     void check_tensor_invariants() {
